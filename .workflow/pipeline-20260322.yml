@@ -1,0 +1,27 @@
+# 备选：Shell + 自有构建机（shell@agent），需配置主机组并通常需开启「克隆代码」
+# 与 pipeline-20260322.yml 二选一。
+
+version: '1.0'
+name: pipeline-20260322-shell
+displayName: pipeline-20260322-shell
+triggers:
+  trigger: auto
+  push:
+    branches:
+      prefix:
+        - ''
+
+stages:
+  - stage:
+    name: test
+    displayName: 测试
+    steps:
+      - step: shell@agent
+        name: run_ci_sh
+        displayName: bash scripts/ci.sh
+        hostGroupID: gitee-go
+        script: |
+          set -e
+          pwd
+          ls -la
+          bash scripts/ci.sh
