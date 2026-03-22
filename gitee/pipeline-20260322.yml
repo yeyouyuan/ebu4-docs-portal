@@ -1,0 +1,26 @@
+# Gitee 流水线「代码视图」示例（与仓库内 .workflow/*.yml 结构一致）
+# monorepo：在 ebu4-site/ 下执行 npm ci && npm test
+#
+# 若保存时提示 step 无效：在「可视化」里添加「Nodejs 构建」任务，填命令后再切回代码视图，用平台生成的 step 名称替换 build@nodejs。
+
+version: '1.0'
+name: pipeline-20260322
+displayName: pipeline-20260322
+triggers:
+  trigger: auto
+  push:
+    branches:
+      prefix:
+        - ''
+
+stages:
+  - stage:
+    name: test
+    displayName: 测试
+    steps:
+      - step: build@nodejs
+        name: ebu4_site_npm_test
+        displayName: ebu4-site · npm ci && npm test
+        nodeVersion: '20'
+        commands:
+          - cd ebu4-site && npm ci && npm test

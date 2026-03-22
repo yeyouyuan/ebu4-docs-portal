@@ -18,7 +18,9 @@ npm start
 ## 持续集成（CI）
 
 - **GitHub**：`.github/workflows/ci.yml` 仅在代码托管在 **GitHub** 时由 GitHub Actions 执行（`push` / `PR` 至 `main` / `master`，亦可在 Actions 里 **Run workflow** 手动触发）。任务等价于在 `ebu4-site/` 下执行 `npm ci && npm test`。
-- **仅使用 Gitee**：不会运行上述 GitHub Actions（Gitee 与 GitHub 为不同平台）。可在本机或 Gitee 企业版流水线中执行与 CI 相同命令，或直接运行仓库根目录脚本：
+- **仅使用 Gitee**：不会运行上述 GitHub Actions。需要在 Gitee **流水线 → 代码视图** 里配置 **`stages`（阶段）和 `steps`（任务）**；仅有 `triggers` 时不会执行任何构建命令。可参考仓库内示例 **[`gitee/pipeline-20260322.yml`](gitee/pipeline-20260322.yml)**（结构与 [`.workflow/master-pipeline.yml`](.workflow/master-pipeline.yml) 相同：`- stage:` + `build@nodejs`），将其中命令粘贴或合并到你的流水线 YAML。若无云构建 Node 插件，可改用 **[`gitee/pipeline-shell-host.example.yml`](gitee/pipeline-shell-host.example.yml)**（自备主机组 `shell@agent`）。
+
+本地与 CI 等价命令：
 
 ```bash
 bash scripts/ci.sh
