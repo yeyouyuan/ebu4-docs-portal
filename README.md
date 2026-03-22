@@ -1,5 +1,7 @@
 # 项目根目录
 
+本目录 **`ebu7-complete`** 为 **Git 仓库根**（已包含 `ebu4-site/`、`ebu4-docs.md`、配图与 `.github/workflows`）。日常在根目录执行 `git add` / `git commit` / `git push` 即可推送整包。
+
 网站与 Node 服务在 **`ebu4-site/`** 子目录（`package.json`、`npm start` 均在此）。
 
 在**本目录**也可启动：
