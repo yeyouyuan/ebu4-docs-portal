@@ -4,6 +4,10 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SITE="$ROOT/ebu4-site"
+
+# Gitee / 部分 Linux CI 无 Python，better-sqlite3 会走 node-gyp 编译并失败
+bash "$ROOT/scripts/ensure-node-gyp-deps.sh"
+
 cd "$SITE"
 
 echo "==> $(node -v) · $(pwd)"

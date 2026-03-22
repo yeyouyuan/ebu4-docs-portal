@@ -1,5 +1,7 @@
 # Gitee 流水线：测试 + 产出部署目录 dist/（可与「上传制品」任务衔接）
 # monorepo：命令在仓库根执行；制品路径为 ./dist（相对代码库根目录）
+# better-sqlite3 若需源码编译，镜像须含 Python3；package-prod.sh 会在 root+apt 下自动 apt 安装
+# 建议 Node 与仓库一致（如 20.x）；若插件仅提供 18.x，ensure-node-gyp-deps.sh 仍会装 Python 以便编译
 
 version: '1.0'
 name: pipeline-20260322
