@@ -1,27 +1,26 @@
-# 备选：Shell + 自有构建机（shell@agent），需配置主机组并通常需开启「克隆代码」
-# 与 pipeline-20260322.yml 二选一。
-
 version: '1.0'
-name: pipeline-20260322-shell
-displayName: pipeline-20260322-shell
+name: pipeline-20260322
+displayName: pipeline-20260322
 triggers:
   trigger: auto
   push:
     branches:
       prefix:
         - ''
-
 stages:
-  - stage:
-    name: test
-    displayName: 测试
+  - name: build
+    displayName: 构建与打包
+    strategy: naturally
+    trigger: auto
     steps:
-      - step: shell@agent
-        name: run_ci_sh
-        displayName: bash scripts/ci.sh
-        hostGroupID: gitee-go
-        script: |
-          set -e
-          pwd
-          ls -la
-          bash scripts/ci.sh
+      - step: build@nodejs
+        name: ebu4_site_pack
+        displayName: ebu4-site
+        nodeVersion: 18.16.0
+        commands:
+          - bash scripts/package-prod.sh
+        artifacts:
+          - name: EBU4_SITE_DEPLOY
+            path:
+              - ./dist
+        strategy: {}
