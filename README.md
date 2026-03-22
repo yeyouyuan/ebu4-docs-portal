@@ -15,16 +15,21 @@ npm start
 
 环境变量与 API 说明见 [`ebu4-site/README.md`](ebu4-site/README.md) 与 [`ebu4-site/.env.example`](ebu4-site/.env.example)。
 
-## 持续集成（CI）
+## 持续集成（CI）与正式部署包
 
-- **GitHub**：`.github/workflows/ci.yml` 仅在代码托管在 **GitHub** 时由 GitHub Actions 执行（`push` / `PR` 至 `main` / `master`，亦可在 Actions 里 **Run workflow** 手动触发）。任务等价于在 `ebu4-site/` 下执行 `npm ci && npm test`。
-- **仅使用 Gitee**：不会运行上述 GitHub Actions。需要在 Gitee **流水线 → 代码视图** 里配置 **`stages`（阶段）和 `steps`（任务）**；仅有 `triggers` 时不会执行任何构建命令。可参考仓库内示例 **[`gitee/pipeline-20260322.yml`](gitee/pipeline-20260322.yml)**（结构与 [`.workflow/master-pipeline.yml`](.workflow/master-pipeline.yml) 相同：`- stage:` + `build@nodejs`），将其中命令粘贴或合并到你的流水线 YAML。若无云构建 Node 插件，可改用 **[`gitee/pipeline-shell-host.example.yml`](gitee/pipeline-shell-host.example.yml)**（自备主机组 `shell@agent`）。
+- **GitHub Actions**（`.github/workflows/ci.yml`）：在 Ubuntu 上执行 **`scripts/package-prod.sh`**（`npm ci --omit=dev` → `npm test` → 打 **`dist/ebu4-site-prod-<git短哈希>.tar.gz`**）。成功后在对应 workflow 运行页 **Artifacts** 下载 **`ebu4-site-prod-linux-x64`**，即为**可在 Linux x64 上解压即跑**的目录树（已含 `node_modules`，与构建机 glibc 一致；`better-sqlite3` 为 Linux 预编译/现编）。
+- **仅使用 Gitee**：参考 **[`gitee/pipeline-20260322.yml`](gitee/pipeline-20260322.yml)**（`bash scripts/package-prod.sh` + 可选 `artifacts` 指向 `./dist`）。若 `build@nodejs` 不支持 `artifacts` 字段，可在可视化里增加「上传制品」任务，或改用 **[`gitee/pipeline-shell-host.example.yml`](gitee/pipeline-shell-host.example.yml)**。
 
-本地与 CI 等价命令：
+**服务器上部署（示例）**
 
 ```bash
-bash scripts/ci.sh
+tar -xzf ebu4-site-prod-*.tar.gz -C /opt/ebu4-site
+cd /opt/ebu4-site
+cp .env.example .env   # 按生产填写 ADMIN_PASSWORD、端口等
+node server/index.js   # 或使用 pm2 / systemd
 ```
+
+本地只跑测试（不打包）：`bash scripts/ci.sh`。本地打正式包：`npm run pack:prod`（输出到 `dist/`，目录已加入 `.gitignore`）。更多说明见 **[`docs/DEPLOY-ARTIFACT.md`](docs/DEPLOY-ARTIFACT.md)**。
 
 # 泛微 Ecology E9 二次开发技术支持网站
 

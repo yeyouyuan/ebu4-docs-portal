@@ -4,6 +4,8 @@
   "description": "根目录便捷脚本：实际应用在 ebu4-site",
   "scripts": {
     "start": "npm start --prefix ebu4-site",
-    "dev": "npm run dev --prefix ebu4-site"
+    "dev": "npm run dev --prefix ebu4-site",
+    "pack:prod": "bash scripts/package-prod.sh",
+    "ci": "bash scripts/ci.sh"
   }
 }

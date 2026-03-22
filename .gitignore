@@ -2,6 +2,9 @@
 
 .DS_Store
 
+# CI 生成的部署包（不入库）
+/dist/
+
 # Node / 日志 / 环境（全仓库）
 node_modules/
 logs/

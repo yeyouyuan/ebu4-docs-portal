@@ -1,4 +1,5 @@
-# 在 GitHub 托管的仓库中自动运行；仅推送到 Gitee 时不会执行（需镜像到 GitHub 或在 Gitee 配置流水线 / 使用 scripts/ci.sh）。
+# GitHub Actions：测试 + 打正式部署包（tar.gz，含生产依赖 node_modules）
+# 制品在 Actions「Artifacts」中下载；与 Gitee 无联动。
 name: CI
 
 on:
@@ -12,9 +13,9 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,10 +27,12 @@ jobs:
           cache: npm
           cache-dependency-path: ebu4-site/package-lock.json
 
-      - name: Install dependencies
-        working-directory: ebu4-site
-        run: npm ci
+      - name: Production package (test + npm ci --omit=dev + tar.gz)
+        run: bash scripts/package-prod.sh
 
-      - name: Run tests
-        working-directory: ebu4-site
-        run: npm test
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ebu4-site-prod-linux-x64
+          path: dist/*.tar.gz
+          if-no-files-found: error
