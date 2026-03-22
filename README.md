@@ -15,6 +15,15 @@ npm start
 
 环境变量与 API 说明见 [`ebu4-site/README.md`](ebu4-site/README.md) 与 [`ebu4-site/.env.example`](ebu4-site/.env.example)。
 
+## 持续集成（CI）
+
+- **GitHub**：`.github/workflows/ci.yml` 仅在代码托管在 **GitHub** 时由 GitHub Actions 执行（`push` / `PR` 至 `main` / `master`，亦可在 Actions 里 **Run workflow** 手动触发）。任务等价于在 `ebu4-site/` 下执行 `npm ci && npm test`。
+- **仅使用 Gitee**：不会运行上述 GitHub Actions（Gitee 与 GitHub 为不同平台）。可在本机或 Gitee 企业版流水线中执行与 CI 相同命令，或直接运行仓库根目录脚本：
+
+```bash
+bash scripts/ci.sh
+```
+
 # 泛微 Ecology E9 二次开发技术支持网站
 
 基于 Ecology E9 二次开发文档构建的在线技术支持网站。

@@ -1,3 +1,4 @@
+# 在 GitHub 托管的仓库中自动运行；仅推送到 Gitee 时不会执行（需镜像到 GitHub 或在 Gitee 配置流水线 / 使用 scripts/ci.sh）。
 name: CI
 
 on:
@@ -5,16 +6,18 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ebu4-site
-
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -24,7 +27,9 @@ jobs:
           cache-dependency-path: ebu4-site/package-lock.json
 
       - name: Install dependencies
+        working-directory: ebu4-site
         run: npm ci
 
       - name: Run tests
+        working-directory: ebu4-site
         run: npm test
