@@ -18,7 +18,7 @@ npm start
 ## 持续集成（CI）与正式部署包
 
 - **GitHub Actions**（`.github/workflows/ci.yml`）：在 Ubuntu 上执行 **`scripts/package-prod.sh`**（`npm ci --omit=dev` → `npm test` → 打 **`dist/ebu4-site-prod-<git短哈希>.tar.gz`**）。成功后在对应 workflow 运行页 **Artifacts** 下载 **`ebu4-site-prod-linux-x64`**，即为**可在 Linux x64 上解压即跑**的目录树（已含 `node_modules`，与构建机 glibc 一致；`better-sqlite3` 为 Linux 预编译/现编）。
-- **仅使用 Gitee**：参考 **[`gitee/pipeline-20260322.yml`](gitee/pipeline-20260322.yml)**（`bash scripts/package-prod.sh` + 可选 `artifacts` 指向 `./dist`）。若 `build@nodejs` 不支持 `artifacts` 字段，可在可视化里增加「上传制品」任务，或改用 **[`gitee/pipeline-shell-host.example.yml`](gitee/pipeline-shell-host.example.yml)**。
+- **仅使用 Gitee**：参考 **[`gitee/pipeline-20260322.yml`](gitee/pipeline-20260322.yml)**。**务必在流水线「Nodejs 构建」里选用 Node 20**（与 `ebu4-site/.nvmrc` 一致）；若实际仍是 Node 18，`better-sqlite3` 会无预编译包并强制源码编译，易再出现缺 Python。脚本会在 root 下尝试 `apt` 安装 `python3/make/g++`。制品路径 `./dist`；若 YAML 里 `artifacts` 无效，可在可视化里单独配置「上传制品」。
 
 **服务器上部署（示例）**
 

@@ -9,7 +9,7 @@
     "test": "node --test server/test"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "@simplewebauthn/server": "^11.0.0",

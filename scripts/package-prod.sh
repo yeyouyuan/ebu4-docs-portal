@@ -3,12 +3,16 @@
 # 在仓库根目录执行：bash scripts/package-prod.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT" || exit 1
+
+# 避免 getcwd() failed：部分 CI 在已删除的目录下起 shell，先固定到仓库根
+# shellcheck source=lib-ci-env.sh
+source "$ROOT/scripts/lib-ci-env.sh"
+warn_if_node_lt_20
+ensure_python_for_node_gyp
+
 SITE="$ROOT/ebu4-site"
-
-# Gitee / 部分 Linux CI 无 Python，better-sqlite3 会走 node-gyp 编译并失败
-bash "$ROOT/scripts/ensure-node-gyp-deps.sh"
-
-cd "$SITE"
+cd "$SITE" || exit 1
 
 echo "==> $(node -v) · $(pwd)"
 npm ci --omit=dev
@@ -19,7 +23,6 @@ SHORT=$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")
 SAFE=$(echo "$SHORT" | tr -cd 'a-zA-Z0-9._-')
 OUT="$ROOT/dist/ebu4-site-prod-${SAFE}.tar.gz"
 
-# 排除测试、日志、本地库文件；保留 data/.gitkeep 等空目录结构
 tar -czf "$OUT" \
   --exclude='./.git' \
   --exclude='./node_modules/.cache' \

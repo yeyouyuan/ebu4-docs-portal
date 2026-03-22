@@ -1,7 +1,8 @@
-# Gitee 流水线：测试 + 产出部署目录 dist/（可与「上传制品」任务衔接）
-# monorepo：命令在仓库根执行；制品路径为 ./dist（相对代码库根目录）
-# better-sqlite3 若需源码编译，镜像须含 Python3；package-prod.sh 会在 root+apt 下自动 apt 安装
-# 建议 Node 与仓库一致（如 20.x）；若插件仅提供 18.x，ensure-node-gyp-deps.sh 仍会装 Python 以便编译
+# Gitee Go · Nodejs 构建
+# ⚠️ 必须在「可视化」里把 Node 版本选为 20.x（与 ebu4-site/.nvmrc 一致）。
+#    若仍为 18.x，better-sqlite3 无预编译包会强制源码编译，且易缺 Python。
+#
+# monorepo：工作目录为仓库根；制品 ./dist
 
 version: '1.0'
 name: pipeline-20260322
@@ -20,7 +21,7 @@ stages:
     steps:
       - step: build@nodejs
         name: ebu4_site_pack
-        displayName: ebu4-site · 测试并打生产包
+        displayName: ebu4-site · 测试并打生产包（需 Node 20）
         nodeVersion: '20'
         commands:
           - bash scripts/package-prod.sh
