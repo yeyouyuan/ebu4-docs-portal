@@ -1,3 +1,4 @@
+# 与仓库根目录 gitee/pipeline-20260322.yml 保持一致（Gitee Go 保存流水线时可能写入 .workflow/）
 version: '1.0'
 name: pipeline-20260322
 displayName: pipeline-20260322
@@ -7,20 +8,19 @@ triggers:
     branches:
       prefix:
         - ''
+
 stages:
-  - name: build
+  - stage:
+    name: build
     displayName: 构建与打包
-    strategy: naturally
-    trigger: auto
     steps:
       - step: build@nodejs
         name: ebu4_site_pack
-        displayName: ebu4-site
-        nodeVersion: 20.10.0
+        displayName: ebu4-site · 测试并打生产包（需 Node 20）
+        nodeVersion: '20'
         commands:
           - bash scripts/package-prod.sh
         artifacts:
           - name: EBU4_SITE_DEPLOY
             path:
               - ./dist
-        strategy: {}
