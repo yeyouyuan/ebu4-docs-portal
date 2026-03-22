@@ -16,7 +16,7 @@ stages:
       - step: build@nodejs
         name: ebu4_site_pack
         displayName: ebu4-site
-        nodeVersion: 18.16.0
+        nodeVersion: 20.10.0
         commands:
           - bash scripts/package-prod.sh
         artifacts:
