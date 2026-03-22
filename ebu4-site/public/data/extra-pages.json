@@ -1,0 +1,12 @@
+{
+  "pages": [
+    {
+      "id": "87dd788433abf69a77024f110378f631",
+      "title": "测试页面",
+      "slug": "page",
+      "format": "richtext",
+      "body": "<h1>测试页面</h1><p><br></p>",
+      "updatedAt": "2026-03-21T12:19:30.475Z"
+    }
+  ]
+}

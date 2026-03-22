@@ -1,0 +1,192 @@
+{
+  "version": 1,
+  "meta": {
+    "pageTitle": "泛微 E9 二次开发文档 "
+  },
+  "nav": {
+    "logoText": "E9",
+    "brandTitle": "泛微 E9 开发文档",
+    "verBadge": "v3.0",
+    "brandSub": "企业级技术支持门户",
+    "links": [
+      "首页",
+      "数据概览",
+      "核心能力",
+      "代码示例",
+      "快速开始"
+    ],
+    "toolsLabel": "工具",
+    "ctaLabel": "开始探索"
+  },
+  "scrollHint": "向下滚动翻页 · 右侧圆点切换章节",
+  "slideDots": [
+    "首页",
+    "数据概览",
+    "核心能力",
+    "代码示例",
+    "快速开始"
+  ],
+  "slide1": {
+    "eyebrow": "系统在线 · 可用率 99.9%",
+    "titleLine": "构建企业级",
+    "titleHighlight": "E9 开发生态",
+    "tagline": "为实施与二次开发工程师准备的本地技术参考；点「开始探索」进入全文检索与目录导航。",
+    "desc": "面向实施与二次开发工程师的 Weaver Ecology E9 全栈技术文档。整合 EBU4 官方思路、API 接口与部署实践，覆盖流程、表单、接口与前端扩展，助力企业数字化项目高效交付。",
+    "btnPrimary": "开始探索",
+    "btnSecondary": "官方文档",
+    "btnSecondaryUrl": "https://e-cloudstore.com/doc.html",
+    "terminalTitle": "weaver-e9 — 终端",
+    "terminalLines": [
+      "$ weaver-e9 init --project oa-platform",
+      "› 正在初始化 E9 开发环境…",
+      "✓ 核心模块已加载 (ecology-core v3.0.77)",
+      "✓ API 网关已就绪 (2032 endpoints)",
+      "✓ 数据库连接池已建立 (MySQL 8.0)",
+      "✓ 前端 H5 组件库已注册 (90+ components)",
+      "! 检测到 3 个可选更新",
+      "$ 环境就绪，开始开发 →"
+    ]
+  },
+  "slide2": {
+    "tag": "数据概览",
+    "title": "文档覆盖全量数据",
+    "subtitle": "完整的 E9 技术资产，持续更新，确保你的每一次查阅都有收获。",
+    "stats": [
+      {
+        "num": "99.9%",
+        "label": "文档完整度",
+        "desc": "覆盖 E9 全部核心模块与接口说明"
+      },
+      {
+        "num": "2,032",
+        "label": "数据表结构",
+        "desc": "完整表字段说明与关联关系"
+      },
+      {
+        "num": "90+",
+        "label": "Java 源码分析",
+        "desc": "核心业务逻辑逐行注释"
+      },
+      {
+        "num": "24/7",
+        "label": "全天候可用",
+        "desc": "本地离线文档，随时查阅"
+      }
+    ]
+  },
+  "slide3": {
+    "tag": "核心能力",
+    "title": "覆盖 E9 二次开发全链路",
+    "subtitle": "从流程引擎到前端组件，从数据库到部署运维，一站式解决技术难题。",
+    "features": [
+      {
+        "title": "流程引擎深度解析",
+        "desc": "完整梳理流程引擎架构，涵盖定义、节点配置、流转规则、子流程与会签逻辑。",
+        "tags": [
+          "Workflow API",
+          "节点事件",
+          "条件分支"
+        ]
+      },
+      {
+        "title": "表单设计器扩展",
+        "desc": "深入表单引擎底层，解析字段类型映射、布局渲染、自定义控件与持久化方案。",
+        "tags": [
+          "自定义控件",
+          "字段映射",
+          "布局引擎"
+        ]
+      },
+      {
+        "title": "前端 API 与组件库",
+        "desc": "系统化整理前端扩展接口、H5 组件开发规范、页面生命周期与跨页面通信。",
+        "tags": [
+          "Vue 组件",
+          "H5 扩展",
+          "页面钩子"
+        ]
+      },
+      {
+        "title": "2,032 张数据表",
+        "desc": "完整梳理全部表结构，含字段说明、索引设计、外键关联与高频查询 SQL。",
+        "tags": [
+          "表结构文档",
+          "SQL 示例",
+          "索引优化"
+        ]
+      },
+      {
+        "title": "RESTful 接口文档",
+        "desc": "覆盖全部 API 接口，含请求参数、响应格式、鉴权方式与错误码说明。",
+        "tags": [
+          "API Reference",
+          "鉴权方案",
+          "错误码"
+        ]
+      },
+      {
+        "title": "部署与运维指南",
+        "desc": "标准化部署方案、Docker 容器化实践、性能调优与常见故障排查手册。",
+        "tags": [
+          "Docker",
+          "性能调优",
+          "故障排查"
+        ]
+      }
+    ]
+  },
+  "slide4": {
+    "tag": "代码即文档",
+    "titleLine1": "开箱即用的",
+    "titleLine2": "代码示例",
+    "subtitle": "每个 API 接口均附带完整的调用示例，支持 Java、JavaScript 双语言，复制即可运行。",
+    "bullets": [
+      "流程发起、审批、转办等核心操作封装",
+      "表单字段动态读写与数据校验",
+      "自定义接口开发与权限配置",
+      "前端组件注册与事件绑定"
+    ],
+    "codeFilename": "WorkflowService.java",
+    "codeLines": [
+      "// 发起 E9 审批流程",
+      "public class WorkflowService {",
+      "",
+      "  public Result startFlow(FlowRequest req) {",
+      "    // 1. 校验流程模板",
+      "    WorkflowBase wf = dao.findById(req.getFlowId());",
+      "    Assert.notNull(wf, \"流程模板不存在\");",
+      "",
+      "    // 2. 创建请求主表",
+      "    WorkflowRequest main = new WorkflowRequest();",
+      "    main.setName(req.getTitle());",
+      "    main.setCreator(req.getUserId());",
+      "",
+      "    // 3. 提交流程引擎",
+      "    return engine.submit(main, req.getParams());",
+      "  }",
+      "}"
+    ]
+  },
+  "slide5": {
+    "titleLine1": "准备好",
+    "titleHighlight": "开始了吗？",
+    "desc": "加入数千名实施工程师的行列，让 E9 二次开发变得简单高效。所有文档支持本地离线查阅。",
+    "btnPrimary": "进入文档中心",
+    "btnSecondary": "查看 EBU4 官方文档",
+    "btnSecondaryUrl": "https://e-cloudstore.com/doc.html",
+    "feats": [
+      {
+        "title": "安全可靠",
+        "desc": "本地离线部署，数据不出内网"
+      },
+      {
+        "title": "极速检索",
+        "desc": "全文搜索引擎，毫秒级响应"
+      },
+      {
+        "title": "持续更新",
+        "desc": "跟随 E9 版本同步迭代"
+      }
+    ]
+  }
+}

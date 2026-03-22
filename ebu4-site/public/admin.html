@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <script>
+  (function () {
+    try {
+      var k = 'ebu4-theme';
+      var v = localStorage.getItem(k) || 'dark';
+      var legacy = { default: 1, ocean: 1, rose: 1, emerald: 1, violet: 1 };
+      if (legacy[v]) v = 'dark';
+      if (v !== 'light' && v !== 'dark' && v !== 'system') v = 'dark';
+      document.documentElement.dataset.theme = v;
+    } catch (e) {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#080c22" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#eef1f8" media="(prefers-color-scheme: light)">
+  <title>后台管理 — EBU4 技术支持</title>
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+  (function () {
+    var KEY = 'ebu4-admin-asset-v';
+    var DEFAULT_V = '20260329a';
+    var v = DEFAULT_V;
+    try {
+      var s = localStorage.getItem(KEY);
+      if (s) v = s;
+    } catch (e) {}
+    function addCss(path) {
+      var l = document.createElement('link');
+      l.rel = 'stylesheet';
+      l.href = path + '?v=' + encodeURIComponent(v);
+      document.head.appendChild(l);
+    }
+    addCss('/css/style.css');
+    addCss('/css/admin.css');
+    addCss('/css/admin-shell-ebu4.css');
+    addCss('/css/admin-hub.css');
+    addCss('/css/admin-dashboard.css');
+    addCss('/css/doc-management.css');
+  })();
+  </script>
+  <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
+</head>
+<body class="admin-booting">
+
+  <canvas id="bgCanvas" aria-hidden="true"></canvas>
+
+  <header class="navbar">
+    <div class="navbar-left">
+      <a href="/index" class="logo" title="返回门户首页">
+        <svg class="logo-icon" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+          <path d="M14 2L22 7V17Q22 22 14 26Q6 22 6 17V7L14 2Z" stroke="#d4a853" stroke-width="1.5" fill="rgba(62,175,124,0.08)"/>
+          <path d="M14 9L11 14H17L14 9Z" fill="#d4a853" opacity="0.8"/>
+          <circle cx="14" cy="18" r="2" fill="#d4a853" opacity="0.6"/>
+        </svg>
+        <span>EBU4 <span class="gold">技术支持</span></span>
+      </a>
+      <span class="admin-badge">后台</span>
+    </div>
+    <div class="navbar-center">
+      <span id="navSubtitle" class="admin-navbar-sub admin-hidden">内容管理 · 已登录</span>
+    </div>
+    <div class="navbar-right">
+      <a href="/docs" class="nav-pill">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><rect x="2" y="1" width="10" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 5h4M5 7.5h3M5 10h2" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+        文档中心
+      </a>
+      <a href="/index" class="nav-pill">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M7 2L12 6V11Q12 13 7 14Q2 13 2 11V6L7 2Z" stroke="currentColor" stroke-width="1.2"/></svg>
+        门户首页
+      </a>
+      <button type="button" class="nav-pill admin-hidden" id="btnLogoutNav" title="退出登录">退出</button>
+      <div class="theme-picker" id="themePicker">
+        <button type="button" class="theme-trigger" id="themeTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="themePanel" title="外观（浅色 / 深色 / 跟随系统）">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.89-.12-1.32a7 7 0 0 1-8.88-8.88A8.94 8.94 0 0 0 12 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <div class="theme-panel" id="themePanel" role="menu" hidden>
+          <div class="theme-panel-title">外观</div>
+          <div class="theme-swatches" role="group" aria-label="浅色深色与系统">
+            <button type="button" class="theme-swatch" data-theme="light" title="浅色" aria-label="浅色"><span class="dot" style="--a:#ffffff;--b:#e2e8f0"></span><span class="name">浅色</span></button>
+            <button type="button" class="theme-swatch" data-theme="dark" title="深色" aria-label="深色"><span class="dot" style="--a:#1e1b4b;--b:#020617"></span><span class="name">深色</span></button>
+            <button type="button" class="theme-swatch" data-theme="system" title="跟随系统" aria-label="跟随系统"><span class="dot dot-system" aria-hidden="true"></span><span class="name">跟随系统</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    <div id="viewDash">
+      <div class="ry-layout">
+        <aside class="ry-sidebar">
+          <div class="ry-sidebar-logo">
+            <span class="ry-logo-mark">E9</span>
+            <div class="ry-logo-text">
+              <span class="ry-logo-title">EBU4 文档站</span>
+              <span class="ry-logo-sub">内容管理</span>
+            </div>
+          </div>
+          <nav class="ry-menu" id="ryMenuNav" aria-label="侧边菜单">
+            <button type="button" class="ry-menu-item active" data-tab="dash" id="menuTabDash">
+              <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16v4H4V6zM4 14h10v4H4v-4zM18 14h2v4h-2v-4zM18 6h2v4h-2V6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              <span>数据看板</span>
+            </button>
+            <button type="button" class="ry-menu-item" data-tab="md">
+              <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke="currentColor" stroke-width="1.5"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <span>文档管理</span>
+            </button>
+            <button type="button" class="ry-menu-item" data-tab="tools">
+              <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <span>工具导航</span>
+            </button>
+            <button type="button" class="ry-menu-item" data-tab="landing">
+              <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9.5z" stroke="currentColor" stroke-width="1.5"/><path d="M9 21V12h6v9" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span>门户首页</span>
+            </button>
+            <button type="button" class="ry-menu-item" data-tab="site">
+              <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l9 4.5v4.5c0 5.25-3.75 10.2-9 11.25-5.25-1.05-9-6-9-11.25V7.5L12 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              <span>站点设置</span>
+            </button>
+            <button type="button" class="ry-menu-item" data-tab="seo">
+              <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/><path d="M3.6 9h16.8M12 3a14 14 0 0 0 0 18" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span>SEO 设置</span>
+            </button>
+            <button type="button" class="ry-menu-item" data-tab="audit">
+              <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M16 12l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>操作日志</span>
+            </button>
+            <button type="button" class="ry-menu-item admin-hidden" data-tab="users" id="menuTabUsers">
+              <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0z" stroke="currentColor" stroke-width="1.5"/><path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <span>用户管理</span>
+            </button>
+            <button type="button" class="ry-menu-item admin-hidden" data-tab="roles" id="menuTabRoles">
+              <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" stroke="currentColor" stroke-width="1.5"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>角色管理</span>
+            </button>
+            <button type="button" class="ry-menu-item admin-hidden" data-tab="redis" id="menuTabRedis">
+              <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><ellipse cx="12" cy="5" rx="7" ry="3" stroke="currentColor" stroke-width="1.5"/><path d="M5 5v6c0 1.66 3.13 3 7 3s7-1.34 7-3V5" stroke="currentColor" stroke-width="1.5"/><path d="M5 11v6c0 1.66 3.13 3 7 3s7-1.34 7-3v-6" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span>Redis</span>
+            </button>
+          </nav>
+          <div class="ry-menu-meta">
+            <button type="button" class="ry-menu-item" data-tab="menu" id="menuTabLayout">
+              <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16M4 12h10M4 19h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M16 10l3 2-3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>菜单显示</span>
+            </button>
+          </div>
+          <div class="ry-menu-footer">
+            <p class="ry-menu-hint" id="ryMenuHint">加载中…</p>
+            <button type="button" class="ry-menu-reset" id="btnResetAdminMenuOrder">恢复默认顺序</button>
+          </div>
+        </aside>
+        <div class="ry-main">
+          <header class="ry-header">
+            <div class="ry-breadcrumb">
+              <span class="ry-crumb">首页</span>
+              <span class="ry-crumb-sep">/</span>
+              <span class="ry-crumb-active" id="ryCrumbTitle">文档管理</span>
+            </div>
+            <div class="ry-header-search-wrap" title="筛选侧栏菜单项">
+              <svg class="ry-header-search-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input type="search" id="ryMenuFilter" class="ry-header-search-input" placeholder="搜索侧栏菜单…" autocomplete="off" />
+            </div>
+            <span class="ry-header-online" id="ryOnlineBadge" hidden title="">在线 —</span>
+            <div class="ry-header-actions">
+              <a href="/docs" class="ry-header-link">文档中心</a>
+              <span class="ry-header-divider"></span>
+              <a href="/index" class="ry-header-link">门户首页</a>
+              <span class="ry-header-divider"></span>
+              <button type="button" class="ry-header-link ry-header-asset-btn" id="btnRefreshAdminAssets" title="重新拉取 style.css / admin.css（绕过缓存）">刷新样式</button>
+              <span class="ry-header-divider"></span>
+              <div class="theme-picker" id="themePickerDash">
+                <button type="button" class="theme-trigger" id="themeTriggerDash" aria-haspopup="true" aria-expanded="false" aria-controls="themePanelDash" title="外观">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.89-.12-1.32a7 7 0 0 1-8.88-8.88A8.94 8.94 0 0 0 12 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                </button>
+                <div class="theme-panel" id="themePanelDash" role="menu" hidden>
+                  <div class="theme-panel-title">外观</div>
+                  <div class="theme-swatches" role="group" aria-label="主题">
+                    <button type="button" class="theme-swatch" data-theme="light" title="浅色" aria-label="浅色"><span class="dot" style="--a:#ffffff;--b:#e2e8f0"></span><span class="name">浅色</span></button>
+                    <button type="button" class="theme-swatch" data-theme="dark" title="深色" aria-label="深色"><span class="dot" style="--a:#1e1b4b;--b:#020617"></span><span class="name">深色</span></button>
+                    <button type="button" class="theme-swatch" data-theme="system" title="跟随系统" aria-label="跟随系统"><span class="dot dot-system" aria-hidden="true"></span><span class="name">跟随系统</span></button>
+                  </div>
+                </div>
+              </div>
+              <button type="button" class="ry-header-logout" id="btnLogoutDash">退出登录</button>
+            </div>
+          </header>
+          <main class="ry-body">
+
+      <div class="admin-panel active" id="panelDashboard">
+        <div id="dashboardHost" class="dashboard-host">加载中…</div>
+      </div>
+
+      <div class="admin-panel" id="panelMd">
+        <div class="doc-editor-hub dm-hub">
+          <div class="admin-docs-subnav dm-tabs" role="tablist" aria-label="文档子模块">
+            <button type="button" class="admin-docs-subnav-btn active" data-doc-sub="main" id="docSubBtnMain">主文档</button>
+            <button type="button" class="admin-docs-subnav-btn" data-doc-sub="extra" id="docSubBtnExtra">扩展页面</button>
+          </div>
+          <div class="admin-card doc-editor-card dm-card">
+          <div id="docSubMain" class="doc-sub-panel">
+            <div class="de-workspace de-workspace-main dm-workspace" id="mainDocWorkspace">
+              <div class="de-workspace-inner">
+                <aside class="de-list-aside de-main-list dm-sidebar" aria-label="章节列表">
+                  <div class="de-main-doc-bar">
+                    <label class="de-main-doc-bar-label" for="mainDocPicker">主文档</label>
+                    <div class="de-main-doc-bar-row">
+                      <select id="mainDocPicker" class="admin-input de-main-doc-select" aria-label="选择主文档"></select>
+                      <button type="button" class="de-btn de-btn-sm de-btn-ghost" id="btnManageMainDocs" title="新建、默认、重命名、删除">管理</button>
+                    </div>
+                  </div>
+                  <div class="de-search-wrap de-search-wrap--chapter">
+                    <input type="search" id="docSectionFilter" class="admin-input de-search de-search--chapter" placeholder="筛选章节标题…" autocomplete="off" />
+                  </div>
+                  <ul id="docSectionList" class="de-chapter-list" role="listbox" aria-label="章节列表"></ul>
+                  <button type="button" class="de-btn de-btn-accent de-btn-block" id="btnNewSection">+ 新建章节</button>
+                </aside>
+                <div class="de-center-col dm-center">
+                  <div class="de-main-toolbar-wrap dm-toolbar-wrap">
+                    <header class="de-toolbar de-toolbar--main-doc dm-toolbar">
+                      <div class="de-toolbar-left">
+                        <nav class="de-breadcrumb" aria-label="面包屑">
+                          <span>文档管理</span><span class="de-bc-sep">/</span>
+                          <span id="mainDocCrumbBook">主文档</span><span class="de-bc-sep">/</span>
+                          <span class="de-bc-current" id="mainDocCrumbChapter">—</span>
+                        </nav>
+                      </div>
+                      <div class="de-toolbar-center de-main-mode-toolbar" id="mainDocMdTools">
+                        <div class="de-main-mode-tabs" role="group" aria-label="编辑模式">
+                          <button type="button" class="de-btn de-btn-sm de-btn-accent" id="btnMainDocModeRich">富文本</button>
+                          <button type="button" class="de-btn de-btn-sm de-btn-ghost" id="btnMainDocModeMd">Markdown</button>
+                        </div>
+                      </div>
+                      <div class="de-toolbar-right">
+                        <span class="dm-save-ind" id="mainDocSaveInd" aria-live="polite">
+                          <span class="dm-save-dot" id="mainDocSaveDot"></span>
+                          <span id="mainDocSaveTxt">已保存</span>
+                        </span>
+                        <span class="admin-msg de-toolbar-msg" id="docSectionMsg"></span>
+                        <button type="button" class="de-btn de-btn-ghost" id="btnMainToggleProps">属性 <kbd class="de-kbd">⌘J</kbd></button>
+                        <button type="button" class="de-btn de-btn-accent" id="btnSaveSection">保存</button>
+                      </div>
+                    </header>
+                  </div>
+                  <div class="de-editor-scroll">
+                    <div class="de-editor-content de-editor-content--main">
+                      <div id="mainDocQuillWrap" class="main-doc-quill-wrap admin-page-quill-wrap de-quill-wrap">
+                        <div id="mainDocQuill" class="admin-quill-root" aria-label="主文档章节正文"></div>
+                      </div>
+                      <textarea id="docSectionTa" class="admin-hidden de-main-md-ta admin-textarea" aria-hidden="true" tabindex="-1" spellcheck="false" rows="18"></textarea>
+                    </div>
+                  </div>
+                  <footer class="de-statusbar">
+                    <div class="de-statusbar-left" id="mainDocStatusLeft">未选择章节</div>
+                    <div class="de-statusbar-right" id="mainDocStatusRight"></div>
+                  </footer>
+                </div>
+                <aside class="de-props-panel open dm-props" id="mainDocPropsPanel" aria-label="章节属性与图片">
+                  <div class="de-props-inner">
+                    <div class="dm-props-header">
+                      <span class="dm-props-h3">章节与素材</span>
+                    </div>
+                    <div class="de-panel-section" id="adminDocImagePanel">
+                      <div class="de-panel-title">图片</div>
+                      <p class="de-panel-hint">先点击编辑区再上传，将插入 <code>![](/img/…)</code></p>
+                      <div class="de-file-pick-block">
+                        <input type="file" id="adminImagePick" accept="image/*" multiple class="de-field-file-native" aria-label="选择图片文件" />
+                        <label class="de-file-pick-btn" for="adminImagePick">
+                          <span class="de-file-pick-text">选择图片</span>
+                          <span class="de-file-pick-hint">可多选 · 插入到光标处</span>
+                        </label>
+                      </div>
+                      <button type="button" class="de-btn de-btn-block de-btn-ghost" id="btnRefreshImages">刷新列表</button>
+                      <div id="adminImageListHost" class="admin-image-list de-image-host"></div>
+                    </div>
+                    <div class="de-panel-section">
+                      <div class="de-panel-title">章节顺序</div>
+                      <div class="de-panel-actions-row">
+                        <button type="button" class="de-btn de-btn-ghost" id="btnMoveSectionUp" title="上移">↑ 上移</button>
+                        <button type="button" class="de-btn de-btn-ghost" id="btnMoveSectionDown" title="下移">↓ 下移</button>
+                      </div>
+                      <button type="button" class="de-btn de-btn-block de-btn-danger-ghost" id="btnDeleteSection">删除当前章节</button>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            </div>
+            <details class="admin-details de-advanced-details">
+              <summary>整文件 Markdown（高级）</summary>
+              <p class="admin-docs-hint de-md-fullfile-lead">
+                与上方「按章节」编辑的是<strong>同一份</strong>当前主文档。此处适合全局查找替换、粘贴大段正文或外部工具改完再贴回。
+                <strong>保存会覆盖</strong>章节列表中的全部内容；日常维护优先用章节保存。支持粘贴截图 / 拖入图片（与章节编辑器相同）。
+              </p>
+              <div class="de-md-fullfile-head">
+                <div class="de-md-fullfile-head-row">
+                  <label class="admin-label de-md-fullfile-label" for="mdTa"
+                    ><span id="mdTaLabel">完整 Markdown</span></label
+                  >
+                  <span class="de-md-fullfile-stat mono" id="mdTaMeta" aria-live="polite"></span>
+                </div>
+                <div class="de-md-fullfile-actions">
+                  <button type="button" class="de-btn de-btn-sm de-btn-ghost" id="btnCopyMdTa" title="复制当前文本框全文">
+                    复制全文
+                  </button>
+                  <button type="button" class="de-btn de-btn-sm de-btn-ghost" id="btnDownloadMdTa" title="下载为 UTF-8 的 .md 文件">
+                    下载 .md
+                  </button>
+                </div>
+              </div>
+              <textarea id="mdTa" class="admin-textarea admin-md-paste de-md-fullfile-ta" spellcheck="false" placeholder="可粘贴 / 拖入图片；保存前建议先复制全文备份"></textarea>
+              <div class="admin-row de-md-fullfile-save-row">
+                <button type="button" class="admin-btn-primary" id="btnSaveMd">保存整文件</button>
+                <span class="admin-msg" id="mdMsg"></span>
+              </div>
+            </details>
+          </div>
+
+          <div id="docSubExtra" class="doc-sub-panel admin-hidden">
+            <div class="de-workspace de-workspace-extra dm-workspace" id="extraEditorWorkspace">
+              <div class="de-workspace-inner">
+                <aside class="de-list-aside de-extra-list dm-sidebar" aria-label="扩展页面列表">
+                  <div class="de-search-row">
+                    <input type="search" id="extraPageFilter" class="admin-input de-search" placeholder="搜索标题、slug、标签…" autocomplete="off" />
+                    <span class="de-count" id="extraPageListCount" aria-live="polite">0 篇</span>
+                  </div>
+                  <ul id="extraPageList" class="extra-pages-list de-extra-page-list" role="listbox" aria-label="扩展页面列表"></ul>
+                  <button type="button" class="de-btn de-btn-accent de-btn-block" id="btnExtraPageNew">+ 新建页面</button>
+                </aside>
+
+                <div class="de-center-col dm-center">
+                  <header class="de-toolbar dm-toolbar">
+                    <div class="de-toolbar-left">
+                      <nav class="de-breadcrumb" aria-label="面包屑">
+                        <span>文档管理</span><span class="de-bc-sep">/</span>
+                        <span>扩展页面</span><span class="de-bc-sep">/</span>
+                        <span class="de-bc-current">编辑</span>
+                      </nav>
+                    </div>
+                    <div class="de-toolbar-center de-md-tools" id="extraPageMdTools" aria-label="插入格式">
+                      <button type="button" class="de-tool-btn" data-de-ta="extraPageBodyMd" data-wrap="**" title="加粗">B</button>
+                      <button type="button" class="de-tool-btn" data-de-ta="extraPageBodyMd" data-wrap="*" title="斜体">I</button>
+                      <button type="button" class="de-tool-btn" data-de-ta="extraPageBodyMd" data-prefix="## " title="二级标题">H2</button>
+                      <span class="de-toolbar-divider" aria-hidden="true"></span>
+                      <button type="button" class="de-tool-btn" data-de-ta="extraPageBodyMd" data-prefix="> " title="引用">&gt;</button>
+                      <button type="button" class="de-tool-btn" data-de-ta="extraPageBodyMd" data-wrap="`" title="行内代码">&lt;/&gt;</button>
+                    </div>
+                    <div class="de-toolbar-right">
+                      <span class="de-status-badge" id="extraPageStatusBadge">草稿</span>
+                      <button type="button" class="de-btn de-btn-ghost" id="btnExtraToggleProps">属性 <kbd class="de-kbd">⌘J</kbd></button>
+                      <button type="button" class="de-btn de-btn-ghost" id="btnDeExtraEdit">编辑</button>
+                      <button type="button" class="de-btn de-btn-ghost" id="btnDeExtraPreview">预览</button>
+                      <a class="de-btn de-btn-ghost de-open-link" id="extraPageOpenFront" href="#" target="_blank" rel="noopener noreferrer">前台 ↗</a>
+                      <span class="admin-msg de-toolbar-msg" id="extraPageMsg"></span>
+                      <button type="button" class="de-btn de-btn-accent" id="btnExtraPageSave">保存</button>
+                    </div>
+                  </header>
+
+                  <div class="de-editor-scroll">
+                    <div class="de-editor-content de-editor-content--extra">
+                      <input type="text" id="extraPageTitle" class="de-title-input" autocomplete="off" placeholder="无标题" />
+                      <div class="de-slug-row">
+                        <span class="de-slug-prefix">/page/</span>
+                        <input type="text" id="extraPageSlug" class="de-slug-input admin-input" autocomplete="off" placeholder="url-slug" />
+                      </div>
+                      <div class="de-excerpt-block">
+                        <div class="de-excerpt-label">摘要</div>
+                        <textarea id="extraPageExcerpt" class="de-excerpt-input" rows="2" spellcheck="true" placeholder="简短描述，用于列表与分享…"></textarea>
+                      </div>
+                      <div class="de-body-stack">
+                        <div id="extraPageWrapMd" class="de-body-md-wrap">
+                          <textarea id="extraPageBodyMd" class="de-body-textarea admin-textarea admin-md-paste" spellcheck="false" placeholder="开始写作…（Markdown，可粘贴 / 拖入图片）"></textarea>
+                        </div>
+                        <div id="extraPageWrapQuill" class="admin-hidden admin-page-quill-wrap de-quill-wrap">
+                          <div id="extraPageQuill" class="admin-quill-root" aria-label="富文本编辑"></div>
+                        </div>
+                        <div id="extraPageWrapPreview" class="admin-hidden admin-page-preview-wrap de-preview-wrap">
+                          <div id="extraPagePreview" class="admin-page-preview-inner"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <footer class="de-statusbar">
+                    <div class="de-statusbar-left" id="extraEditorStatusLeft"><span class="de-status-dot" aria-hidden="true"></span><span id="extraEditorSaveHint">就绪</span></div>
+                    <div class="de-statusbar-right" id="extraEditorStatusRight"></div>
+                  </footer>
+                </div>
+
+                <aside class="de-props-panel open dm-props" id="extraPropsPanel" aria-label="页面属性">
+                  <div class="de-props-inner">
+                    <div class="dm-props-header">
+                      <span class="dm-props-h3">页面属性</span>
+                    </div>
+                    <div class="de-panel-section">
+                      <div class="de-panel-title">发布状态</div>
+                      <div class="de-status-toggle" role="group" aria-label="状态">
+                        <button type="button" class="de-status-opt" data-status="draft" id="extraStatusOptDraft">草稿</button>
+                        <button type="button" class="de-status-opt" data-status="published" id="extraStatusOptPublished">已发布</button>
+                      </div>
+                      <select id="extraPageStatus" class="admin-hidden" aria-hidden="true" tabindex="-1">
+                        <option value="draft">草稿</option>
+                        <option value="published">已发布</option>
+                      </select>
+                    </div>
+                    <div class="de-panel-section">
+                      <div class="de-panel-title">正文格式</div>
+                      <label class="de-field-label" for="extraPageFormat">格式</label>
+                      <select id="extraPageFormat" class="admin-input de-field-select">
+                        <option value="markdown">Markdown</option>
+                        <option value="richtext">富文本</option>
+                      </select>
+                    </div>
+                    <div class="de-panel-section">
+                      <div class="de-panel-title">安全等级（前台）</div>
+                      <label class="de-field-label" for="extraPageSecurityLevel">与角色配置一致；访客默认可阅 public / guest</label>
+                      <select id="extraPageSecurityLevel" class="admin-input de-field-select">
+                        <option value="public">public · 公开</option>
+                        <option value="guest">guest · 访客</option>
+                        <option value="internal">internal · 内部</option>
+                        <option value="important">important</option>
+                        <option value="core">core</option>
+                        <option value="restricted">restricted</option>
+                      </select>
+                    </div>
+                    <div class="de-panel-section">
+                      <div class="de-panel-title">封面</div>
+                      <label class="de-field-label" for="extraPageCover">图片 URL</label>
+                      <input type="text" id="extraPageCover" class="admin-input de-field-input" autocomplete="off" placeholder="/img/… 或 https://…" />
+                      <input type="file" id="extraPageCoverFile" accept="image/*" class="admin-hidden" aria-hidden="true" />
+                      <button type="button" class="de-btn de-btn-block de-btn-ghost" id="btnExtraCoverUpload">上传封面</button>
+                      <div class="de-cover-thumb-wrap" id="extraPageCoverThumbWrap" hidden>
+                        <img id="extraPageCoverThumb" alt="" class="de-cover-thumb" />
+                      </div>
+                    </div>
+                    <div class="de-panel-section">
+                      <div class="de-panel-title">元数据</div>
+                      <label class="de-field-label" for="extraPageTags">标签（逗号分隔）</label>
+                      <input type="text" id="extraPageTags" class="admin-input de-field-input" autocomplete="off" placeholder="E9, 二次开发" />
+                      <label class="de-field-label" for="extraPageAuthor">作者</label>
+                      <input type="text" id="extraPageAuthor" class="admin-input de-field-input" autocomplete="off" placeholder="署名" />
+                      <label class="de-field-label" for="extraPagePublishedAt">发布时间</label>
+                      <input type="datetime-local" id="extraPagePublishedAt" class="admin-input de-field-input" />
+                    </div>
+                    <div class="de-panel-section">
+                      <button type="button" class="de-btn de-btn-block de-btn-danger-ghost" id="btnExtraPageDelete">删除页面</button>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            </div>
+            <div class="de-sr-only">
+              <button type="button" class="admin-page-tab active" data-page-view="edit" id="tabPageViewEdit">编辑</button>
+              <button type="button" class="admin-page-tab" data-page-view="preview" id="tabPageViewPreview">预览</button>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="panelTools">
+        <div class="admin-card">
+          <p class="admin-tools-hint">工具导航数据量大，此处仅改站点展示信息；全量分类与链接请下载后本地编辑，再上传替换。</p>
+          <span class="admin-label">站点信息（tools-nav.json 的 site）</span>
+          <div class="admin-form-grid">
+            <label class="admin-field"><span class="admin-field-label">名称 name</span><input type="text" id="tools_site_name" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">域名 domain</span><input type="text" id="tools_site_domain" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field admin-field-full"><span class="admin-field-label">标题 title</span><input type="text" id="tools_site_title" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">作者 author</span><input type="text" id="tools_site_author" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field admin-field-full"><span class="admin-field-label">博客 blog URL</span><input type="text" id="tools_site_blog" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field admin-field-full"><span class="admin-field-label">主题说明 theme</span><input type="text" id="tools_site_theme" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">ICP 备案 icp</span><input type="text" id="tools_site_icp" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">公安备案 beian</span><input type="text" id="tools_site_beian" class="admin-input" autocomplete="off" /></label>
+          </div>
+          <div class="admin-row">
+            <button type="button" class="admin-btn-primary" id="btnSaveToolsSite">保存站点信息</button>
+            <span class="admin-msg" id="toolsSiteMsg"></span>
+          </div>
+        </div>
+        <div class="admin-card" id="toolsNavStructuredCard">
+          <span class="admin-label">分类与链接（结构化）</span>
+          <p class="admin-tools-hint">分类顺序与门户「工具」面板标签一致；链接需含 <code>https://</code>。保存时保留原 JSON 中的 <code>favicon_map</code>（体积大时勿用整文件上传覆盖除非有意）。</p>
+          <label class="admin-field admin-field-full"><span class="admin-field-label">分类（每行一个，自上而下为标签顺序）</span><textarea id="toolsNavCategories" class="admin-input" rows="6" spellcheck="false" placeholder="常用工具&#10;文档与社区"></textarea></label>
+          <div class="admin-row" style="margin-top:10px;">
+            <button type="button" class="admin-btn-ghost" id="btnToolsNavAddRow">添加链接</button>
+          </div>
+          <div id="toolsNavItemsHost" class="tools-nav-items-host" aria-label="工具链接列表"></div>
+          <div class="admin-row">
+            <button type="button" class="admin-btn-primary" id="btnSaveToolsNavStructured">保存分类与链接</button>
+            <span class="admin-msg" id="toolsNavStructuredMsg"></span>
+          </div>
+        </div>
+        <div class="admin-card">
+          <span class="admin-label">完整文件</span>
+          <div class="admin-row">
+            <a class="admin-btn-primary" href="/data/tools-nav.json" download="tools-nav.json">下载当前文件</a>
+          </div>
+          <label class="admin-field" style="margin-top:12px;"><span class="admin-field-label">上传替换 JSON 文件</span><input type="file" id="toolsFileInput" accept=".json,application/json" class="admin-input" /></label>
+          <div class="admin-row">
+            <button type="button" class="admin-btn-primary" id="btnUploadToolsJson">保存上传的文件</button>
+            <span class="admin-msg" id="toolsMsg"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="panelLanding">
+        <div class="admin-card">
+          <p class="admin-tools-hint">对应 <code>public/data/landing.json</code>，保存时由表单生成，无需手写 JSON。</p>
+          <details class="admin-details" open><summary>全站与导航</summary>
+          <div class="admin-form-grid">
+          <label class="admin-field"><span class="admin-field-label">浏览器标题 meta.pageTitle</span><input type="text" id="land_meta_pageTitle" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">nav.logoText</span><input type="text" id="land_nav_logoText" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">nav.brandTitle</span><input type="text" id="land_nav_brandTitle" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">nav.verBadge</span><input type="text" id="land_nav_verBadge" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">nav.brandSub</span><input type="text" id="land_nav_brandSub" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">nav.toolsLabel</span><input type="text" id="land_nav_toolsLabel" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">nav.ctaLabel</span><input type="text" id="land_nav_ctaLabel" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">导航链接文案 1</span><input type="text" id="land_nav_link0" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">导航链接文案 2</span><input type="text" id="land_nav_link1" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">导航链接文案 3</span><input type="text" id="land_nav_link2" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">导航链接文案 4</span><input type="text" id="land_nav_link3" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">导航链接文案 5</span><input type="text" id="land_nav_link4" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">滚动提示 scrollHint</span><input type="text" id="land_scrollHint" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">右侧圆点标签 1</span><input type="text" id="land_slideDot0" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">右侧圆点标签 2</span><input type="text" id="land_slideDot1" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">右侧圆点标签 3</span><input type="text" id="land_slideDot2" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">右侧圆点标签 4</span><input type="text" id="land_slideDot3" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">右侧圆点标签 5</span><input type="text" id="land_slideDot4" class="admin-input" autocomplete="off" placeholder="" /></label>
+          </div></details>
+          <details class="admin-details" open><summary>首屏 Slide 1</summary><div class="admin-form-grid">
+          <label class="admin-field"><span class="admin-field-label">slide1.eyebrow</span><input type="text" id="land_s1_eyebrow" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide1.titleLine</span><input type="text" id="land_s1_titleLine" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide1.titleHighlight</span><input type="text" id="land_s1_titleHighlight" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide1.tagline</span><input type="text" id="land_s1_tagline" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide1.desc</span><input type="text" id="land_s1_desc" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide1.btnPrimary</span><input type="text" id="land_s1_btnPrimary" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide1.btnSecondary</span><input type="text" id="land_s1_btnSecondary" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide1.btnSecondaryUrl</span><input type="text" id="land_s1_btnSecondaryUrl" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide1.terminalTitle</span><input type="text" id="land_s1_terminalTitle" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field admin-field-full"><span class="admin-field-label">终端行（每行一条）</span><textarea id="land_s1_terminalLines" class="admin-input" rows="8" spellcheck="true"></textarea></label>
+          </div></details>
+          <details class="admin-details"><summary>数据 Slide 2</summary><div class="admin-form-grid">
+          <label class="admin-field"><span class="admin-field-label">slide2.tag</span><input type="text" id="land_s2_tag" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide2.title</span><input type="text" id="land_s2_title" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide2.subtitle</span><input type="text" id="land_s2_subtitle" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">统计卡1 数字</span><input type="text" id="land_s2_stat0_num" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">统计卡1 标题</span><input type="text" id="land_s2_stat0_label" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">统计卡1 说明</span><input type="text" id="land_s2_stat0_desc" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">统计卡2 数字</span><input type="text" id="land_s2_stat1_num" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">统计卡2 标题</span><input type="text" id="land_s2_stat1_label" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">统计卡2 说明</span><input type="text" id="land_s2_stat1_desc" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">统计卡3 数字</span><input type="text" id="land_s2_stat2_num" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">统计卡3 标题</span><input type="text" id="land_s2_stat2_label" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">统计卡3 说明</span><input type="text" id="land_s2_stat2_desc" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">统计卡4 数字</span><input type="text" id="land_s2_stat3_num" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">统计卡4 标题</span><input type="text" id="land_s2_stat3_label" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">统计卡4 说明</span><input type="text" id="land_s2_stat3_desc" class="admin-input" autocomplete="off" placeholder="" /></label>
+          </div></details>
+          <details class="admin-details"><summary>能力 Slide 3（6 张卡片）</summary><div class="admin-form-grid">
+          <label class="admin-field"><span class="admin-field-label">slide3.tag</span><input type="text" id="land_s3_tag" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide3.title</span><input type="text" id="land_s3_title" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide3.subtitle</span><input type="text" id="land_s3_subtitle" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片1 标题</span><input type="text" id="land_s3_f0_title" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field admin-field-full"><span class="admin-field-label">卡片1 描述</span><textarea id="land_s3_f0_desc" class="admin-input" rows="2" spellcheck="true"></textarea></label>
+          <label class="admin-field"><span class="admin-field-label">卡片1 标签1</span><input type="text" id="land_s3_f0_tag0" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片1 标签2</span><input type="text" id="land_s3_f0_tag1" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片1 标签3</span><input type="text" id="land_s3_f0_tag2" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片2 标题</span><input type="text" id="land_s3_f1_title" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field admin-field-full"><span class="admin-field-label">卡片2 描述</span><textarea id="land_s3_f1_desc" class="admin-input" rows="2" spellcheck="true"></textarea></label>
+          <label class="admin-field"><span class="admin-field-label">卡片2 标签1</span><input type="text" id="land_s3_f1_tag0" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片2 标签2</span><input type="text" id="land_s3_f1_tag1" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片2 标签3</span><input type="text" id="land_s3_f1_tag2" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片3 标题</span><input type="text" id="land_s3_f2_title" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field admin-field-full"><span class="admin-field-label">卡片3 描述</span><textarea id="land_s3_f2_desc" class="admin-input" rows="2" spellcheck="true"></textarea></label>
+          <label class="admin-field"><span class="admin-field-label">卡片3 标签1</span><input type="text" id="land_s3_f2_tag0" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片3 标签2</span><input type="text" id="land_s3_f2_tag1" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片3 标签3</span><input type="text" id="land_s3_f2_tag2" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片4 标题</span><input type="text" id="land_s3_f3_title" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field admin-field-full"><span class="admin-field-label">卡片4 描述</span><textarea id="land_s3_f3_desc" class="admin-input" rows="2" spellcheck="true"></textarea></label>
+          <label class="admin-field"><span class="admin-field-label">卡片4 标签1</span><input type="text" id="land_s3_f3_tag0" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片4 标签2</span><input type="text" id="land_s3_f3_tag1" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片4 标签3</span><input type="text" id="land_s3_f3_tag2" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片5 标题</span><input type="text" id="land_s3_f4_title" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field admin-field-full"><span class="admin-field-label">卡片5 描述</span><textarea id="land_s3_f4_desc" class="admin-input" rows="2" spellcheck="true"></textarea></label>
+          <label class="admin-field"><span class="admin-field-label">卡片5 标签1</span><input type="text" id="land_s3_f4_tag0" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片5 标签2</span><input type="text" id="land_s3_f4_tag1" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片5 标签3</span><input type="text" id="land_s3_f4_tag2" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片6 标题</span><input type="text" id="land_s3_f5_title" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field admin-field-full"><span class="admin-field-label">卡片6 描述</span><textarea id="land_s3_f5_desc" class="admin-input" rows="2" spellcheck="true"></textarea></label>
+          <label class="admin-field"><span class="admin-field-label">卡片6 标签1</span><input type="text" id="land_s3_f5_tag0" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片6 标签2</span><input type="text" id="land_s3_f5_tag1" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">卡片6 标签3</span><input type="text" id="land_s3_f5_tag2" class="admin-input" autocomplete="off" placeholder="" /></label>
+          </div></details>
+          <details class="admin-details"><summary>代码 Slide 4</summary><div class="admin-form-grid">
+          <label class="admin-field"><span class="admin-field-label">slide4.tag</span><input type="text" id="land_s4_tag" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide4.titleLine1</span><input type="text" id="land_s4_titleLine1" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide4.titleLine2</span><input type="text" id="land_s4_titleLine2" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide4.subtitle</span><input type="text" id="land_s4_subtitle" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide4.codeFilename</span><input type="text" id="land_s4_codeFilename" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">要点 bullet 1</span><input type="text" id="land_s4_bullet0" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">要点 bullet 2</span><input type="text" id="land_s4_bullet1" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">要点 bullet 3</span><input type="text" id="land_s4_bullet2" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">要点 bullet 4</span><input type="text" id="land_s4_bullet3" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field admin-field-full"><span class="admin-field-label">代码行（每行一条）</span><textarea id="land_s4_codeLines" class="admin-input" rows="12" spellcheck="true"></textarea></label>
+          </div></details>
+          <details class="admin-details"><summary>行动 Slide 5</summary><div class="admin-form-grid">
+          <label class="admin-field"><span class="admin-field-label">slide5.titleLine1</span><input type="text" id="land_s5_titleLine1" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide5.titleHighlight</span><input type="text" id="land_s5_titleHighlight" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide5.desc</span><input type="text" id="land_s5_desc" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide5.btnPrimary</span><input type="text" id="land_s5_btnPrimary" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide5.btnSecondary</span><input type="text" id="land_s5_btnSecondary" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">slide5.btnSecondaryUrl</span><input type="text" id="land_s5_btnSecondaryUrl" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">特性1 标题</span><input type="text" id="land_s5_feat0_title" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">特性1 描述</span><input type="text" id="land_s5_feat0_desc" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">特性2 标题</span><input type="text" id="land_s5_feat1_title" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">特性2 描述</span><input type="text" id="land_s5_feat1_desc" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">特性3 标题</span><input type="text" id="land_s5_feat2_title" class="admin-input" autocomplete="off" placeholder="" /></label>
+          <label class="admin-field"><span class="admin-field-label">特性3 描述</span><input type="text" id="land_s5_feat2_desc" class="admin-input" autocomplete="off" placeholder="" /></label>
+          </div></details>
+          <div class="admin-row">
+            <button type="button" class="admin-btn-primary" id="btnSaveLanding">保存门户配置</button>
+            <span class="admin-msg" id="landingMsg"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="panelUsers">
+        <div class="admin-hub admin-users-surface">
+          <div class="page-hd fade-up">
+            <nav class="breadcrumb" aria-label="面包屑">
+              <button type="button" class="breadcrumb-link admin-hub-bc-dash">首页</button>
+              <span class="sep">/</span>
+              <span>用户管理</span>
+            </nav>
+            <h1 class="page-title">后台账号</h1>
+            <p class="page-desc">管理后台用户账号与角色。会话角色为 <strong>管理员</strong> 的账号可管理用户、角色与菜单顺序。不能删除或禁用最后一位管理员。密码使用 scrypt 哈希存储。</p>
+          </div>
+
+          <div class="tabs fade-up delay-1" role="tablist" aria-label="管理子页">
+            <button type="button" class="tab on" data-hub-tab="users" role="tab" aria-selected="true">后台账号</button>
+            <button type="button" class="tab" data-hub-tab="roles" role="tab" aria-selected="false">角色管理</button>
+            <button type="button" class="tab" data-hub-tab="menu" role="tab" aria-selected="false">菜单显示</button>
+          </div>
+
+          <div id="adminUsersStats" class="stats fade-up delay-1" aria-live="polite"></div>
+
+          <div class="card fade-up delay-1" id="adminOnlineUsersCard">
+            <div class="card-hd">
+              <h3 class="card-title">在线后台用户</h3>
+              <div class="card-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnAdminOnlineRefresh" title="刷新在线列表">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                  刷新
+                </button>
+              </div>
+            </div>
+            <div id="adminOnlineUsersHost" class="card-body padded">
+              <p class="admin-muted" style="margin:0">加载中…</p>
+            </div>
+          </div>
+
+          <div class="card fade-up delay-2">
+            <div class="card-hd">
+              <h3 class="card-title">用户列表</h3>
+              <div class="card-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnAdminUsersRefresh" title="刷新">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                  刷新
+                </button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnAdminNewUser">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  新建用户
+                </button>
+              </div>
+            </div>
+            <div id="adminUsersHost" class="card-body admin-users-host" style="overflow-x:auto"><p class="admin-muted" style="padding:16px 20px">加载中…</p></div>
+          </div>
+          <p class="admin-msg" id="adminUsersMsg" style="margin-top:8px;padding:0 4px"></p>
+        </div>
+      </div>
+
+      <div class="admin-panel admin-hidden" id="panelRoles">
+        <div class="admin-hub">
+          <div class="page-hd fade-up">
+            <nav class="breadcrumb" aria-label="面包屑">
+              <button type="button" class="breadcrumb-link admin-hub-bc-dash">首页</button>
+              <span class="sep">/</span>
+              <span>角色管理</span>
+            </nav>
+            <h1 class="page-title">角色与权限</h1>
+            <p class="page-desc">先<strong>选择角色</strong>，再配置模块权限、数据范围与安全说明。仅 <strong>管理员</strong> 可编辑。配置存于 <code>site_kv.role_profiles</code> 或 <code>data/role-profiles.json</code>；保存后该角色已登录用户需刷新或重新登录生效。</p>
+          </div>
+
+          <div class="tabs fade-up delay-1" role="tablist" aria-label="管理子页">
+            <button type="button" class="tab" data-hub-tab="users" role="tab">后台账号</button>
+            <button type="button" class="tab on" data-hub-tab="roles" role="tab" aria-selected="true">角色管理</button>
+            <button type="button" class="tab" data-hub-tab="menu" role="tab">菜单显示</button>
+          </div>
+
+          <div id="adminRolesHubStats" class="stats fade-up delay-1" aria-live="polite"></div>
+
+          <div class="card fade-up delay-2">
+            <div class="card-hd">
+              <h3 class="card-title">角色一览</h3>
+              <div class="card-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnAdminRolesRefresh" title="重新加载">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                  刷新
+                </button>
+              </div>
+            </div>
+            <div class="card-body padded">
+              <p class="tools-hint" style="margin:0 0 14px">点击卡片打开编辑弹窗，配置该角色的权限与安全说明。</p>
+              <div id="roleCardsHost" class="role-cards"></div>
+            </div>
+          </div>
+
+          <div class="card fade-up delay-3">
+            <div class="card-hd">
+              <h3 class="card-title">新增 / 删除角色</h3>
+            </div>
+            <div class="card-body padded">
+              <p class="tools-hint" style="margin-top:0;margin-bottom:12px;">新角色标识须小写字母开头，仅含字母、数字、下划线、连字符。内置 <code>admin</code>、<code>editor</code> 不可删除。删除前需确保无账号使用该角色。</p>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label">新角色标识</label>
+                  <input type="text" id="newRoleIdInput" class="form-input mono" placeholder="如 reviewer" autocomplete="off" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">显示名称</label>
+                  <input type="text" id="newRoleLabelInput" class="form-input" placeholder="如 审核" />
+                </div>
+              </div>
+              <div class="form-actions" style="margin-top:12px;justify-content:flex-start;gap:10px;display:flex;flex-wrap:wrap;align-items:center">
+                <button type="button" class="btn btn-primary" id="btnCreateRoleProfile">新增角色</button>
+                <button type="button" class="btn btn-ghost" id="btnDeleteRoleProfile">删除当前所选角色</button>
+                <span class="admin-msg" id="roleProfileCrudMsg"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="panelMenu">
+        <div class="admin-hub">
+          <div class="page-hd fade-up">
+            <nav class="breadcrumb" aria-label="面包屑">
+              <button type="button" class="breadcrumb-link admin-hub-bc-dash">首页</button>
+              <span class="sep">/</span>
+              <span>菜单显示</span>
+            </nav>
+            <h1 class="page-title">菜单显示</h1>
+            <p class="page-desc">调整左侧主导航中各功能的<strong>显示顺序</strong>（本页「菜单显示」固定在此，不参与排序）。顺序对<strong>所有登录后台的用户</strong>一致；也可在侧栏直接拖动菜单项，效果相同。</p>
+          </div>
+
+          <div class="tabs fade-up delay-1" role="tablist" aria-label="管理子页">
+            <button type="button" class="tab" data-hub-tab="users" role="tab">后台账号</button>
+            <button type="button" class="tab" data-hub-tab="roles" role="tab">角色管理</button>
+            <button type="button" class="tab on" data-hub-tab="menu" role="tab" aria-selected="true">菜单显示</button>
+          </div>
+
+          <div id="adminMenuHubStats" class="stats fade-up delay-1" aria-live="polite"></div>
+
+          <div class="card fade-up delay-2">
+            <div class="card-hd">
+              <h3 class="card-title">侧栏菜单顺序</h3>
+              <div class="card-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnAdminMenuRefresh" title="刷新列表">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                  刷新
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm" id="btnResetMenuOrderPanel">恢复默认</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnSaveMenuOrderPanel">保存到服务器</button>
+              </div>
+            </div>
+            <div class="card-body padded">
+              <p class="tools-hint" style="margin-top:0;margin-bottom:14px;"><strong>仅管理员</strong>可保存到服务器。拖动行或使用上移/下移调整顺序。</p>
+              <div class="menu-list-host">
+                <ul id="menuOrderEditorList" class="menu-order-editor-list" aria-label="菜单顺序列表"></ul>
+              </div>
+              <div class="form-actions" style="margin-top:8px;justify-content:flex-start">
+                <span class="admin-msg" id="menuOrderPanelMsg"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="panelSite">
+        <div class="admin-card admin-stats ry-stats-card" id="statsBox">
+          <span class="admin-label">站点数据概览</span>
+          <div id="statsInner">加载中…</div>
+        </div>
+        <div class="admin-card">
+          <p class="admin-tools-hint">默认仅关闭门户首页（<code>/</code>、<code>/index</code>），文档站仍可访问；勾选「全站维护」后 <code>/docs</code> 与公开接口也会 503。<code>/api/health</code>、<code>/admin</code>、<code>/api/admin</code> 始终可用。配置存于 <code>site_kv.site_settings</code> 或 <code>public/data/site-settings.json</code>。</p>
+          <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="site_maint_enabled" /> <span class="admin-field-label" style="display:inline">启用维护模式</span></label>
+          <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="site_maint_full_site" /> <span class="admin-field-label" style="display:inline">全站维护（含 <code>/docs</code> 文档站与公开接口；不勾选则仅关闭门户首页 <code>/</code>、<code>/index</code>）</span></label>
+          <label class="admin-field admin-field-full"><span class="admin-field-label">维护提示文案</span><textarea id="site_maint_message" class="admin-input" rows="3" spellcheck="true" placeholder="站点维护中，请稍后再试。"></textarea></label>
+          <label class="admin-field admin-field-full">
+            <span class="admin-field-label">注册形式</span>
+            <select id="site_registration_mode" class="admin-input">
+              <option value="invitation">邀请制（须有效邀请码）</option>
+              <option value="open">自主注册（可不填邀请码；若填写则仍消耗邀请码并采用码上默认角色）</option>
+            </select>
+          </label>
+          <p class="admin-tools-hint" style="margin-top: -4px">作用于公开页 <code>/register</code> 与 <code>POST /api/register</code>。全站维护开启时注册接口仍可能受限，请按需配置。</p>
+          <div class="admin-row">
+            <button type="button" class="admin-btn-primary" id="btnSaveSiteSettings">保存站点设置</button>
+            <span class="admin-msg" id="siteSettingsMsg"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="panelRedis">
+        <div class="redis-hub">
+          <div class="redis-hub-hd">
+            <div class="redis-hub-hd-left">
+              <p class="redis-breadcrumb">后台 / Redis</p>
+              <h2 class="redis-page-title">
+                <svg class="redis-ico-title" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                Redis 与缓存
+              </h2>
+              <p class="redis-page-desc">在线用户心跳、公开 API 与 <code>/data/*.json</code> 的热点内容可缓存至 Redis；未连接 Redis 时自动回源。环境变量 <code>REDIS_URL</code> 优先于站点配置。</p>
+            </div>
+            <div class="redis-hub-hd-right">
+              <div class="redis-status-badge sb-idle" id="redisConnBadge" title="连接状态">
+                <span class="redis-status-dot" id="redisConnDot"></span>
+                <span id="redisConnText">检测中…</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="redis-conn-visual" id="redisConnVisual">
+            <div class="redis-conn-node">
+              <div class="redis-conn-icon ci-app">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              </div>
+              <span class="redis-conn-label">EBU4 应用</span>
+              <span class="redis-conn-sub">Node.js</span>
+            </div>
+            <div class="redis-conn-line">
+              <div class="redis-conn-line-bar"></div>
+              <span class="redis-conn-arrow" aria-hidden="true">⟶</span>
+              <div class="redis-conn-line-bar"></div>
+            </div>
+            <div class="redis-conn-node">
+              <div class="redis-conn-icon ci-redis" id="redisServerIcon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              </div>
+              <span class="redis-conn-label">Redis</span>
+              <span class="redis-conn-sub mono" id="redisConnAddr">—</span>
+            </div>
+          </div>
+
+          <div class="redis-info-grid">
+            <div class="redis-info-card">
+              <div class="redis-ic ic-env"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg></div>
+              <div class="redis-ic-label">环境变量</div>
+              <div class="redis-ic-value" id="redisSrcEnv">—</div>
+              <div class="redis-ic-desc">REDIS_URL 优先于站点配置</div>
+            </div>
+            <div class="redis-info-card">
+              <div class="redis-ic ic-config"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg></div>
+              <div class="redis-ic-label">站点配置</div>
+              <div class="redis-ic-value" id="redisSrcDb">—</div>
+              <div class="redis-ic-desc">site_kv / site-settings.json</div>
+            </div>
+            <div class="redis-info-card">
+              <div class="redis-ic ic-cache"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+              <div class="redis-ic-label">缓存</div>
+              <div class="redis-ic-value" id="redisCacheHitRate">—</div>
+              <div class="redis-ic-desc">公开 API 命中占比（可重置计数）</div>
+            </div>
+          </div>
+
+          <div class="redis-section">
+            <div class="redis-section-hd"><span class="redis-section-title">连接配置</span></div>
+          <div class="admin-card redis-card">
+            <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="redis_enabled" /> <span class="admin-field-label" style="display:inline">使用站点配置中的 Redis 地址</span></label>
+            <label class="admin-field admin-field-full"><span class="admin-field-label">Redis URL</span><input type="text" id="redis_url" class="admin-input mono" autocomplete="off" placeholder="redis://:password@127.0.0.1:6379/0" spellcheck="false" /></label>
+            <p class="admin-tools-hint" id="redisStatusHint">保存后立即按新配置尝试连接。</p>
+            <div class="redis-form-actions">
+              <button type="button" class="admin-btn-ghost" id="btnRedisTest">测试连接</button>
+              <button type="button" class="admin-btn-primary" id="btnSaveRedis">保存 Redis 配置</button>
+            </div>
+            <span class="admin-msg" id="redisSettingsMsg"></span>
+          </div>
+          </div>
+
+          <div class="redis-section">
+            <div class="redis-section-hd"><span class="redis-section-title">HTTP 缓存统计</span></div>
+            <div class="admin-card redis-card">
+              <p class="admin-tools-hint">以下统计针对 <code>/api/sections</code>、<code>/api/pages</code>、<code>/api/search</code>、<code>/data/*.json</code> 等；响应头含 <code>X-EBU4-Cache: hit|miss</code>。</p>
+              <div class="redis-cache-stats">
+                <div><span class="redis-st-k">命中</span> <strong id="redisStatHits">0</strong></div>
+                <div><span class="redis-st-k">未命中</span> <strong id="redisStatMisses">0</strong></div>
+                <div><span class="redis-st-k">总请求</span> <strong id="redisStatTotal">0</strong></div>
+                <div><span class="redis-st-k">内容版本</span> <strong id="redisStatEpoch" class="mono">0</strong></div>
+              </div>
+              <div class="redis-form-actions" style="margin-top:12px">
+                <button type="button" class="admin-btn-ghost" id="btnRedisResetCacheStats">重置命中计数</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="redis-section">
+            <div class="redis-section-hd"><span class="redis-section-title">配置预览</span></div>
+            <div class="redis-config-preview mono" id="redisConfigPreview">
+              <span class="redis-cmt">// 站点配置 (site_settings.redis)</span><br />
+              <span class="redis-k">enabled</span><span class="redis-sep">: </span><span class="redis-v" id="redisCfgEnabled">false</span><br />
+              <span class="redis-k">url</span><span class="redis-sep">: </span><span class="redis-v" id="redisCfgUrl">""</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="panelAudit">
+        <div class="admin-card">
+          <span class="admin-label">操作日志（审计文件尾部）</span>
+          <p class="admin-tools-hint">与网关日志通过 <code>requestId</code> 关联；仅展示最近若干条。</p>
+          <div class="admin-row">
+            <button type="button" class="admin-btn-ghost" id="btnRefreshAudit">刷新</button>
+          </div>
+          <div id="auditLogHost" class="audit-log-host"></div>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="panelSeo">
+        <div class="admin-card">
+          <p class="admin-tools-hint">对应 <code>public/data/seo.json</code>，控制文档站与门户的标题、描述、Open Graph 及 <code>/robots.txt</code>、<code>/sitemap.xml</code>。</p>
+          <span class="admin-label">站点与规范 URL</span>
+          <div class="admin-form-grid">
+            <label class="admin-field admin-field-full"><span class="admin-field-label">canonicalBase（生产环境填 https://域名）</span><input type="text" id="seo_canonicalBase" class="admin-input" autocomplete="off" /></label>
+          </div>
+          <details class="admin-details" open><summary>文档站 /docs</summary>
+          <div class="admin-form-grid">
+            <label class="admin-field admin-field-full"><span class="admin-field-label">页面标题</span><input type="text" id="seo_docs_title" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field admin-field-full"><span class="admin-field-label">描述 description</span><textarea id="seo_docs_description" class="admin-input" rows="3" spellcheck="true"></textarea></label>
+            <label class="admin-field admin-field-full"><span class="admin-field-label">关键词 keywords（逗号分隔）</span><input type="text" id="seo_docs_keywords" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">分享图 og:image</span><input type="text" id="seo_docs_ogImage" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">Twitter 卡片类型</span><input type="text" id="seo_docs_twitterCard" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">meta robots</span><input type="text" id="seo_docs_robots" class="admin-input" autocomplete="off" /></label>
+          </div></details>
+          <details class="admin-details" open><summary>门户 /index</summary>
+          <div class="admin-form-grid">
+            <label class="admin-field admin-field-full"><span class="admin-field-label">页面标题</span><input type="text" id="seo_landing_title" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field admin-field-full"><span class="admin-field-label">描述 description</span><textarea id="seo_landing_description" class="admin-input" rows="3" spellcheck="true"></textarea></label>
+            <label class="admin-field admin-field-full"><span class="admin-field-label">关键词 keywords</span><input type="text" id="seo_landing_keywords" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">分享图 og:image</span><input type="text" id="seo_landing_ogImage" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">Twitter 卡片类型</span><input type="text" id="seo_landing_twitterCard" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">meta robots</span><input type="text" id="seo_landing_robots" class="admin-input" autocomplete="off" /></label>
+          </div></details>
+          <details class="admin-details" open><summary>robots.txt 与 sitemap</summary>
+          <div class="admin-form-grid">
+            <label class="admin-field admin-field-full"><span class="admin-field-label">robots.txt 全文</span><textarea id="seo_robotsTxt" class="admin-input" rows="6" spellcheck="false"></textarea></label>
+            <label class="admin-field admin-field-full"><span class="admin-field-label">sitemap 路径（每行一条）</span><textarea id="seo_sitemapPaths" class="admin-input" rows="4" spellcheck="false"></textarea></label>
+            <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="seo_includeExtraPagesInSearch" checked /> <span class="admin-field-label" style="display:inline">文档站搜索包含已发布扩展页（<code>includeExtraPagesInSearch</code>）</span></label>
+            <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="seo_includeExtraPagesInSitemap" checked /> <span class="admin-field-label" style="display:inline">sitemap 自动包含扩展页 URL（<code>/page/slug</code>，<code>includeExtraPagesInSitemap</code>）</span></label>
+          </div></details>
+          <div class="admin-row">
+            <button type="button" class="admin-btn-primary" id="btnSaveSeo">保存 SEO</button>
+            <span class="admin-msg" id="seoMsg"></span>
+          </div>
+        </div>
+      </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 用户管理：Toast / 弹窗 -->
+  <div id="adminToast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <div id="mainDocsModal" class="modal-bg" hidden>
+    <div class="modal admin-hub modal--lg" role="dialog" aria-modal="true" aria-labelledby="mainDocsModalTitle">
+      <h3 id="mainDocsModalTitle">主文档管理</h3>
+      <p class="admin-docs-hint" style="margin:8px 0 12px">前台通过 <code>/docs?doc=slug</code> 切换；未带参数时使用<strong>默认主文档</strong>。</p>
+      <div class="admin-table-wrap" style="overflow:auto;max-height:40vh">
+        <table class="admin-table main-docs-table">
+          <thead><tr><th>标题</th><th>slug</th><th>默认</th><th>操作</th></tr></thead>
+          <tbody id="mainDocsTableBody"></tbody>
+        </table>
+      </div>
+      <div class="de-main-doc-create" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--admin-border, rgba(212,168,83,0.2))">
+        <p class="admin-label" style="margin-bottom:8px">新建主文档</p>
+        <div class="de-main-doc-create-row">
+          <input type="text" id="newMainDocSlug" class="admin-input" placeholder="slug，如 api-guide" autocomplete="off" />
+          <input type="text" id="newMainDocTitle" class="admin-input" placeholder="显示标题" autocomplete="off" />
+          <button type="button" class="de-btn de-btn-accent" id="btnCreateMainDoc">创建</button>
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:16px;justify-content:flex-end;gap:10px;display:flex;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn btn-ghost" id="btnMainDocsModalClose">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminNewUserModal" class="modal-bg" hidden>
+    <div class="modal admin-hub modal--md" role="dialog" aria-modal="true" aria-labelledby="adminNewUserModalTitle">
+      <h3 id="adminNewUserModalTitle">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        新建用户
+      </h3>
+      <div class="form-grid" style="margin-top:8px">
+        <div class="form-group">
+          <label class="form-label">用户名 <span class="req">*</span></label>
+          <input type="text" id="newUserName" class="form-input" autocomplete="off" placeholder="登录名" />
+          <span class="form-hint">用于登录的唯一标识</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">密码 <span class="req">*</span></label>
+          <input type="password" id="newUserPwd" class="form-input mono" autocomplete="new-password" placeholder="≥ 8 位" />
+          <span class="form-hint">至少 8 个字符，scrypt 哈希存储</span>
+        </div>
+        <div class="form-group full">
+          <label class="form-label">角色 <span class="req">*</span></label>
+          <select id="newUserRole" class="form-input"></select>
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:16px;justify-content:flex-end;gap:10px;display:flex;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn btn-ghost" id="btnAdminNewUserCancel">取消</button>
+        <button type="button" class="btn btn-primary" id="btnCreateUser">创建用户</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="roleProfileModal" class="modal-bg" hidden>
+    <div class="modal admin-hub modal--lg" role="dialog" aria-modal="true" aria-labelledby="roleProfileModalTitle">
+      <h3 id="roleProfileModalTitle">编辑角色</h3>
+      <div class="form-grid" style="margin-top:8px;margin-bottom:12px">
+        <div class="form-group full">
+          <label class="form-label">当前编辑角色</label>
+          <select id="roleProfileSelect" class="form-input"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">显示名称</label>
+          <input type="text" id="roleProfileLabelInput" class="form-input" placeholder="侧栏与说明用" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">安全等级</label>
+          <select id="roleSecurityLevelSelect" class="form-input">
+            <option value="public">公开</option>
+            <option value="guest">访客</option>
+            <option value="internal">内部</option>
+            <option value="important">重要</option>
+            <option value="core">核心</option>
+            <option value="restricted">受限</option>
+          </select>
+        </div>
+      </div>
+      <p class="admin-label" style="margin-top:4px;">模块权限</p>
+      <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_editor_site" /> <span class="admin-field-label" style="display:inline">站点设置（维护模式）</span></label>
+      <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_editor_seo" /> <span class="admin-field-label" style="display:inline">SEO 设置</span></label>
+      <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_editor_audit" /> <span class="admin-field-label" style="display:inline">操作日志（审计）</span></label>
+      <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_editor_invite" /> <span class="admin-field-label" style="display:inline">邀请注册（生成与管理邀请码）</span></label>
+      <p class="admin-label" style="margin-top:10px;">数据查看范围</p>
+      <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_dv_mainDoc" checked /> <span class="admin-field-label" style="display:inline">主文档与章节</span></label>
+      <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_dv_tools" checked /> <span class="admin-field-label" style="display:inline">工具导航</span></label>
+      <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_dv_landing" checked /> <span class="admin-field-label" style="display:inline">门户首页配置</span></label>
+      <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_dv_extraPages" checked /> <span class="admin-field-label" style="display:inline">扩展页面</span></label>
+      <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_dv_images" checked /> <span class="admin-field-label" style="display:inline">图片库</span></label>
+      <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_dv_stats" checked /> <span class="admin-field-label" style="display:inline">站点数据概览（统计）</span></label>
+      <div class="form-group full" style="margin-top:8px">
+        <label class="form-label">说明正文（Markdown 可）</label>
+        <textarea id="roleSecurityDocTa" class="form-input role-doc-textarea admin-textarea" rows="6" spellcheck="true" placeholder="该角色的安全说明、数据范围备注等"></textarea>
+      </div>
+      <div class="form-actions" style="margin-top:16px;justify-content:flex-end;gap:10px;display:flex;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn btn-ghost" id="btnRoleProfileModalCancel">关闭</button>
+        <button type="button" class="btn btn-primary" id="btnSaveRoleProfile">保存当前角色</button>
+        <span class="admin-msg" id="roleProfileMsg"></span>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminPwdModal" class="modal-bg" hidden>
+    <div class="modal admin-hub" role="dialog" aria-modal="true" aria-labelledby="adminPwdModalTitle">
+      <h3 id="adminPwdModalTitle">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        修改密码
+      </h3>
+      <input type="hidden" id="adminPwdUserId" value="" />
+      <div class="form-grid" style="margin-top:12px;">
+        <div class="form-group full">
+          <label class="form-label">新密码 <span class="req">*</span></label>
+          <input type="password" id="adminPwdInput1" class="form-input" autocomplete="new-password" placeholder="≥ 8 位" />
+        </div>
+        <div class="form-group full">
+          <label class="form-label">确认密码 <span class="req">*</span></label>
+          <input type="password" id="adminPwdInput2" class="form-input" autocomplete="new-password" />
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:16px;justify-content:flex-end;gap:10px;display:flex;flex-wrap:wrap">
+        <button type="button" class="btn btn-ghost" id="btnAdminPwdCancel">取消</button>
+        <button type="button" class="btn btn-primary" id="btnAdminPwdConfirm">确认修改</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminPasskeyModal" class="modal-bg" hidden>
+    <div class="modal admin-hub" role="dialog" aria-modal="true" aria-labelledby="adminPasskeyModalTitle">
+      <h3 id="adminPasskeyModalTitle">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        通行密钥
+      </h3>
+      <input type="hidden" id="adminPasskeyUserId" value="" />
+      <p class="admin-muted" style="margin-top:8px">绑定后，该用户可在登录页「通行密钥」模式使用本机已注册的密钥登录。</p>
+      <div id="adminPasskeyList" style="margin-top:12px;max-height:220px;overflow:auto;font-size:13px"></div>
+      <div class="form-group full" style="margin-top:12px">
+        <label class="form-label">新密钥备注（可选）</label>
+        <input type="text" id="adminPasskeyLabel" class="form-input" maxlength="120" placeholder="例如：办公室 Mac / iPhone" autocomplete="off" />
+      </div>
+      <div class="form-actions" style="margin-top:16px;justify-content:flex-end;gap:10px;display:flex;flex-wrap:wrap">
+        <button type="button" class="btn btn-ghost" id="btnAdminPasskeyCancel">关闭</button>
+        <button type="button" class="btn btn-primary" id="btnAdminPasskeyRegister">在此设备注册</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-item">
+      <span class="status-dot green"></span>
+      <span>管理后台</span>
+    </div>
+    <div class="status-item">
+      <span class="status-dot gold"></span>
+      <span>与文档站共用主题与样式</span>
+    </div>
+    <div class="status-sep"></div>
+    <div class="status-item right">
+      <span class="site-footer-brand">Ecology E9 Platform</span>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/turndown@7.2.0/dist/turndown.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+  <script src="/js/admin-config-forms.js"></script>
+  <script src="/js/admin-upload.js" defer></script>
+  <script src="/js/admin-pages.js" defer></script>
+  <script src="/js/admin-tools-nav.js" defer></script>
+  <script src="/js/webauthn-client.js?v=20260324a"></script>
+  <script src="/js/admin.js" defer></script>
+</body>
+</html>

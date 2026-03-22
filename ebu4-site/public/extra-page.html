@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <script>
+  (function () {
+    try {
+      var k = 'ebu4-theme';
+      var v = localStorage.getItem(k) || 'dark';
+      if (v !== 'light' && v !== 'dark' && v !== 'system') v = 'dark';
+      document.documentElement.dataset.theme = v;
+    } catch (e) {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080c22" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#eef1f8" media="(prefers-color-scheme: light)">
+  <title>扩展页面</title>
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/lib/github-dark.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .extra-page-wrap { max-width: 820px; margin: 0 auto; padding: 20px 20px calc(24px + var(--status-h)); padding-top: calc(var(--navbar-h) + 16px); }
+    .extra-page-article { padding: 24px 24px 28px; }
+    .blog-article-head { margin-bottom: 20px; }
+    .blog-article-title { font-size: 1.65rem; font-weight: 700; color: var(--text-bright); }
+    .blog-article-meta { font-size: 0.85rem; color: var(--text-dim); margin-top: 10px; }
+    .blog-article-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .blog-tag { font-size: 0.72rem; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border-gold); color: var(--gold); background: var(--gold-glow); }
+    .blog-article-cover { margin: 16px 0 0; }
+    .blog-article-cover img { width: 100%; max-height: 360px; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--border); }
+    .blog-article-lead { font-size: 0.95rem; color: var(--text-dim); line-height: 1.65; margin-top: 16px; padding: 12px 14px; border-left: 3px solid var(--indigo); background: var(--indigo-glow); border-radius: 0 var(--radius) var(--radius) 0; }
+    .blog-article-body { margin-top: 22px; }
+  </style>
+</head>
+<body>
+  <header class="navbar">
+    <div class="navbar-left">
+      <a href="/docs" class="logo" title="文档中心">
+        <svg class="logo-icon" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+          <path d="M14 2L22 7V17Q22 22 14 26Q6 22 6 17V7L14 2Z" stroke="#d4a853" stroke-width="1.5" fill="rgba(62,175,124,0.08)"/>
+          <path d="M14 9L11 14H17L14 9Z" fill="#d4a853" opacity="0.8"/>
+          <circle cx="14" cy="18" r="2" fill="#d4a853" opacity="0.6"/>
+        </svg>
+        <span>EBU4 <span class="gold">技术支持</span></span>
+      </a>
+    </div>
+    <div class="navbar-right">
+      <a href="/docs" class="nav-pill">文档中心</a>
+      <a href="/index" class="nav-pill">门户首页</a>
+    </div>
+  </header>
+
+  <main class="extra-page-wrap">
+    <article class="admin-card extra-page-article">
+      <p id="extraPageLoading">加载中…</p>
+      <p id="extraPageErr" class="admin-msg err admin-hidden" role="alert"></p>
+      <header id="blogArticleHead" class="blog-article-head admin-hidden">
+        <h1 id="blogTitle" class="blog-article-title"></h1>
+        <p id="blogMeta" class="blog-article-meta"></p>
+        <div id="blogTags" class="blog-article-tags"></div>
+        <figure id="blogCoverWrap" class="blog-article-cover admin-hidden"><img id="blogCoverImg" alt="" /></figure>
+        <p id="blogExcerpt" class="blog-article-lead admin-hidden"></p>
+      </header>
+      <div id="extraPageBody" class="admin-page-preview-inner blog-article-body"></div>
+    </article>
+  </main>
+
+  <div class="status-bar">
+    <div class="status-item">
+      <span class="status-dot gold"></span>
+      <span>扩展页面</span>
+    </div>
+    <div class="status-sep"></div>
+    <div class="status-item right">
+      <span class="site-footer-brand">Ecology E9 Platform</span>
+    </div>
+  </div>
+
+  <script src="/lib/marked.min.js"></script>
+  <script src="/lib/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+  <script src="/js/extra-page.js" defer></script>
+</body>
+</html>

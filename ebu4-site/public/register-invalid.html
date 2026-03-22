@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>EBU4 · 邀请码无效</title>
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#08080c;--surface:#111118;--surface2:#18181f;--surface3:#22222e;
+  --border:#252535;--border2:#333348;
+  --text:#e4e4ef;--text2:#9898aa;--text3:#5e5e74;
+  --accent:#e8b931;--accent2:#f0c848;--accent-dim:rgba(232,185,49,.08);
+  --red:#ef4444;--red-dim:rgba(239,68,68,.08);--red-glow:rgba(239,68,68,.15);
+  --green:#34d399;--blue:#60a5fa;--orange:#fb923c;
+  --sans:'Plus Jakarta Sans',system-ui,sans-serif;
+  --mono:'JetBrains Mono','Fira Code',monospace;
+  --r:10px;--r2:14px;--r3:18px;
+  --shadow:0 4px 24px rgba(0,0,0,.5);
+  --shadow2:0 8px 40px rgba(0,0,0,.6);
+  --ease:cubic-bezier(.4,0,.2,1);
+  --bounce:cubic-bezier(.34,1.56,.64,1);
+}
+html,body{height:100%;font-family:var(--sans);background:var(--bg);color:var(--text);overflow-x:hidden}
+input,button,select,textarea{font-family:inherit;font-size:inherit;color:inherit;border:none;background:none;outline:none}
+button{cursor:pointer}
+a{color:inherit;text-decoration:none}
+
+.bg-canvas{position:fixed;inset:0;z-index:0;overflow:hidden}
+.bg-gradient{position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 30%,rgba(239,68,68,.06),transparent 60%),radial-gradient(ellipse 60% 50% at 80% 80%,rgba(251,146,60,.03),transparent 50%),radial-gradient(ellipse 50% 40% at 15% 65%,rgba(96,165,250,.03),transparent 50%)}
+.bg-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.012) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.012) 1px,transparent 1px);background-size:60px 60px;mask-image:radial-gradient(ellipse 70% 70% at 50% 40%,black,transparent)}
+.bg-orbs{position:absolute;inset:0}
+.orb{position:absolute;border-radius:50%;filter:blur(90px);opacity:.1;animation:orbFloat 14s ease-in-out infinite}
+.orb-1{width:280px;height:280px;background:var(--red);top:-60px;right:15%;animation-delay:0s}
+.orb-2{width:220px;height:220px;background:var(--orange);bottom:-40px;left:8%;animation-delay:-5s}
+.orb-3{width:180px;height:180px;background:var(--blue);top:50%;left:55%;animation-delay:-9s}
+@keyframes orbFloat{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(25px,-18px) scale(1.04)}66%{transform:translate(-18px,12px) scale(.96)}}
+
+.page{position:relative;z-index:1;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px}
+
+.auth-card{width:100%;max-width:460px;opacity:0;animation:cardIn .7s var(--ease) forwards}
+@keyframes cardIn{from{opacity:0;transform:translateY(24px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+.card-inner{background:rgba(17,17,24,.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:var(--r3);overflow:hidden;box-shadow:var(--shadow2)}
+
+.card-hd{padding:40px 36px 0;text-align:center;position:relative}
+.card-hd::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--red),var(--orange),var(--red))}
+
+.brand{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:28px}
+.brand-icon{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--orange));display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(232,185,49,.25)}
+.brand-icon svg{width:22px;height:22px;color:var(--bg)}
+.brand-text{font-size:15px;font-weight:800;letter-spacing:.5px}
+
+.error-icon-wrap{margin:0 auto 24px;position:relative;width:88px;height:88px}
+.error-icon-bg{width:88px;height:88px;border-radius:50%;background:var(--red-dim);border:2px solid rgba(239,68,68,.15);display:flex;align-items:center;justify-content:center;position:relative;animation:iconPulse 3s ease-in-out infinite}
+@keyframes iconPulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.15)}50%{box-shadow:0 0 0 12px rgba(239,68,68,0)}}
+.error-icon-bg svg{width:38px;height:38px;color:var(--red);animation:iconIn .5s var(--bounce) .3s both}
+@keyframes iconIn{from{opacity:0;transform:scale(.5) rotate(-15deg)}to{opacity:1;transform:scale(1) rotate(0)}}
+.error-badge{position:absolute;bottom:-4px;right:-4px;width:28px;height:28px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(239,68,68,.35);animation:badgeIn .4s var(--bounce) .6s both}
+@keyframes badgeIn{from{opacity:0;transform:scale(0)}to{opacity:1;transform:scale(1)}}
+.error-badge svg{width:14px;height:14px;color:white}
+
+.card-title{font-size:24px;font-weight:800;letter-spacing:-.3px;margin-bottom:8px;color:var(--text)}
+.card-desc{font-size:13.5px;color:var(--text3);line-height:1.7;margin-bottom:8px}
+
+.reasons{background:var(--red-dim);border:1px solid rgba(239,68,68,.1);border-radius:var(--r2);padding:18px 20px;margin:20px 0 24px;text-align:left}
+.reasons-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--red);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.reasons-title svg{width:14px;height:14px}
+.reason-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;font-size:13px;color:var(--text2);line-height:1.5}
+.reason-item+.reason-item{border-top:1px solid rgba(239,68,68,.08)}
+.reason-num{width:22px;height:22px;border-radius:6px;background:rgba(239,68,68,.1);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--red);flex-shrink:0;margin-top:1px}
+
+.code-display{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.code-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)}
+.code-value{font-family:var(--mono);font-size:12.5px;color:var(--red);letter-spacing:.5px;text-decoration:line-through;text-decoration-color:rgba(239,68,68,.3)}
+.code-status{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--red);padding:3px 10px;background:var(--red-dim);border-radius:12px;border:1px solid rgba(239,68,68,.12)}
+.code-status .dot{width:6px;height:6px;border-radius:50%;background:var(--red)}
+
+.actions{display:flex;flex-direction:column;gap:10px;margin-bottom:8px}
+
+.btn{width:100%;height:46px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--r);font-size:14px;font-weight:700;transition:all .2s var(--ease);position:relative}
+.btn svg{width:17px;height:17px}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--orange));color:var(--bg)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(232,185,49,.3)}
+.btn-primary:active{transform:translateY(0)}
+.btn-secondary{background:var(--surface);border:1px solid var(--border);color:var(--text)}
+.btn-secondary:hover{border-color:var(--text3);background:var(--surface2)}
+.btn-ghost{background:none;color:var(--text2)}
+.btn-ghost:hover{color:var(--text);background:var(--surface)}
+
+.divider{display:flex;align-items:center;gap:12px;margin:20px 0}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.divider span{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;font-weight:600;white-space:nowrap}
+
+.card-ft{text-align:center;padding:0 36px 36px}
+.card-ft p{font-size:13.5px;color:var(--text3)}
+.card-ft a{color:var(--accent);font-weight:600;transition:all .15s;position:relative}
+.card-ft a::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;background:var(--accent);transform:scaleX(0);transition:transform .2s var(--ease);transform-origin:right}
+.card-ft a:hover::after{transform:scaleX(1);transform-origin:left}
+
+.bottom-brand{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text3);opacity:.5;z-index:1;display:flex;align-items:center;gap:6px}
+.bottom-brand svg{width:12px;height:12px}
+
+.particles{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.particle{position:absolute;width:3px;height:3px;border-radius:50%;background:var(--red);opacity:0;animation:particleFall 4s linear infinite}
+@keyframes particleFall{0%{opacity:0;transform:translateY(-20px) scale(0)}10%{opacity:.6;transform:scale(1)}90%{opacity:.3}100%{opacity:0;transform:translateY(100px) scale(0)}}
+
+@media(max-width:480px){
+  .card-hd,.card-ft{padding-left:24px;padding-right:24px}
+  .reasons{padding:14px 16px}
+  .card-title{font-size:20px}
+  .error-icon-wrap{width:72px;height:72px}
+  .error-icon-bg{width:72px;height:72px}
+  .error-icon-bg svg{width:30px;height:30px}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-canvas">
+  <div class="bg-gradient"></div>
+  <div class="bg-grid"></div>
+  <div class="bg-orbs">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+  <div class="particles" id="particles"></div>
+</div>
+
+<div class="page">
+  <div class="auth-card" id="authCard">
+    <div class="card-inner">
+
+      <div class="card-hd">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+          </div>
+          <span class="brand-text">EBU4 文档中心</span>
+        </div>
+
+        <div class="error-icon-wrap">
+          <div class="error-icon-bg">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="15" y1="9" x2="9" y2="15"/>
+              <line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+          </div>
+          <div class="error-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </div>
+        </div>
+
+        <h2 class="card-title" id="cardTitle">邀请码无效</h2>
+        <p class="card-desc" id="cardDesc">无法使用此邀请码完成注册，请检查以下可能的原因：</p>
+      </div>
+
+      <div style="padding:0 36px">
+        <div class="reasons">
+          <div class="reasons-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            可能的原因
+          </div>
+          <div class="reason-item">
+            <div class="reason-num">1</div>
+            <div><strong style="color:var(--text);font-weight:600">邀请码已过期</strong> — 邀请码有效期为 30 天，过期后将自动失效</div>
+          </div>
+          <div class="reason-item">
+            <div class="reason-num">2</div>
+            <div><strong style="color:var(--text);font-weight:600">已达使用上限</strong> — 此邀请码已被使用，每个邀请码仅限使用一次</div>
+          </div>
+          <div class="reason-item">
+            <div class="reason-num">3</div>
+            <div><strong style="color:var(--text);font-weight:600">邀请码不存在</strong> — 请确认输入的邀请码是否正确，注意区分大小写</div>
+          </div>
+        </div>
+
+        <div class="code-display">
+          <div>
+            <div class="code-label">当前邀请码</div>
+            <div class="code-value" id="codeDisplay">—</div>
+          </div>
+          <div class="code-status">
+            <span class="dot"></span>无效
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn btn-primary" onclick="reEnter()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+            重新输入邀请码
+          </button>
+          <button type="button" class="btn btn-secondary" onclick="goLogin()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10,17 15,12 10,7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            已有账号？去登录
+          </button>
+        </div>
+
+        <div class="divider"><span>或</span></div>
+      </div>
+
+      <div class="card-ft">
+        <p>请联系管理员获取新的邀请码</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="bottom-brand">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+  Ecology E9 Platform
+</div>
+
+<script>
+var params = new URLSearchParams(window.location.search);
+var invite = params.get('invite');
+var reason = params.get('reason') || '';
+if (invite) {
+  document.getElementById('codeDisplay').textContent = invite;
+}
+
+var titleEl = document.getElementById('cardTitle');
+var descEl = document.getElementById('cardDesc');
+if (reason === 'exhausted') {
+  titleEl.textContent = '邀请名额已用完';
+  descEl.textContent = '此邀请码的使用次数已达上限，无法继续注册。';
+  document.title = 'EBU4 · 邀请名额已用完';
+} else if (reason === 'expired') {
+  titleEl.textContent = '邀请码已过期';
+  descEl.textContent = '邀请码已超过有效期，请向管理员索取新的邀请码。';
+  document.title = 'EBU4 · 邀请码已过期';
+} else if (reason === 'not_found' || reason === 'empty') {
+  document.title = 'EBU4 · 邀请码无效';
+}
+
+function reEnter() {
+  window.location.href = '/register';
+}
+
+function goLogin() {
+  window.location.href = '/admin/login';
+}
+
+(function createParticles() {
+  var container = document.getElementById('particles');
+  for (var i = 0; i < 12; i++) {
+    var p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.top = Math.random() * 40 + '%';
+    p.style.animationDelay = Math.random() * 4 + 's';
+    p.style.animationDuration = (3 + Math.random() * 3) + 's';
+    p.style.width = p.style.height = (2 + Math.random() * 3) + 'px';
+    container.appendChild(p);
+  }
+})();
+</script>
+</body>
+</html>

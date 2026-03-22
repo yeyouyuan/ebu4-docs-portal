@@ -1,0 +1,30 @@
+# Monorepo 根目录（整包 ebu7-complete）
+
+.DS_Store
+
+# Node / 日志 / 环境（全仓库）
+node_modules/
+logs/
+.env
+.env.*
+!ebu4-site/.env.example
+
+# SQLite 与本地数据目录
+*.db-shm
+*.db-wal
+*.db-journal
+ebu4-site/data/*.db
+ebu4-site/data/admin-users.json
+ebu4-site/data/editor-module-access.json
+ebu4-site/data/role-data-view.json
+ebu4-site/data/role-security-doc.txt
+ebu4-site/data/role-profiles.json
+ebu4-site/public/data/visit-stats.json
+ebu4-site/public/data/site-settings.json
+ebu4-site/public/data/admin-menu-order.json
+
+# 备份与临时导出
+**/*.bak*
+ebu4-site/public/data/*.bak*
+ebu4-site/public/admin.html.bak*
+ebu4-docs.md.bak*

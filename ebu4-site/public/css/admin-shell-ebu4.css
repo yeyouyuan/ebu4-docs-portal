@@ -1,0 +1,277 @@
+/**
+ * 后台登录后全屏布局 — 与参考 HTML（EBU4 用户管理）一致的深色底、金强调、Plus Jakarta Sans
+ * 通过覆盖 style.css 的语义变量，让 .ry-*、.admin-card、表单等无需改类名即统一视觉
+ * 作用域：body.admin-dash-mode（由 admin.js 在登录成功后添加）
+ */
+
+body.admin-dash-mode {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+
+  /* 参考稿 :root */
+  --ebu4-bg: #0f0f12;
+  --ebu4-surface: #18181f;
+  --ebu4-surface2: #1e1e28;
+  --ebu4-surface3: #252530;
+  --ebu4-border: #2a2a38;
+  --ebu4-border2: #363648;
+  --ebu4-text: #e4e4ef;
+  --ebu4-text2: #9898aa;
+  --ebu4-text3: #66667a;
+  --ebu4-accent: #e8b931;
+  --ebu4-accent2: #f0c848;
+  --ebu4-accent-dim: rgba(232, 185, 49, 0.08);
+  --ebu4-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+
+  /* 映射到全站语义变量（style.css / admin.css 使用） */
+  --bg-deep: var(--ebu4-bg);
+  --bg-surface: var(--ebu4-surface);
+  --bg-card: var(--ebu4-surface);
+  --bg-code: var(--ebu4-bg);
+  --bg-hover: var(--ebu4-surface2);
+
+  --sidebar-bg: var(--ebu4-surface);
+  --navbar-bg: rgba(15, 15, 18, 0.92);
+  --status-bg: rgba(15, 15, 18, 0.95);
+
+  --gold: var(--ebu4-accent);
+  --gold-light: var(--ebu4-accent2);
+  --gold-dim: #c9a028;
+  --gold-glow: var(--ebu4-accent-dim);
+  --border-gold: rgba(232, 185, 49, 0.18);
+
+  /* 侧栏高亮原用 indigo，改为金强调（与参考稿 .nav-item.on 一致） */
+  --indigo: var(--ebu4-accent);
+  --indigo-dim: #d4a820;
+  --indigo-glow: rgba(232, 185, 49, 0.12);
+
+  --text: var(--ebu4-text);
+  --text-bright: var(--ebu4-text);
+  --text-dim: var(--ebu4-text2);
+  --text-link: var(--ebu4-accent);
+
+  --border: var(--ebu4-border);
+
+  --green: #34d399;
+  --red: #ef4444;
+
+  --focus-ring: 0 0 0 3px rgba(232, 185, 49, 0.12);
+  --img-shadow: var(--ebu4-shadow);
+  --scrollbar-thumb: var(--ebu4-border);
+  --scrollbar-thumb-hover: var(--ebu4-border2);
+
+  --theme-rgb-p: 232, 185, 49;
+  --theme-rgb-a: 232, 185, 49;
+
+  /**
+   * Toast、Modal 等挂在 body 下，不在 .admin-hub 内，需与 hub 共用同一套命名变量，
+   * 才能随浅色 / 深色 / 跟随系统 切换（否则恒为参考稿里的深色回退值）。
+   */
+  --surface: var(--ebu4-surface);
+  --surface2: var(--ebu4-surface2);
+  --surface3: var(--ebu4-surface3);
+  --border2: var(--ebu4-border2);
+  --shadow: var(--ebu4-shadow);
+  --shadow2: 0 8px 32px rgba(0, 0, 0, 0.42);
+  --accent: var(--ebu4-accent);
+  --accent2: var(--ebu4-accent2);
+  --accent-dim: var(--ebu4-accent-dim);
+  --text2: var(--ebu4-text2);
+  --text3: var(--ebu4-text3);
+  --bg: var(--ebu4-bg);
+  --r: 8px;
+  --r2: 12px;
+  --r3: 16px;
+  --sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+}
+
+/* 侧栏宽度与参考稿一致 */
+body.admin-dash-mode .ry-sidebar {
+  width: 252px;
+  min-width: 252px;
+  box-shadow: none;
+  border-right: 1px solid var(--ebu4-border);
+  background: var(--ebu4-surface);
+}
+
+body.admin-dash-mode .ry-sidebar-logo {
+  min-height: 56px;
+  padding: 18px 18px 14px;
+  background: var(--ebu4-surface);
+  border-bottom: 1px solid var(--ebu4-border);
+}
+
+body.admin-dash-mode .ry-logo-mark {
+  background: linear-gradient(135deg, var(--ebu4-accent), #fb923c);
+  color: var(--ebu4-bg);
+  border-radius: 10px;
+}
+
+body.admin-dash-mode .ry-menu {
+  padding: 10px 8px;
+}
+
+body.admin-dash-mode .ry-menu-item {
+  padding: 7px 10px 7px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  margin: 0 4px 2px;
+  color: var(--ebu4-text2);
+}
+
+body.admin-dash-mode .ry-menu-item:hover {
+  background: var(--ebu4-surface2);
+  color: var(--ebu4-text);
+}
+
+body.admin-dash-mode .ry-menu-item.active {
+  background: var(--ebu4-accent-dim);
+  color: var(--ebu4-accent);
+  box-shadow: none;
+  border: none;
+}
+
+body.admin-dash-mode .ry-menu-item.active .ry-menu-ico {
+  opacity: 1;
+  color: var(--ebu4-accent);
+}
+
+body.admin-dash-mode .ry-menu-ico {
+  width: 15px;
+  height: 15px;
+  opacity: 0.5;
+}
+
+body.admin-dash-mode .ry-menu-item.active .ry-menu-ico {
+  opacity: 1;
+}
+
+body.admin-dash-mode .ry-menu-meta {
+  border-top-color: var(--ebu4-border);
+}
+
+body.admin-dash-mode .ry-menu-footer {
+  border-top-color: var(--ebu4-border);
+}
+
+body.admin-dash-mode .ry-main {
+  background: var(--ebu4-bg);
+}
+
+body.admin-dash-mode .ry-header {
+  height: auto;
+  min-height: 48px;
+  padding: 12px 20px 12px 24px;
+  background: var(--ebu4-bg);
+  border-bottom: 1px solid var(--ebu4-border);
+  box-shadow: none;
+}
+
+body.admin-dash-mode .ry-breadcrumb {
+  font-size: 12px;
+  gap: 6px;
+  color: var(--ebu4-text3);
+}
+
+body.admin-dash-mode .ry-crumb-active {
+  color: var(--ebu4-text);
+  font-weight: 600;
+}
+
+body.admin-dash-mode .ry-header-link:hover {
+  color: var(--ebu4-accent);
+  background: var(--ebu4-accent-dim);
+}
+
+body.admin-dash-mode .ry-body {
+  padding: 0 32px 32px 32px;
+  background: var(--ebu4-bg);
+}
+
+body.admin-dash-mode .ry-body::-webkit-scrollbar {
+  width: 5px;
+}
+body.admin-dash-mode .ry-body::-webkit-scrollbar-thumb {
+  background: var(--ebu4-border);
+  border-radius: 3px;
+}
+body.admin-dash-mode .ry-body::-webkit-scrollbar-thumb:hover {
+  background: var(--ebu4-border2);
+}
+
+/* 通用卡片与主区文档块，贴近参考稿圆角与边框 */
+body.admin-dash-mode .admin-card {
+  border-radius: 16px;
+  border-color: var(--ebu4-border);
+  background: var(--ebu4-surface);
+  box-shadow: none;
+}
+
+body.admin-dash-mode .admin-input,
+body.admin-dash-mode .admin-textarea {
+  border-radius: 8px;
+  border-color: var(--ebu4-border);
+  background: var(--ebu4-bg);
+}
+
+body.admin-dash-mode .admin-input:focus,
+body.admin-dash-mode .admin-textarea:focus {
+  border-color: var(--ebu4-accent);
+  box-shadow: var(--focus-ring);
+}
+
+body.admin-dash-mode .admin-btn-primary {
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--ebu4-accent2), var(--ebu4-accent));
+  color: var(--ebu4-bg);
+}
+
+body.admin-dash-mode .admin-btn-primary:hover {
+  box-shadow: 0 4px 14px rgba(232, 185, 49, 0.25);
+}
+
+body.admin-dash-mode .status-bar {
+  background: var(--ebu4-surface);
+  border-top-color: var(--ebu4-border);
+  font-size: 11px;
+}
+
+/* 浅色：保留可读性，仍用金强调 */
+:root[data-theme='light'] body.admin-dash-mode {
+  --ebu4-bg: #f4f4f7;
+  --ebu4-surface: #ffffff;
+  --ebu4-surface2: #f1f5f9;
+  --ebu4-surface3: #e2e8f0;
+  --ebu4-border: #e2e8f0;
+  --ebu4-border2: #cbd5e1;
+  --ebu4-text: #0f172a;
+  --ebu4-text2: #64748b;
+  --ebu4-text3: #94a3b8;
+  --navbar-bg: rgba(255, 255, 255, 0.92);
+  --status-bg: rgba(255, 255, 255, 0.96);
+  --shadow2: 0 12px 40px rgba(15, 23, 42, 0.08);
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme='system'] body.admin-dash-mode {
+    --ebu4-bg: #f4f4f7;
+    --ebu4-surface: #ffffff;
+    --ebu4-surface2: #f1f5f9;
+    --ebu4-surface3: #e2e8f0;
+    --ebu4-border: #e2e8f0;
+    --ebu4-border2: #cbd5e1;
+    --ebu4-text: #0f172a;
+    --ebu4-text2: #64748b;
+    --ebu4-text3: #94a3b8;
+    --navbar-bg: rgba(255, 255, 255, 0.92);
+    --status-bg: rgba(255, 255, 255, 0.96);
+    --shadow2: 0 12px 40px rgba(15, 23, 42, 0.08);
+  }
+}
+
+@media (max-width: 900px) {
+  body.admin-dash-mode .ry-sidebar {
+    width: 64px;
+    min-width: 64px;
+  }
+}

@@ -1,0 +1,654 @@
+/**
+ * 文档管理（#panelMd）：侧栏 + 顶栏 + Quill + 属性面板
+ * 颜色与圆角跟随站点主题（public/css/style.css 的 :root / data-theme）
+ */
+#panelMd {
+  --dm-bg: var(--bg-deep);
+  --dm-surface: var(--bg-card);
+  --dm-surface2: var(--bg-code);
+  --dm-surface3: var(--bg-hover);
+  --dm-border: var(--border);
+  --dm-border2: color-mix(in srgb, var(--border) 88%, var(--text-dim));
+  --dm-text: var(--text-bright);
+  --dm-text2: var(--text);
+  --dm-text3: var(--text-dim);
+  --dm-accent: var(--gold);
+  --dm-accent2: var(--gold-light);
+  --dm-accent-dim: var(--gold-glow);
+  --dm-green: var(--green);
+  --dm-r: 8px;
+  --dm-r2: 12px;
+  --dm-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+}
+
+#panelMd .dm-hub {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+
+#panelMd .dm-hub > .dm-tabs.admin-docs-subnav {
+  margin-bottom: 14px;
+}
+
+/* 子导航：主文档 / 扩展页面 */
+#panelMd .dm-tabs.admin-docs-subnav {
+  display: flex;
+  gap: 0;
+  padding: 0;
+  margin-bottom: 14px;
+  background: var(--dm-surface2);
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r2);
+  overflow: hidden;
+}
+
+#panelMd .dm-tabs .admin-docs-subnav-btn {
+  flex: 1;
+  padding: 10px 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--dm-text3);
+  box-shadow: none;
+  margin: 0;
+}
+
+#panelMd .dm-tabs .admin-docs-subnav-btn:hover {
+  color: var(--dm-text2);
+  background: color-mix(in srgb, var(--dm-surface2) 92%, var(--dm-text) 8%);
+}
+
+#panelMd .dm-tabs .admin-docs-subnav-btn.active {
+  background: var(--dm-accent-dim);
+  color: var(--dm-accent);
+  border-bottom: 2px solid var(--dm-accent);
+  box-shadow: none;
+}
+
+/* 主卡片容器 */
+#panelMd .dm-card.doc-editor-card {
+  padding: 0;
+  border: 1px solid var(--dm-border);
+  border-radius: 16px;
+  background: var(--dm-surface);
+  box-shadow: var(--img-shadow);
+  overflow: hidden;
+}
+
+#panelMd .dm-card .doc-sub-panel {
+  padding: 16px 18px 20px;
+}
+
+/* 工作区外壳 */
+#panelMd .dm-workspace.de-workspace {
+  min-height: min(76vh, 880px);
+  max-height: min(calc(100dvh - 140px), 900px);
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r2);
+  background: var(--dm-bg);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-bright) 5%, transparent);
+}
+
+#panelMd .dm-workspace .de-workspace-inner {
+  height: 100%;
+}
+
+/* 左侧章节列表 */
+#panelMd .dm-sidebar.de-list-aside {
+  width: min(260px, 32vw);
+  min-width: 220px;
+  background: var(--dm-surface);
+  border-right: 1px solid var(--dm-border);
+  box-shadow: none;
+}
+
+#panelMd .dm-sidebar .de-main-doc-bar {
+  padding: 14px 12px 10px;
+  border-bottom: 1px solid var(--dm-border);
+}
+
+#panelMd .dm-sidebar .de-main-doc-bar-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--dm-text3);
+}
+
+#panelMd .dm-sidebar .de-main-doc-select {
+  background: var(--dm-bg);
+  border: 1px solid var(--dm-border);
+  border-radius: 6px;
+  color: var(--dm-text);
+  font-size: 12px;
+}
+
+#panelMd .dm-sidebar .de-search-wrap--chapter {
+  padding: 8px 10px;
+}
+
+#panelMd .dm-sidebar .de-search--chapter {
+  height: 30px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: var(--dm-bg);
+  border: 1px solid var(--dm-border);
+  color: var(--dm-text);
+}
+
+#panelMd .dm-sidebar .de-chapter-list {
+  padding: 6px 8px 10px;
+  max-height: calc(100% - 200px);
+  overflow-y: auto;
+}
+
+#panelMd .dm-sidebar .de-chapter-btn {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--dm-text2);
+  font-size: 12px;
+  transition: background 0.12s, color 0.12s;
+}
+
+#panelMd .dm-sidebar .de-chapter-btn:hover {
+  background: var(--dm-surface2);
+  color: var(--dm-text);
+}
+
+#panelMd .dm-sidebar .de-chapter-btn.active {
+  background: var(--dm-accent-dim);
+  border-color: color-mix(in srgb, var(--dm-accent) 28%, var(--dm-border));
+  color: var(--dm-accent);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+#panelMd .dm-sidebar #btnNewSection {
+  margin: 8px 10px 12px;
+  width: calc(100% - 20px);
+  border-radius: 6px;
+  font-weight: 600;
+  background: linear-gradient(135deg, var(--dm-accent), var(--gold-dim));
+  color: #0f172a;
+  border: none;
+}
+
+#panelMd .dm-sidebar #btnNewSection:hover {
+  filter: brightness(1.05);
+}
+
+/* 中间编辑列 */
+#panelMd .dm-center.de-center-col {
+  background: radial-gradient(
+      ellipse 100% 50% at 50% 0%,
+      color-mix(in srgb, var(--dm-accent) 8%, transparent),
+      transparent 55%
+    ),
+    var(--dm-bg);
+}
+
+#panelMd .dm-toolbar-wrap.de-main-toolbar-wrap {
+  border-bottom: 1px solid var(--dm-border);
+  background: var(--dm-surface);
+}
+
+#panelMd .dm-toolbar.de-toolbar {
+  padding: 6px 10px;
+  min-height: 44px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-bottom: none;
+  background: transparent;
+}
+
+#panelMd .dm-toolbar .de-breadcrumb {
+  font-size: 11px;
+  color: var(--dm-text3);
+}
+
+#panelMd .dm-toolbar .de-breadcrumb span {
+  color: var(--dm-text2);
+}
+
+#panelMd .dm-toolbar .de-bc-current {
+  color: var(--dm-accent);
+  font-weight: 600;
+}
+
+#panelMd .dm-toolbar .de-main-mode-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--dm-surface2);
+  border: 1px solid var(--dm-border);
+  border-radius: 6px;
+}
+
+#panelMd .dm-toolbar .de-main-mode-tabs .de-btn {
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  border: none;
+}
+
+#panelMd .dm-toolbar .de-main-mode-tabs .de-btn-accent {
+  background: var(--dm-accent-dim);
+  color: var(--dm-accent);
+}
+
+#panelMd .dm-toolbar .de-main-mode-tabs .de-btn-ghost {
+  color: var(--dm-text3);
+}
+
+#panelMd .dm-save-ind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--dm-text3);
+  margin-right: 8px;
+  user-select: none;
+}
+
+#panelMd .dm-save-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dm-green);
+  flex-shrink: 0;
+}
+
+#panelMd .dm-save-dot.unsaved {
+  background: var(--red);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 22%, transparent);
+}
+
+#panelMd .dm-toolbar .de-toolbar-right .de-btn-accent#btnSaveSection {
+  background: linear-gradient(135deg, var(--dm-accent), var(--gold-dim));
+  color: #0f172a;
+  font-weight: 700;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+}
+
+#panelMd .dm-toolbar .de-toolbar-right .de-btn-accent#btnSaveSection:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--dm-accent) 35%, transparent);
+}
+
+/* Quill */
+#panelMd .main-doc-quill-wrap {
+  border: none;
+  border-top: 1px solid var(--dm-border);
+  background: var(--dm-bg);
+}
+
+#panelMd .main-doc-quill-wrap .ql-toolbar.ql-snow {
+  border: none;
+  border-bottom: 1px solid var(--dm-border);
+  background: var(--dm-surface);
+  padding: 6px 8px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+
+#panelMd .main-doc-quill-wrap .ql-toolbar .ql-stroke {
+  stroke: var(--dm-text2);
+}
+
+#panelMd .main-doc-quill-wrap .ql-toolbar .ql-fill {
+  fill: var(--dm-text2);
+}
+
+#panelMd .main-doc-quill-wrap .ql-toolbar button:hover .ql-stroke,
+#panelMd .main-doc-quill-wrap .ql-toolbar button.ql-active .ql-stroke {
+  stroke: var(--dm-accent);
+}
+
+#panelMd .main-doc-quill-wrap .ql-toolbar button:hover .ql-fill,
+#panelMd .main-doc-quill-wrap .ql-toolbar button.ql-active .ql-fill {
+  fill: var(--dm-accent);
+}
+
+#panelMd .main-doc-quill-wrap .ql-toolbar .ql-picker-label {
+  color: var(--dm-text2);
+  border-color: var(--dm-border);
+  border-radius: 5px;
+}
+
+#panelMd .main-doc-quill-wrap .ql-container.ql-snow {
+  border: none;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--dm-text);
+}
+
+#panelMd .main-doc-quill-wrap .ql-editor {
+  min-height: min(52vh, 560px);
+  padding: 28px 36px 48px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+#panelMd .main-doc-quill-wrap .ql-editor.ql-blank::before {
+  color: var(--dm-text3);
+  font-style: normal;
+}
+
+#panelMd .main-doc-quill-wrap .ql-editor pre.ql-syntax {
+  background: var(--dm-surface2);
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r);
+  color: var(--dm-text2);
+  font-family: var(--dm-mono);
+  font-size: 12.5px;
+}
+
+#panelMd .main-doc-quill-wrap .ql-editor code,
+#panelMd .main-doc-quill-wrap .ql-editor .ql-code-block-container {
+  font-family: var(--dm-mono);
+}
+
+#panelMd .de-main-md-ta {
+  min-height: min(52vh, 560px);
+  max-width: 720px;
+  margin: 24px auto;
+  padding: 24px;
+  display: block;
+  width: calc(100% - 48px);
+  background: var(--dm-surface2);
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r2);
+  color: var(--dm-text);
+  font-family: var(--dm-mono);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+#panelMd .de-editor-scroll {
+  background: var(--dm-bg);
+}
+
+#panelMd .de-statusbar {
+  border-top: 1px solid var(--dm-border);
+  background: var(--dm-surface);
+  font-size: 11px;
+  color: var(--dm-text3);
+}
+
+/* 主文档 — 右侧属性 */
+#panelMd .dm-props.de-props-panel {
+  width: min(280px, 30vw);
+  min-width: 240px;
+  background: var(--dm-surface);
+  border-left: 1px solid var(--dm-border);
+}
+
+#panelMd .dm-props .de-props-inner {
+  padding: 0;
+}
+
+#panelMd .dm-props-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--dm-border);
+}
+
+#panelMd .dm-props-h3 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dm-text3);
+}
+
+#panelMd .dm-props .de-panel-section {
+  margin: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--dm-border);
+  background: transparent;
+}
+
+#panelMd .dm-props .de-panel-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--dm-text3);
+  margin-bottom: 10px;
+}
+
+#panelMd .dm-props .de-panel-hint {
+  font-size: 11px;
+  color: var(--dm-text3);
+  line-height: 1.5;
+}
+
+#panelMd .dm-props .de-btn {
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+#panelMd .dm-props .de-btn-danger-ghost {
+  border: 1px solid color-mix(in srgb, var(--red) 35%, var(--dm-border));
+  color: var(--red);
+  width: 100%;
+  justify-content: center;
+}
+
+#panelMd .dm-props .de-btn-danger-ghost:hover {
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+}
+
+/* 扩展页面 — 顶栏与表单 */
+#panelMd .de-workspace-extra .de-toolbar {
+  background: var(--dm-surface);
+  border-bottom: 1px solid var(--dm-border);
+}
+
+#panelMd .de-editor-content--extra {
+  padding: 28px 32px 40px !important;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+#panelMd .de-title-input {
+  width: 100%;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  color: var(--dm-text);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0 0 6px;
+  margin-bottom: 4px;
+  transition: border-color 0.2s;
+}
+
+#panelMd .de-title-input:focus {
+  border-bottom-color: var(--dm-accent);
+  outline: none;
+}
+
+#panelMd .de-title-input::placeholder {
+  color: var(--dm-text3);
+}
+
+#panelMd .de-slug-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  font-size: 11.5px;
+}
+
+#panelMd .de-slug-prefix {
+  color: var(--dm-text3);
+  font-family: var(--dm-mono);
+}
+
+#panelMd .de-slug-input {
+  flex: 1;
+  font-family: var(--dm-mono);
+  font-size: 12px;
+  color: var(--dm-text2);
+  background: none;
+  border: none;
+  border-bottom: 1px dashed var(--dm-border);
+  border-radius: 0;
+  padding: 4px 0;
+}
+
+#panelMd .de-slug-input:focus {
+  border-bottom-color: var(--dm-accent);
+  outline: none;
+}
+
+#panelMd .de-excerpt-block {
+  margin-bottom: 18px;
+}
+
+#panelMd .de-excerpt-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dm-text3);
+  margin-bottom: 6px;
+}
+
+#panelMd .de-excerpt-input {
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 14px;
+  background: var(--dm-surface2);
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r);
+  font-size: 13px;
+  color: var(--dm-text);
+  resize: vertical;
+}
+
+#panelMd .de-excerpt-input:focus {
+  border-color: var(--dm-accent);
+  outline: none;
+}
+
+#panelMd .de-body-textarea {
+  min-height: min(48vh, 520px);
+  border-radius: var(--dm-r2);
+  border: 1px solid var(--dm-border);
+  background: var(--dm-bg);
+  color: var(--dm-text);
+  font-family: var(--dm-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  padding: 20px;
+}
+
+#panelMd .extra-pages-li-btn {
+  border-radius: 6px;
+}
+
+/* 扩展页 — 状态切换为 pill */
+#panelMd #extraPropsPanel .de-status-toggle {
+  display: flex;
+  gap: 6px;
+}
+
+#panelMd #extraPropsPanel .de-status-opt {
+  flex: 1;
+  padding: 8px 0;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--dm-border);
+  background: transparent;
+  color: var(--dm-text2);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+#panelMd #extraPropsPanel .de-status-opt:hover {
+  border-color: var(--dm-text3);
+}
+
+#panelMd #extraPropsPanel .de-status-opt.active {
+  border-color: var(--dm-accent);
+  background: var(--dm-accent-dim);
+  color: var(--dm-accent);
+}
+
+#panelMd #extraPropsPanel .de-field-select,
+#panelMd #extraPropsPanel .de-field-input {
+  background: var(--dm-bg);
+  border: 1px solid var(--dm-border);
+  border-radius: 6px;
+  color: var(--dm-text);
+  font-size: 12px;
+}
+
+#panelMd #extraPropsPanel .de-field-label {
+  color: var(--dm-text3);
+  font-size: 11px;
+}
+
+/* 高级：整文件 Markdown */
+#panelMd .de-advanced-details {
+  border-top: 1px dashed var(--dm-border);
+  margin-top: 18px;
+  padding-top: 12px;
+}
+
+#panelMd .de-advanced-details summary {
+  font-weight: 700;
+  color: var(--dm-text2);
+  cursor: pointer;
+}
+
+#panelMd .de-md-fullfile-ta {
+  background: var(--dm-surface2);
+  border-color: var(--dm-border);
+  color: var(--dm-text);
+}
+
+@media (max-width: 1100px) {
+  #panelMd .dm-props.de-props-panel {
+    display: none;
+  }
+}
+
+/* 扩展页 — Quill 皮肤（与主文档一致） */
+#panelMd #extraPageWrapQuill .ql-toolbar.ql-snow {
+  border: none;
+  border-bottom: 1px solid var(--dm-border);
+  background: var(--dm-surface);
+}
+
+#panelMd #extraPageWrapQuill .ql-container.ql-snow {
+  border: none;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--dm-text);
+}
+
+#panelMd #extraPageWrapQuill .ql-editor {
+  min-height: min(44vh, 480px);
+}
+
+@media (max-width: 780px) {
+  #panelMd .dm-sidebar.de-list-aside {
+    display: none;
+  }
+}

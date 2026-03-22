@@ -1,0 +1,28 @@
+{
+  "id": "/",
+  "name": "泛微 E9 二开文档",
+  "short_name": "E9 文档",
+  "description": "Ecology E9 二次开发技术支持 · 门户与本地文档中心",
+  "start_url": "/index",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "browser"],
+  "background_color": "#09090f",
+  "theme_color": "#12121c",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "canonicalBase": "",
+  "docs": {
+    "title": "EBU4 技术支持 — Ecology E9 二开文档",
+    "description": "Ecology E9 二次开发技术文档：流程引擎、表单设计、数据表结构、REST API 与前端扩展，支持本地全文检索。",
+    "keywords": "泛微,E9,二次开发,EBU4,Ecology,流程,表单,接口文档",
+    "ogImage": "/icons/icon.svg",
+    "twitterCard": "summary_large_image",
+    "robots": "index, follow"
+  },
+  "landing": {
+    "title": "泛微 E9 二次开发文档 — 全屏幻灯片",
+    "description": "面向实施与二次开发工程师的 Weaver Ecology E9 全栈技术参考门户，整合 API、数据表与部署实践。",
+    "keywords": "泛微,E9,开发文档,EBU4,门户,技术站",
+    "ogImage": "/icons/icon.svg",
+    "twitterCard": "summary_large_image",
+    "robots": "index, follow"
+  },
+  "robotsTxt": "User-agent: *\nAllow: /\n",
+  "sitemapPaths": ["/index", "/docs"]
+}
