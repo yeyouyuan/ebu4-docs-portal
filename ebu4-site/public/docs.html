@@ -115,6 +115,34 @@
     </aside>
   </div>
 
+  <button type="button" id="docSupplementFab" class="doc-supplement-fab" title="补充文档资料" aria-label="提交补充文档资料">
+    <span class="doc-supplement-fab-icon" aria-hidden="true">?</span>
+  </button>
+
+  <dialog id="docSupplementDialog" class="doc-supplement-dialog" aria-labelledby="docSupplementTitle">
+    <form id="docSupplementForm" class="doc-supplement-form">
+      <h2 id="docSupplementTitle" class="doc-supplement-title">补充文档资料</h2>
+      <p class="doc-supplement-lead">若发现遗漏、错误或有可补充的内容，请填写说明。管理员可在服务器 <code>logs/doc-supplement.jsonl</code> 中查看。</p>
+      <label class="doc-supplement-field">
+        <span class="doc-supplement-label">当前页面</span>
+        <input type="text" id="docSupplementContext" class="doc-supplement-input" readonly tabindex="-1" />
+      </label>
+      <label class="doc-supplement-field">
+        <span class="doc-supplement-label">联系方式（选填）</span>
+        <input type="text" name="contact" class="doc-supplement-input" maxlength="200" autocomplete="email" placeholder="邮箱或昵称，便于回访" />
+      </label>
+      <label class="doc-supplement-field">
+        <span class="doc-supplement-label">补充说明 <span class="doc-supplement-req">*</span></span>
+        <textarea name="body" class="doc-supplement-textarea" rows="6" maxlength="8000" required placeholder="请描述希望补充或修正的内容…"></textarea>
+      </label>
+      <div class="doc-supplement-actions">
+        <button type="button" class="home-btn ghost" id="docSupplementCancel">取消</button>
+        <button type="submit" class="home-btn primary">提交</button>
+      </div>
+      <p id="docSupplementMsg" class="doc-supplement-msg" role="status" aria-live="polite"></p>
+    </form>
+  </dialog>
+
   <!-- Bottom status bar -->
   <div class="status-bar">
     <div class="status-item">
@@ -143,6 +171,9 @@
   <script src="/lib/hl-json.min.js"></script>
   <script src="/lib/hl-bash.min.js"></script>
   <script src="/js/register-sw.js" defer></script>
+  <script src="/js/docs-chrome.js" defer></script>
   <script src="/js/app.js" defer></script>
+  <script src="/js/docs-supplement.js" defer></script>
+  <script async defer src="http://fnos.jiansmart.com:8088/chat/api/embed?protocol=http&amp;host=fnos.jiansmart.com:8088&amp;token=898756846c53cd97"></script>
 </body>
 </html>

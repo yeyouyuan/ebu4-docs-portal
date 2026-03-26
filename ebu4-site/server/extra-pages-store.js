@@ -44,6 +44,20 @@ function writeStore(extraPagesPath, store, backupWithPrune, backupKeepCount) {
   fs.writeFileSync(extraPagesPath, JSON.stringify(store, null, 2), 'utf-8');
 }
 
+/**
+ * 扩展页「跳转链接」：仅允许同源相对路径或 http(s)，防止 javascript: 等
+ * @param {unknown} raw
+ * @returns {string}
+ */
+function normalizeLinkUrl(raw) {
+  if (raw == null) return '';
+  const s = String(raw).trim();
+  if (!s) return '';
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith('/') && !s.startsWith('//')) return s;
+  return '';
+}
+
 function parseTagsInput(v) {
   if (Array.isArray(v)) {
     return v
@@ -77,6 +91,8 @@ function enrichPage(p) {
   }
   const sl = o.securityLevel != null ? o.securityLevel : o.security_level;
   o.securityLevel = normalizeLevel(sl);
+  const lu = o.linkUrl != null ? o.linkUrl : o.link_url;
+  o.linkUrl = normalizeLinkUrl(lu);
   return o;
 }
 
@@ -86,6 +102,7 @@ function isPublishedForPublic(p) {
 }
 
 module.exports = {
+  normalizeLinkUrl,
   normalizeSlugInput,
   makeUniqueSlug,
   readStore,

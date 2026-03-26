@@ -122,6 +122,18 @@ function migrateExtraPagesSecurityLevelColumn() {
   }
 }
 
+function migrateExtraPagesLinkUrlColumn() {
+  if (!siteSqliteMode || !db) return;
+  try {
+    const cols = db.prepare(`PRAGMA table_info(extra_pages)`).all();
+    if (cols.some((c) => c.name === 'link_url')) return;
+    db.exec(`ALTER TABLE extra_pages ADD COLUMN link_url TEXT NOT NULL DEFAULT ''`);
+    console.log('[site-db] extra_pages.link_url 已添加');
+  } catch (e) {
+    console.warn('[site-db] migrateExtraPagesLinkUrlColumn:', e.message || e);
+  }
+}
+
 function migrateAdminUsersRoleNoCheckConstraint() {
   if (!siteSqliteMode || !db) return;
   const row = db
@@ -509,7 +521,12 @@ function rowToPage(row) {
     id: row.id,
     slug: row.slug,
     title: row.title,
-    format: row.format === 'richtext' ? 'richtext' : 'markdown',
+    format:
+      row.format === 'richtext'
+        ? 'richtext'
+        : row.format === 'html'
+          ? 'html'
+          : 'markdown',
     body: row.body != null ? String(row.body) : '',
     excerpt: row.excerpt != null ? String(row.excerpt) : '',
     cover: row.cover != null ? String(row.cover) : '',
@@ -523,6 +540,7 @@ function rowToPage(row) {
     updatedAt: row.updated_at
       ? new Date(row.updated_at).toISOString()
       : new Date().toISOString(),
+    linkUrl: row.link_url != null ? String(row.link_url) : '',
   };
 }
 
@@ -546,8 +564,8 @@ function migrateExtraPagesFromJson(extraPagesJsonPath) {
   if (!pages.length) return;
   console.log(`[site-db] 扩展页从 JSON 迁移 ${pages.length} 条`);
   const insert = db.prepare(
-    `INSERT INTO extra_pages (id, slug, title, format, body, excerpt, cover, tags, author, status, published_at, updated_at, security_level)
-     VALUES (@id, @slug, @title, @format, @body, @excerpt, @cover, @tags, @author, @status, @published_at, @updated_at, @security_level)`
+    `INSERT INTO extra_pages (id, slug, title, format, body, excerpt, cover, tags, author, status, published_at, updated_at, security_level, link_url)
+     VALUES (@id, @slug, @title, @format, @body, @excerpt, @cover, @tags, @author, @status, @published_at, @updated_at, @security_level, @link_url)`
   );
   const tx = db.transaction((items) => {
     for (const raw of items) {
@@ -560,7 +578,12 @@ function migrateExtraPagesFromJson(extraPagesJsonPath) {
         id: enriched.id,
         slug: enriched.slug,
         title: enriched.title || '',
-        format: enriched.format === 'richtext' ? 'richtext' : 'markdown',
+        format:
+          enriched.format === 'richtext'
+            ? 'richtext'
+            : enriched.format === 'html'
+              ? 'html'
+              : 'markdown',
         body: enriched.body != null ? String(enriched.body) : '',
         excerpt: enriched.excerpt != null ? String(enriched.excerpt) : '',
         cover: enriched.cover != null ? String(enriched.cover) : '',
@@ -573,6 +596,7 @@ function migrateExtraPagesFromJson(extraPagesJsonPath) {
           : new Date()
         ).toISOString(),
         security_level: normalizeLevel(enriched.securityLevel),
+        link_url: enriched.linkUrl != null ? String(enriched.linkUrl) : '',
       });
     }
   });
@@ -606,6 +630,7 @@ function init(paths) {
   ensureSchema();
   migrateAdminUsersRoleNoCheckConstraint();
   migrateExtraPagesSecurityLevelColumn();
+  migrateExtraPagesLinkUrlColumn();
   const p = paths || {};
   migrateKvFromFiles({
     toolsJsonPath: p.toolsJsonPath,

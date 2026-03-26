@@ -93,6 +93,7 @@
       status: $('extraPageStatus') ? $('extraPageStatus').value : 'draft',
       publishedAt: datetimeLocalToIso($('extraPagePublishedAt') ? $('extraPagePublishedAt').value : ''),
       securityLevel: $('extraPageSecurityLevel') ? $('extraPageSecurityLevel').value : 'public',
+      linkUrl: $('extraPageLinkUrl') ? $('extraPageLinkUrl').value.trim() : '',
     };
   }
 
@@ -126,7 +127,7 @@
       try {
         bytes = new Blob([quillInstance.root.innerHTML || '']).size;
       } catch (_) {}
-    } else if ($('extraPageBodyMd')) {
+    } else if ($('extraPageBodyMd') && (fmt === 'markdown' || fmt === 'html')) {
       try {
         bytes = new Blob([$('extraPageBodyMd').value || '']).size;
       } catch (_) {}
@@ -189,6 +190,11 @@
       if (window.DOMPurify) return DOMPurify.sanitize(html);
       return html;
     }
+    if (fmt === 'html') {
+      var raw = $('extraPageBodyMd') ? $('extraPageBodyMd').value : '';
+      if (window.DOMPurify) return DOMPurify.sanitize(raw);
+      return raw;
+    }
     return $('extraPageBodyMd').value;
   }
 
@@ -248,6 +254,18 @@
     el.innerHTML = head + '<div class="blog-preview-body">' + bodyHtml + '</div>';
   }
 
+  function setExtraBodyPlaceholder() {
+    var ta = $('extraPageBodyMd');
+    if (!ta) return;
+    var fmt = $('extraPageFormat') && $('extraPageFormat').value;
+    if (fmt === 'html') {
+      ta.placeholder =
+        '编写 HTML，支持站内链接，例如 <a href="/docs#home">文档</a>、<a href="/page/slug">扩展页</a>、<img src="/img/…" />';
+    } else {
+      ta.placeholder = '开始写作…（Markdown，可粘贴 / 拖入图片）';
+    }
+  }
+
   function updateExtraPageViewPanels() {
     var fmt = $('extraPageFormat').value;
     var editing = pageViewMode === 'edit';
@@ -256,12 +274,13 @@
     var qW = $('extraPageWrapQuill');
     var mdTools = $('extraPageMdTools');
     if (prev) prev.classList.toggle('admin-hidden', editing);
-    if (mdW) mdW.classList.toggle('admin-hidden', !editing || fmt !== 'markdown');
+    if (mdW) mdW.classList.toggle('admin-hidden', !editing || (fmt !== 'markdown' && fmt !== 'html'));
     if (qW) qW.classList.toggle('admin-hidden', !editing || fmt !== 'richtext');
     if (mdTools) {
       var hideTools = !editing || fmt !== 'markdown';
       mdTools.classList.toggle('is-hidden', hideTools);
     }
+    setExtraBodyPlaceholder();
     if (!editing) renderPreview();
     updateExtraEditorStatus();
     updateExtraToolbarViewButtons();
@@ -314,6 +333,7 @@
       btn.innerHTML =
         '<span class="extra-pages-li-title">' +
         escapeHtml(p.title || '(无标题)') +
+        (p.linkUrl ? '<span class="extra-pages-li-link" title="跳转页">↗</span>' : '') +
         '</span><span class="extra-pages-li-slug">/' +
         escapeHtml(p.slug || '') +
         '</span><span class="extra-pages-li-meta"><span class="extra-pages-pill ' +
@@ -338,7 +358,9 @@
     if ($('extraPageAuthor')) $('extraPageAuthor').value = page.author || '';
     if ($('extraPageStatus')) $('extraPageStatus').value = page.status === 'draft' ? 'draft' : 'published';
     if ($('extraPagePublishedAt')) $('extraPagePublishedAt').value = isoToDatetimeLocal(page.publishedAt);
-    $('extraPageFormat').value = page.format === 'richtext' ? 'richtext' : 'markdown';
+    if ($('extraPageLinkUrl')) $('extraPageLinkUrl').value = page.linkUrl || '';
+    $('extraPageFormat').value =
+      page.format === 'richtext' ? 'richtext' : page.format === 'html' ? 'html' : 'markdown';
     lastFormat = $('extraPageFormat').value;
     if ($('extraPageSecurityLevel')) {
       $('extraPageSecurityLevel').value = page.securityLevel || 'public';
@@ -354,6 +376,7 @@
       $('extraPageBodyMd').value = page.body || '';
       if (quillInstance) quillInstance.setText('');
     }
+    setExtraBodyPlaceholder();
     setPageViewMode('edit');
     syncExtraStatusUi();
     updateExtraPageOpenLink();
@@ -487,12 +510,31 @@
       var prev = lastFormat;
       if (prev === next) return;
       try {
-        if (prev === 'markdown' && next === 'richtext') {
+        if (next === 'html' && prev === 'richtext') {
+          initQuill();
+          var htmlFromQuill = quillInstance.root.innerHTML;
+          $('extraPageBodyMd').value = window.DOMPurify
+            ? DOMPurify.sanitize(htmlFromQuill)
+            : htmlFromQuill;
+        } else if (next === 'richtext' && prev === 'html') {
+          var htmlSrc = $('extraPageBodyMd').value || '';
+          var safeHtml = window.DOMPurify ? DOMPurify.sanitize(htmlSrc) : htmlSrc;
+          initQuill();
+          quillInstance.setText('');
+          quillInstance.clipboard.dangerouslyPasteHTML(0, safeHtml, 'silent');
+        } else if (next === 'markdown' && prev === 'html') {
+          if (typeof TurndownService === 'undefined') throw new Error('Turndown 未加载');
+          var tdh = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
+          $('extraPageBodyMd').value = tdh.turndown($('extraPageBodyMd').value || '');
+        } else if (prev === 'markdown' && next === 'richtext') {
           var md = $('extraPageBodyMd').value || '';
           if (window.marked && typeof marked.parse === 'function') {
             marked.setOptions({ gfm: true, breaks: true });
           }
-          var html = window.marked && typeof marked.parse === 'function' ? marked.parse(md) : '<p>' + escapeHtml(md) + '</p>';
+          var html =
+            window.marked && typeof marked.parse === 'function'
+              ? marked.parse(md)
+              : '<p>' + escapeHtml(md) + '</p>';
           var safe = window.DOMPurify ? DOMPurify.sanitize(html) : html;
           initQuill();
           quillInstance.setText('');

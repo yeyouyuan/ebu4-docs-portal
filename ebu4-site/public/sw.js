@@ -3,14 +3,14 @@
  * E9 文档站 PWA — 离线壳层 + 运行时缓存
  * 更新缓存：修改 VERSION 并部署
  */
-const VERSION = 'ebu4-pwa-2026.03.22-3';
+const VERSION = 'ebu4-pwa-2026.03.22-5';
 const PRECACHE = 'precache-' + VERSION;
 const RUNTIME = 'runtime-' + VERSION;
 
 const PRECACHE_URLS = [
   '/index',
   '/docs',
-  '/admin',
+  /* 勿预缓存 /admin：无 Cookie 时会缓存成「登录页」，导致已登录仍命中陈旧缓存无法进后台 */
   '/manifest.webmanifest',
   '/icons/icon.svg',
   '/css/style.css',
@@ -70,6 +70,12 @@ self.addEventListener('activate', function (event) {
   );
 });
 
+/** 导航请求在部分环境下为 redirect: manual，直接 fetch(req) 会得到 302，交给页面会报错 */
+function fetchFollow(req) {
+  if (req.redirect === 'follow') return fetch(req);
+  return fetch(new Request(req, { redirect: 'follow' }));
+}
+
 self.addEventListener('fetch', function (event) {
   var req = event.request;
   if (req.method !== 'GET') return;
@@ -84,19 +90,33 @@ self.addEventListener('fetch', function (event) {
   if (url.origin !== self.location.origin) return;
 
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(fetch(req));
+    event.respondWith(fetchFollow(req));
     return;
   }
 
   if (url.pathname.startsWith('/data/')) {
-    event.respondWith(fetch(req));
+    event.respondWith(fetchFollow(req));
+    return;
+  }
+
+  /** 后台与登录页必须走网络，禁止 cache-first（否则会长期返回预缓存的登录 HTML） */
+  if (url.pathname.startsWith('/admin')) {
+    event.respondWith(
+      fetchFollow(req).catch(function () {
+        if (req.mode === 'navigate') {
+          return caches.match('/admin/login').then(function (h) {
+            return h || caches.match('/docs');
+          });
+        }
+      })
+    );
     return;
   }
 
   event.respondWith(
     caches.match(req).then(function (hit) {
       if (hit) return hit;
-      return fetch(req)
+      return fetchFollow(req)
         .then(function (res) {
           if (!res || res.status !== 200 || res.type !== 'basic') {
             return res;
@@ -109,10 +129,6 @@ self.addEventListener('fetch', function (event) {
         })
         .catch(function () {
           if (req.mode === 'navigate') {
-            var p = url.pathname;
-            if (p === '/admin' || p === '/admin/') {
-              return caches.match('/admin');
-            }
             return caches.match('/docs').then(function (d) {
               return d || caches.match('/index');
             });

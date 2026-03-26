@@ -1,0 +1,67 @@
+/* 扩展页：仅补充文档站 layout 未覆盖的标题区与标签（正文用 style.css .md-content） */
+
+.admin-hidden {
+  display: none !important;
+}
+
+.extra-doc-article {
+  animation: fadeIn 0.3s ease;
+}
+
+.extra-doc-head {
+  margin-bottom: 28px;
+}
+
+.extra-doc-title {
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin: 0 0 20px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--border);
+  position: relative;
+}
+
+.extra-doc-title::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 80px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+}
+
+.extra-doc-meta {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin: 0 0 12px;
+  line-height: 1.55;
+}
+
+.extra-doc-excerpt {
+  font-size: 0.9rem;
+  color: var(--text);
+  line-height: 1.75;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: rgba(79, 91, 213, 0.06);
+}
+
+.extra-doc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.extra-doc-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-gold);
+  color: var(--gold);
+  background: var(--gold-glow);
+}

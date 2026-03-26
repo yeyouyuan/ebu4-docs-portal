@@ -1,6 +1,12 @@
 const crypto = require('crypto');
 const extraPagesStore = require('../extra-pages-store');
+const { normalizeLinkUrl } = extraPagesStore;
 const { normalizeLevel } = require('../security-levels');
+
+function normalizeFormat(v) {
+  if (v === 'richtext' || v === 'html') return v;
+  return 'markdown';
+}
 
 /**
  * 扩展页创建/更新/删除的领域逻辑（不含 HTTP 与审计）。
@@ -9,7 +15,7 @@ const { normalizeLevel } = require('../security-levels');
 function createPage(body, store) {
   const b = body || {};
   const title = typeof b.title === 'string' ? b.title.trim() : '新页面';
-  const format = b.format === 'richtext' ? 'richtext' : 'markdown';
+  const format = normalizeFormat(b.format);
   const bodyText = typeof b.body === 'string' ? b.body : '';
   let slug = extraPagesStore.normalizeSlugInput(b.slug);
   if (!slug) slug = extraPagesStore.makeUniqueSlug('page', store.pages, null);
@@ -35,6 +41,7 @@ function createPage(body, store) {
     slug,
     format,
     body: bodyText,
+    linkUrl: normalizeLinkUrl(b.linkUrl),
     excerpt,
     cover,
     tags,
@@ -57,7 +64,9 @@ function updatePage(id, body, store) {
   const b = body || {};
   if (typeof b.title === 'string') cur.title = b.title.trim() || cur.title;
   if (typeof b.body === 'string') cur.body = b.body;
-  if (b.format === 'richtext' || b.format === 'markdown') cur.format = b.format;
+  if (b.format === 'richtext' || b.format === 'markdown' || b.format === 'html') {
+    cur.format = normalizeFormat(b.format);
+  }
   if (typeof b.excerpt === 'string') cur.excerpt = b.excerpt.trim();
   if (typeof b.cover === 'string') cur.cover = b.cover.trim();
   if (typeof b.author === 'string') cur.author = b.author.trim();
@@ -80,6 +89,9 @@ function updatePage(id, body, store) {
   }
   if (b.securityLevel !== undefined) {
     cur.securityLevel = normalizeLevel(b.securityLevel);
+  }
+  if (b.linkUrl !== undefined) {
+    cur.linkUrl = normalizeLinkUrl(b.linkUrl);
   }
   cur.updatedAt = new Date().toISOString();
   store.pages[idx] = cur;

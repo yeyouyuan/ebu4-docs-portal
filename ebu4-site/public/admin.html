@@ -417,7 +417,9 @@
                       <select id="extraPageFormat" class="admin-input de-field-select">
                         <option value="markdown">Markdown</option>
                         <option value="richtext">富文本</option>
+                        <option value="html">HTML</option>
                       </select>
+                      <p class="de-field-hint" style="margin-top:8px;font-size:0.78rem;color:var(--text-dim);line-height:1.5">选「HTML」可直接写标签并嵌入站内链接，例如 <code>&lt;a href="/docs#home"&gt;</code>、<code>&lt;a href="/page/slug"&gt;</code>；保存时会经 DOMPurify 净化。</p>
                     </div>
                     <div class="de-panel-section">
                       <div class="de-panel-title">安全等级（前台）</div>
@@ -449,6 +451,9 @@
                       <input type="text" id="extraPageAuthor" class="admin-input de-field-input" autocomplete="off" placeholder="署名" />
                       <label class="de-field-label" for="extraPagePublishedAt">发布时间</label>
                       <input type="datetime-local" id="extraPagePublishedAt" class="admin-input de-field-input" />
+                      <label class="de-field-label" for="extraPageLinkUrl">跳转地址（可选）</label>
+                      <input type="text" id="extraPageLinkUrl" class="admin-input de-field-input" autocomplete="off" placeholder="/docs#home 或 https://…" />
+                      <p class="de-field-hint" style="margin-top:6px;font-size:0.78rem;color:var(--text-dim);line-height:1.5">填写后，访客打开本页 <code>/page/slug</code> 将<strong>直接跳转</strong>到该地址；支持站内路径（以 <code>/</code> 开头）与 <code>http(s)</code>。留空则展示正文。无效协议会被保存时忽略。</p>
                     </div>
                     <div class="de-panel-section">
                       <button type="button" class="de-btn de-btn-block de-btn-danger-ghost" id="btnExtraPageDelete">删除页面</button>

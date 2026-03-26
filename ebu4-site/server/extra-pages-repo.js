@@ -28,6 +28,12 @@ function writeFileStore(store) {
   extraPagesStore.writeStore(jsonPath(), store, backupWithPrune, keep);
 }
 
+function formatToDb(f) {
+  if (f === 'richtext') return 'richtext';
+  if (f === 'html') return 'html';
+  return 'markdown';
+}
+
 async function readStore() {
   if (!siteDatabase.isSiteSqlite()) {
     return readStoreSync();
@@ -49,13 +55,13 @@ async function insertPage(page) {
   const enriched = extraPagesStore.enrichPage(page) || page;
   const sl = normalizeLevel(enriched.securityLevel);
   db.prepare(
-    `INSERT INTO extra_pages (id, slug, title, format, body, excerpt, cover, tags, author, status, published_at, updated_at, security_level)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO extra_pages (id, slug, title, format, body, excerpt, cover, tags, author, status, published_at, updated_at, security_level, link_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     page.id,
     page.slug,
     page.title || '',
-    page.format === 'richtext' ? 'richtext' : 'markdown',
+    formatToDb(page.format),
     page.body != null ? String(page.body) : '',
     page.excerpt != null ? String(page.excerpt) : '',
     page.cover != null ? String(page.cover) : '',
@@ -64,7 +70,8 @@ async function insertPage(page) {
     page.status === 'draft' ? 'draft' : 'published',
     pub ? new Date(pub).toISOString() : null,
     (page.updatedAt ? new Date(page.updatedAt) : new Date()).toISOString(),
-    sl
+    sl,
+    page.linkUrl != null ? String(page.linkUrl) : ''
   );
 }
 
@@ -77,11 +84,11 @@ async function updatePageRow(page) {
   const enriched = extraPagesStore.enrichPage(page) || page;
   const sl = normalizeLevel(enriched.securityLevel);
   db.prepare(
-    `UPDATE extra_pages SET slug=?, title=?, format=?, body=?, excerpt=?, cover=?, tags=?, author=?, status=?, published_at=?, updated_at=?, security_level=? WHERE id=?`
+    `UPDATE extra_pages SET slug=?, title=?, format=?, body=?, excerpt=?, cover=?, tags=?, author=?, status=?, published_at=?, updated_at=?, security_level=?, link_url=? WHERE id=?`
   ).run(
     page.slug,
     page.title || '',
-    page.format === 'richtext' ? 'richtext' : 'markdown',
+    formatToDb(page.format),
     page.body != null ? String(page.body) : '',
     page.excerpt != null ? String(page.excerpt) : '',
     page.cover != null ? String(page.cover) : '',
@@ -91,6 +98,7 @@ async function updatePageRow(page) {
     pub ? new Date(pub).toISOString() : null,
     (page.updatedAt ? new Date(page.updatedAt) : new Date()).toISOString(),
     sl,
+    page.linkUrl != null ? String(page.linkUrl) : '',
     page.id
   );
 }

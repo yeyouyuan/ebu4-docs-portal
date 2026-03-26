@@ -22,10 +22,11 @@ function extraPageSearchableText(page) {
   const excerpt = normalizeSearchText(page.excerpt || '');
   const rawBody = page.body != null ? String(page.body) : '';
   const bodyPlain =
-    page.format === 'richtext'
+    page.format === 'richtext' || page.format === 'html'
       ? normalizeSearchText(stripHtml(rawBody))
       : normalizeSearchText(rawBody);
-  return `${title} ${excerpt} ${bodyPlain}`.trim();
+  const link = normalizeSearchText(page.linkUrl || page.link_url || '');
+  return `${title} ${excerpt} ${bodyPlain} ${link}`.trim();
 }
 
 module.exports = { extraPageSearchableText, stripHtml, normalizeSearchText };

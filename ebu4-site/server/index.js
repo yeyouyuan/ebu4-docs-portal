@@ -19,6 +19,7 @@ const inviteStore = require('./invite-store');
 const presenceStore = require('./presence-store');
 const redisCache = require('./redis-cache');
 const { normalizeSiteSettings } = require('./lib/site-settings-normalize');
+const docSupplement = require('./doc-supplement');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -428,6 +429,15 @@ app.post('/api/register', (req, res) => {
   }
 });
 
+/** 文档站：访客提交补充资料（写入 logs/doc-supplement.jsonl） */
+app.post('/api/doc-supplement', (req, res) => {
+  try {
+    docSupplement.handlePost(req, res);
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
 /** 扩展内容公开 API（须在 express.static 与 SPA 兜底之前注册） */
 app.get('/api/pages', async (req, res) => {
   try {
@@ -451,6 +461,7 @@ app.get('/api/pages', async (req, res) => {
           tags: e.tags,
           author: e.author,
           format: e.format,
+          linkUrl: e.linkUrl,
           publishedAt: e.publishedAt,
           updatedAt: e.updatedAt,
           securityLevel: e.securityLevel,
@@ -516,6 +527,7 @@ app.get('/api/pages/:slug', async (req, res) => {
       author: e.author,
       format: e.format,
       body: e.body,
+      linkUrl: e.linkUrl,
       publishedAt: e.publishedAt,
       updatedAt: e.updatedAt,
     };
