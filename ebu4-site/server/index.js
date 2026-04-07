@@ -101,6 +101,8 @@ app.use((req, res, next) => {
 const MD_PATH = path.join(__dirname, '..', '..', 'ebu4-docs.md');
 const IMG_DIR = path.join(__dirname, '..', '..', 'ebu4-docs-img');
 const publicDir = path.join(__dirname, '..', 'public');
+/** 文档站壳页面，缺失会导致 /docs 与兜底路由崩溃 */
+const REQUIRED_PUBLIC_HTML = ['docs.html', 'landing.html', 'extra-page.html'];
 const TOOLS_JSON_PATH = path.join(publicDir, 'data', 'tools-nav.json');
 const LANDING_JSON_PATH = path.join(publicDir, 'data', 'landing.json');
 const SEO_JSON_PATH = path.join(publicDir, 'data', 'seo.json');
@@ -155,10 +157,43 @@ function getAiChatEmbedHtml() {
 
 function sendPublicHtmlWithEmbed(res, fileName) {
   const fp = path.join(publicDir, fileName);
-  let html = fs.readFileSync(fp, 'utf-8');
+  let html;
+  try {
+    html = fs.readFileSync(fp, 'utf-8');
+  } catch (e) {
+    log('error', {
+      type: 'missing_public_html',
+      path: fp,
+      err: String(e && e.message ? e.message : e),
+    });
+    res
+      .status(500)
+      .type('text/plain; charset=utf-8')
+      .send(
+        '服务器缺少静态页面文件（' +
+          fileName +
+          '）。请确认部署含 ebu4-site/public 目录；Docker 请在 ebu4-site 下构建镜像，且不要将空目录挂载到 /app/public（数据目录请仅挂载 /app/data）。'
+      );
+    return;
+  }
   html = injectBeforeBodyClose(html, getAiChatEmbedHtml());
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
+}
+
+function assertRequiredPublicHtmlPresent() {
+  const missing = REQUIRED_PUBLIC_HTML.filter((name) => !fs.existsSync(path.join(publicDir, name)));
+  if (missing.length === 0) return;
+  console.error(
+    '[fatal] public 目录缺少必需页面: ' +
+      missing.join(', ') +
+      '\n  目录: ' +
+      publicDir +
+      '\n  处理：1) 部署包/镜像须含完整 public/（含 docs.html 等）；' +
+      '2) Docker 构建上下文必须是 ebu4-site：cd ebu4-site && docker build -t ebu4-docs .；' +
+      '3) 运行时不要将空目录挂到 /app/public，仅挂载数据：-v ./data:/app/data'
+  );
+  process.exit(1);
 }
 
 const MAINTENANCE_TEMPLATE = path.join(__dirname, 'views', 'maintenance.html');
@@ -1054,6 +1089,7 @@ function assertProductionConfigSafe() {
 
 (async function start() {
   assertProductionConfigSafe();
+  assertRequiredPublicHtmlPresent();
   try {
     await siteDatabase.init({
       mdPath: MD_PATH,
