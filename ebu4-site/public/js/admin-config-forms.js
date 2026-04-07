@@ -30,6 +30,8 @@ function populateSeoFromJson(j) {
   acfSet('seo_robotsTxt', j.robotsTxt != null ? j.robotsTxt : '');
   var paths = Array.isArray(j.sitemapPaths) ? j.sitemapPaths : [];
   acfSet('seo_sitemapPaths', paths.join('\n'));
+  var sitemapAuto = document.getElementById('seo_sitemapAuto');
+  if (sitemapAuto) sitemapAuto.checked = j.sitemapAuto !== false;
   var incSearch = document.getElementById('seo_includeExtraPagesInSearch');
   if (incSearch) incSearch.checked = j.includeExtraPagesInSearch !== false;
   var incSite = document.getElementById('seo_includeExtraPagesInSitemap');
@@ -43,6 +45,8 @@ function collectSeoToObject() {
       return s.trim();
     })
     .filter(Boolean);
+  var sitemapAutoEl = document.getElementById('seo_sitemapAuto');
+  var sitemapAuto = !sitemapAutoEl || sitemapAutoEl.checked;
   return {
     version: 1,
     canonicalBase: acfGet('seo_canonicalBase').trim(),
@@ -63,7 +67,8 @@ function collectSeoToObject() {
       robots: acfGet('seo_landing_robots').trim() || 'index, follow',
     },
     robotsTxt: acfGet('seo_robotsTxt'),
-    sitemapPaths: paths.length ? paths : ['/index', '/docs'],
+    sitemapAuto: sitemapAuto,
+    sitemapPaths: paths,
     includeExtraPagesInSearch: (function () {
       var el = document.getElementById('seo_includeExtraPagesInSearch');
       return !el || el.checked;

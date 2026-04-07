@@ -36,7 +36,7 @@ node server/index.js
 | `site_kv` 键 `tools_nav` | 工具导航大 JSON（原 `public/data/tools-nav.json`） |
 | `site_kv` 键 `landing` | 门户落地配置（原 `landing.json`） |
 | `site_kv` 键 `seo` | SEO 与 robots/sitemap 配置（原 `seo.json`） |
-| `site_kv` 键 `site_settings` | 站点开关（维护模式、**注册形式** `registration.mode`：`invitation` / `open`、可选 **`redis`** 连接，后台「站点设置」/「Redis」） |
+| `site_kv` 键 `site_settings` | 站点开关（维护模式、**注册形式** `registration.mode`：`invitation` / `open`、可选 **`redis`** 连接；**`embed.aiChatHtml`** 前台 AI 嵌入，见下文「前台 AI 嵌入」） |
 | `site_kv` 键 `role_profiles` | **角色配置总表**（各角色显示名、模块权限、数据范围、安全等级与说明；可新增自定义角色；文件模式 `data/role-profiles.json`） |
 | `site_kv` 键 `editor_module_access` 等 | 旧版独立键；首次读取 `role_profiles` 时若无数据，会从这些键 **一次性迁移** 进 `editor` 角色配置 |
 | `site_kv` 键 `public_visit_stats` | 前台页面浏览 PV（JSON；文件模式见 `public/data/visit-stats.json`） |
@@ -91,7 +91,7 @@ ebu4-site/
 | `GET /api/sections` | 获取所有章节元数据 |
 | `GET /api/sections/:id` | 获取指定章节完整内容 |
 | `GET /api/search?q=关键词` | 全文搜索：主文档章节 + **已发布扩展页**；见下表 |
-| `GET /sitemap.xml` | 合并 `seo.sitemapPaths` 与（默认）各扩展页 `/page/{slug}` |
+| `GET /sitemap.xml` | **默认** `sitemapAuto`：自动含门户与文档章节 URL，并合并额外 `sitemapPaths` 与扩展页 |
 | `GET /img/:filename` | 图片资源 |
 | `GET /api/pages` | 已发布扩展页列表 |
 | `GET /api/health` | 健康检查（含 `siteStorage`、`sqlite`、`maintenance`、**`redis`** 连接状态等） |
@@ -102,7 +102,8 @@ ebu4-site/
 |------|------|
 | `includeExtraPagesInSearch` | 默认 `true`。为 `false` 时 `/api/search` 仅搜主文档章节 |
 | `includeExtraPagesInSitemap` | 默认 `true`。为 `false` 时 `/sitemap.xml` 不自动追加扩展页 URL |
-| `sitemapPaths` | 站点固定路径列表；扩展页路径在开关为真时 **追加** 到列表后 |
+| `sitemapAuto` | 默认 `true`，服务端按主文档章节自动生成 sitemap 条目 |
+| `sitemapPaths` | 开启自动生成时为 **额外** 路径；关闭自动生成时为手动列表（空则 `/index`、`/docs`） |
 
 `GET /api/search` 返回项含 `kind`：`section`（章节，带 `id`）或 `page`（扩展页，带 `slug`）。文档站搜索 UI 会跳转 `/page/{slug}`。
 
@@ -138,6 +139,12 @@ ebu4-site/
 | `message` | 维护提示文案（展示在 `server/views/maintenance.html`，与门户靛蓝/金主题一致） |
 
 访客在维护期内访问被拦截的页面会 **重定向到 `/maintenance`**（503，门户风格独立页，不依赖外链 CSS，全站维护时亦可正常显示）。管理后台与 `/api/health` 不受影响。
+
+### 前台 AI 嵌入（MaxKB 等）
+
+![文档站前台：侧栏、正文与右下角 AI 浮窗](../docs/assets/docs-ai-embed-screenshot.png)
+
+后台 **站点设置 → 站点设计 · 前台嵌入** 中的 **`embed.aiChatHtml`** 会注入到门户与文档等公开页（实现见 `server/lib/site-embed.js`）。**`/chat/api/embed`**（浮窗脚本）与 **`/chat/api/chat_message`**（对话 API）用途不同；若要让 AI 参考当前章节正文，可用 `GET /api/sections/:id` 的 **`content`** 作为上下文，或经 MaxKB 编排传参。**API Key 宜放服务端代理，勿写进前端。** 更完整的说明与官方文档链接见 **[仓库根目录 `README.md`](../README.md)** 中「前台 AI 助手嵌入」小节。
 
 ## 技术栈
 

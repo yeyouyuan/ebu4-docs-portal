@@ -66,3 +66,16 @@ export REDIS_URL=redis://127.0.0.1:6379
 | `REQUIRE_REDIS` / `EBU4_REQUIRE_REDIS` | 设为 `1` 时必须存在可用 Redis 地址（环境变量或后台站点配置）并可连接 |
 
 更多见项目根目录 `README.md`。
+
+## 远程升级（去中心化）
+
+- 任意实例可在 **`public/upgrade/manifest.json`** 提供清单（随静态资源发布）；其他实例在后台 **「系统升级」** 填写对等根 URL（`baseUrl`），由**服务端**拉取 manifest 并比对版本。
+- **文档指纹**：本机 `docsVersion` 为 SQLite 主文档 + `tools_nav` / `landing` / `seo` 内容的哈希前缀；发布方 manifest 的 `docsVersion` 需与打包内容一致，否则对端会判定有更新。
+- **文档制品**：JSON 格式 **`ebu4-docs-bundle-v1`**（字段见实现 `applyDocsBundle`）；应用前自动备份 `data/site.db`。
+- **打包本地内容（生成文档制品）**：在 **`ebu4-site`** 目录执行  
+  `npm run export-docs-bundle`  
+  或 `node scripts/export-docs-bundle.js [输出路径]`（默认写入 `public/upgrade/docs-bundle.json`）。脚本从 **`SITE_SQLITE_PATH`** 或默认 `data/site.db` 读取主文档与 `tools_nav` / `landing` / `seo`，输出制品并打印 **`docsVersion`（指纹）** 与 **`sha256`**，用于填写 `manifest.json` 的 `docsVersion` 与 `components.docs.artifacts[].sha256`。  
+  **或在后台「系统升级」** 使用 **「本机一键生成升级清单」**：勾选文档/系统制品后生成并写入 `docs-bundle.json`、`system-artifact.tar.gz` 与 `manifest.json`（与 CLI 等价思路；系统包会排除 `public/upgrade/`，清单与制品仍通过站点静态 URL 提供）。
+- **系统制品**：当前仅支持 **`.tar.gz`**，解压后需含顶层 **`server/`**、**`public/`**、**`package.json`**（与部署根目录对齐）。**`public/`** 中应包含 **`js/lazy-images.js`**（全站图片懒加载，各 HTML 已引用）及更新后的 **`sw.js`**（PWA 预缓存列表含该脚本）；打发行包时请与 CI 产物（如 `scripts/package-prod.sh`）目录树一致。应用系统升级时，若制品未带 **`lazy-images.js`**，服务端会尝试用**升级前**的该文件或 **`data/backups/upgrade-system-*/public/`** 备份补全；仍缺失时需手动从仓库拷贝。应用后可设置 **`UPGRADE_RESTART_CMD`**（如 `pm2 restart app`）触发进程替换；未配置时可将 **`UPGRADE_AUTO_EXIT_ON_APPLY=1`** 与 Docker `--restart` / systemd `Restart=` / pm2 等配合，使进程在 API 响应结束后 **`exit(0)`** 并由守护策略自动拉起。后台「应用系统更新」在 **`needs_restart`** 时会**轮询 `/api/health`**（公开接口，无需 Cookie）直至恢复，并在检测区展示 **`appVersion` / 存储状态**。**`UPGRADE_ROLLBACK_CMD`** 为最后手段回退脚本（可选）。
+- **自动检测**：`site_settings.upgrade.autoUpdate` 开启后由进程内定时器按间隔执行检测/可选自动应用；生产环境建议 **HTTPS** + 可选 **Bearer** 与受信对等地址。
+

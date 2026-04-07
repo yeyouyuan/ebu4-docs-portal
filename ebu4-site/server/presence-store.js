@@ -143,7 +143,6 @@ async function listOnline() {
             username: j.username,
             role: j.role,
             at: j.at,
-            sessionToken: token,
           });
         } catch (_) {}
       }
@@ -160,7 +159,6 @@ async function listOnline() {
       username: v.username,
       role: v.role,
       at: v.at,
-      sessionToken: tok,
     });
   }
   return { list: out, backend: 'memory' };
@@ -178,6 +176,49 @@ async function del(token) {
     }
   }
   mem.delete(token);
+}
+
+/**
+ * 按 userId + at 匹配一条在线会话并下线（不在 API 中暴露 sessionToken）。
+ */
+async function kickByUserIdAndAt(userId, at) {
+  const wantUid = parseInt(userId, 10);
+  const wantAt = parseInt(at, 10);
+  if (!Number.isFinite(wantUid) || !Number.isFinite(wantAt)) {
+    return { ok: false, error: 'invalid_target', sessionToken: null };
+  }
+  await ensureRedis();
+  if (redisClient && redisReady) {
+    try {
+      for await (const key of redisClient.scanIterator({ MATCH: PREFIX + '*', COUNT: 200 })) {
+        const raw = await redisClient.get(key);
+        if (!raw) continue;
+        try {
+          const j = JSON.parse(raw);
+          if (Date.now() - j.at > TTL_SEC * 1000) continue;
+          const uid = j.userId != null ? parseInt(j.userId, 10) : NaN;
+          const ts = j.at != null ? parseInt(j.at, 10) : NaN;
+          if (uid === wantUid && ts === wantAt) {
+            const token = key.startsWith(PREFIX) ? key.slice(PREFIX.length) : '';
+            await del(token);
+            return { ok: true, sessionToken: token };
+          }
+        } catch (_) {}
+      }
+    } catch (_) {
+      redisReady = false;
+    }
+  }
+  pruneMem();
+  for (const [tok, v] of mem) {
+    const uid = v.userId != null ? parseInt(v.userId, 10) : NaN;
+    const ts = v.at != null ? parseInt(v.at, 10) : NaN;
+    if (uid === wantUid && ts === wantAt) {
+      await del(tok);
+      return { ok: true, sessionToken: tok };
+    }
+  }
+  return { ok: false, error: 'not_found' };
 }
 
 async function getStatus() {
@@ -243,6 +284,7 @@ module.exports = {
   ping,
   listOnline,
   del,
+  kickByUserIdAndAt,
   ensureRedis,
   getStatus,
   getRedisClient,

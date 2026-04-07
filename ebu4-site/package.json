@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node server/index.js",
-    "test": "node --test server/test"
+    "test": "node --test server/test",
+    "export-docs-bundle": "node scripts/export-docs-bundle.js"
   },
   "engines": {
     "node": ">=20"

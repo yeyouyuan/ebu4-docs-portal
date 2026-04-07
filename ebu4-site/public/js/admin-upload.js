@@ -1,8 +1,11 @@
 /**
- * Markdown 区：粘贴 / 拖放图片上传，自动插入 ![](url)；图片列表与删除
+ * Markdown 区：粘贴 / 拖放图片上传，自动插入 ![](url)；图库弹窗预览与详情
  */
 (function () {
   var lastMdTextarea = null;
+  /** @type {Array<{name:string,url:string,size:number}>} */
+  var lastImages = [];
+  var gallerySelectedName = null;
 
   function $(id) {
     return document.getElementById(id);
@@ -167,80 +170,205 @@
       .replace(/"/g, '&quot;');
   }
 
+  function findImageByName(name) {
+    for (var i = 0; i < lastImages.length; i++) {
+      if (lastImages[i].name === name) return lastImages[i];
+    }
+    return null;
+  }
+
+  function updateCountHint(text) {
+    var el = $('adminImageCountHint');
+    if (el) el.textContent = text;
+  }
+
+  function clearDetailPanel() {
+    gallerySelectedName = null;
+    var empty = $('imageGalleryDetailEmpty');
+    var panel = $('imageGalleryDetailPanel');
+    if (empty) empty.hidden = false;
+    if (panel) panel.hidden = true;
+    document.querySelectorAll('.de-gallery-tile.is-selected').forEach(function (t) {
+      t.classList.remove('is-selected');
+    });
+  }
+
+  function showImageDetail(im) {
+    gallerySelectedName = im.name;
+    var empty = $('imageGalleryDetailEmpty');
+    var panel = $('imageGalleryDetailPanel');
+    var img = $('imageGalleryDetailImg');
+    var nm = $('imageGalleryDetailName');
+    var sz = $('imageGalleryDetailSize');
+    var urlEl = $('imageGalleryDetailUrl');
+    if (!empty || !panel || !img || !nm || !sz || !urlEl) return;
+    empty.hidden = true;
+    panel.hidden = false;
+    img.src = im.url;
+    img.alt = im.name;
+    nm.textContent = im.name;
+    sz.textContent = formatBytes(im.size || 0);
+    urlEl.textContent = im.url;
+
+    document.querySelectorAll('.de-gallery-tile').forEach(function (t) {
+      t.classList.toggle('is-selected', t.getAttribute('data-name') === im.name);
+    });
+  }
+
+  function bindDetailActions() {
+    var btnCopy = $('btnImageGalleryCopyMd');
+    var btnDel = $('btnImageGalleryDelete');
+    if (btnCopy && !btnCopy.dataset.bound) {
+      btnCopy.dataset.bound = '1';
+      btnCopy.addEventListener('click', function () {
+        var im = gallerySelectedName ? findImageByName(gallerySelectedName) : null;
+        if (!im) return;
+        var md = '![](' + im.url + ')';
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(md).then(
+            function () {
+              var t = btnCopy.textContent;
+              btnCopy.textContent = '已复制';
+              setTimeout(function () {
+                btnCopy.textContent = t;
+              }, 1500);
+            },
+            function () {
+              window.prompt('复制以下内容：', md);
+            }
+          );
+        } else {
+          window.prompt('复制以下内容：', md);
+        }
+      });
+    }
+    if (btnDel && !btnDel.dataset.bound) {
+      btnDel.dataset.bound = '1';
+      btnDel.addEventListener('click', async function () {
+        var name = gallerySelectedName;
+        if (!name || !window.confirm('确定删除该图片？文档中若引用此 URL 将失效。')) return;
+        try {
+          await api('/api/admin/images/' + encodeURIComponent(name), { method: 'DELETE' });
+          gallerySelectedName = null;
+          await refreshImageList();
+        } catch (e) {
+          window.alert(e.message);
+        }
+      });
+    }
+  }
+
+  function renderGalleryGrid(images) {
+    var grid = $('imageGalleryGridHost');
+    if (!grid) return;
+    if (!images.length) {
+      grid.innerHTML =
+        '<p class="de-gallery-grid-empty">暂无图片。关闭后在侧栏上传，或使用编辑区 <strong>Ctrl+V</strong> 粘贴。</p>';
+      clearDetailPanel();
+      return;
+    }
+    var h = '<div class="de-gallery-tile-grid">';
+    images.forEach(function (im) {
+      var nameAttr = escAttr(im.name);
+      var urlAttr = escAttr(im.url);
+      h += '<button type="button" class="de-gallery-tile" data-name="' + nameAttr + '" title="' + nameAttr + '">';
+      h += '<span class="de-gallery-tile-thumb"><img src="' + urlAttr + '" alt="" loading="lazy"/></span>';
+      h += '<span class="de-gallery-tile-meta">' + escHtml(formatBytes(im.size || 0)) + '</span>';
+      h += '</button>';
+    });
+    h += '</div>';
+    grid.innerHTML = h;
+    grid.querySelectorAll('.de-gallery-tile').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var name = btn.getAttribute('data-name');
+        var im = findImageByName(name);
+        if (im) showImageDetail(im);
+      });
+    });
+    if (gallerySelectedName) {
+      var again = findImageByName(gallerySelectedName);
+      if (again) showImageDetail(again);
+      else clearDetailPanel();
+    } else {
+      clearDetailPanel();
+    }
+  }
+
   async function refreshImageList() {
-    var host = $('adminImageListHost');
-    if (!host) return;
-    host.innerHTML = '<p class="de-image-empty de-image-loading">加载中…</p>';
+    updateCountHint('共 — 张');
+    var grid = $('imageGalleryGridHost');
+    if (grid) {
+      grid.innerHTML = '<p class="de-gallery-grid-loading">加载中…</p>';
+    }
     try {
       var d = await api('/api/admin/images');
       var images = d.images || [];
-      if (!images.length) {
-        host.innerHTML =
-          '<p class="de-image-empty">暂无图片。在编辑区 <strong>Ctrl+V</strong> 粘贴或点击上方选择文件上传。</p>';
-        return;
-      }
-      var h = '<div class="de-image-card-list">';
-      images.forEach(function (im) {
-        var urlAttr = escAttr(im.url);
-        var nameAttr = escAttr(im.name);
-        h += '<article class="de-image-card">';
-        h += '<div class="de-image-card-thumb"><img src="' + urlAttr + '" alt="" loading="lazy"/></div>';
-        h += '<div class="de-image-card-body">';
-        h += '<code class="de-image-card-url" title="' + urlAttr + '">' + escHtml(im.url) + '</code>';
-        h += '<div class="de-image-card-footer">';
-        h += '<span class="de-image-card-size">' + escHtml(formatBytes(im.size)) + '</span>';
-        h += '<span class="de-image-card-actions">';
-        h +=
-          '<button type="button" class="de-btn de-btn-ghost de-image-action-btn admin-image-copy" data-url="' +
-          urlAttr +
-          '">复制 MD</button>';
-        h +=
-          '<button type="button" class="de-btn de-btn-danger-ghost de-image-action-btn admin-image-del" data-name="' +
-          nameAttr +
-          '">删除</button>';
-        h += '</span></div></div></article>';
-      });
-      h += '</div>';
-      host.innerHTML = h;
-      host.querySelectorAll('.admin-image-copy').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var u = btn.getAttribute('data-url');
-          var md = '![](' + u + ')';
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(md).then(
-              function () {
-                btn.textContent = '已复制';
-                setTimeout(function () {
-                  btn.textContent = '复制 MD';
-                }, 1500);
-              },
-              function () {
-                window.prompt('复制以下内容：', md);
-              }
-            );
-          } else {
-            window.prompt('复制以下内容：', md);
-          }
-        });
-      });
-      host.querySelectorAll('.admin-image-del').forEach(function (btn) {
-        btn.addEventListener('click', async function () {
-          var name = btn.getAttribute('data-name');
-          if (!name || !window.confirm('确定删除该图片？文档中若引用此 URL 将失效。')) return;
-          try {
-            await api('/api/admin/images/' + encodeURIComponent(name), { method: 'DELETE' });
-            await refreshImageList();
-          } catch (e) {
-            window.alert(e.message);
-          }
-        });
-      });
+      lastImages = images;
+      updateCountHint('共 ' + images.length + ' 张');
+      renderGalleryGrid(images);
     } catch (e) {
-      host.innerHTML = '<p class="admin-msg err">' + (e.message || String(e)) + '</p>';
+      lastImages = [];
+      updateCountHint('共 0 张');
+      if (grid) {
+        grid.innerHTML = '<p class="admin-msg err">' + escHtml(e.message || String(e)) + '</p>';
+      }
+    }
+  }
+
+  function openImageGalleryModal() {
+    if (typeof openModalBg === 'function') {
+      openModalBg($('imageGalleryModal'));
+    } else {
+      var m = $('imageGalleryModal');
+      if (m) {
+        m.removeAttribute('hidden');
+        m.classList.add('show');
+      }
+    }
+    bindDetailActions();
+    refreshImageList();
+  }
+
+  function closeImageGalleryModal() {
+    if (typeof closeModalBg === 'function') {
+      closeModalBg($('imageGalleryModal'));
+    } else {
+      var m = $('imageGalleryModal');
+      if (m) {
+        m.classList.remove('show');
+        setTimeout(function () {
+          m.setAttribute('hidden', '');
+        }, 200);
+      }
     }
   }
 
   function initImagePanel() {
+    var openBtn = $('btnOpenImageGallery');
+    if (openBtn) {
+      openBtn.addEventListener('click', function () {
+        openImageGalleryModal();
+      });
+    }
+    var closeBtn = $('btnImageGalleryClose');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function () {
+        closeImageGalleryModal();
+      });
+    }
+    var modal = $('imageGalleryModal');
+    if (modal) {
+      modal.addEventListener('click', function (e) {
+        if (e.target === modal) closeImageGalleryModal();
+      });
+    }
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var m = $('imageGalleryModal');
+      if (!m || m.hasAttribute('hidden') || !m.classList.contains('show')) return;
+      closeImageGalleryModal();
+    });
+
     var pick = $('adminImagePick');
     if (pick) {
       pick.addEventListener('change', async function () {
@@ -258,8 +386,8 @@
             ta.classList.add('admin-md-uploading');
             var url = await uploadFile(f);
             insertAtCursor(ta, '![](' + url + ')');
-          } catch (e) {
-            window.alert(e.message || String(e));
+          } catch (err) {
+            window.alert(err.message || String(err));
             break;
           } finally {
             ta.classList.remove('admin-md-uploading');
@@ -270,17 +398,21 @@
       });
     }
     var btn = $('btnRefreshImages');
-    if (btn) btn.addEventListener('click', function () {
-      refreshImageList();
-    });
+    if (btn) {
+      btn.addEventListener('click', function () {
+        refreshImageList();
+      });
+    }
+    bindDetailActions();
   }
 
   document.addEventListener('DOMContentLoaded', function () {
     bindAllMdTextareas();
     initImagePanel();
-    if ($('adminImageListHost')) refreshImageList();
+    if ($('adminImageCountHint') || $('imageGalleryGridHost')) refreshImageList();
   });
 
   window.refreshAdminImageList = refreshImageList;
   window.__ebu4AdminUploadImage = uploadFile;
+  window.__ebu4OpenImageGalleryModal = openImageGalleryModal;
 })();

@@ -18,5 +18,6 @@
     "robots": "index, follow"
   },
   "robotsTxt": "User-agent: *\nAllow: /\n",
-  "sitemapPaths": ["/index", "/docs"]
+  "sitemapAuto": true,
+  "sitemapPaths": []
 }

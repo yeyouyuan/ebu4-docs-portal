@@ -227,7 +227,7 @@ function toastAdminDash(msg) {
 
 /** 侧边菜单顺序：服务端保存；仅管理员可改。本地 key 作离线回退 */
 var ADMIN_MENU_ORDER_KEY = 'ebu4-admin-menu-order';
-var DEFAULT_ADMIN_MENU_TABS = ['dash', 'md', 'tools', 'landing', 'site', 'seo', 'audit', 'users', 'roles', 'redis'];
+var DEFAULT_ADMIN_MENU_TABS = ['dash', 'md', 'tools', 'landing', 'site', 'upgrade', 'seo', 'audit', 'users', 'roles', 'redis'];
 /** 主导航 tab id → 名称（「菜单显示」本页不在此列表） */
 var MENU_TAB_LABELS = {
   dash: '数据看板',
@@ -240,6 +240,7 @@ var MENU_TAB_LABELS = {
   users: '用户管理',
   roles: '角色管理',
   redis: 'Redis',
+  upgrade: '系统升级',
   menu: '菜单显示',
 };
 /** 管理员在「菜单显示」中停用的侧栏项 id → true */
@@ -744,6 +745,10 @@ function updateAdminChrome() {
   if (mredis) {
     mredis.classList.toggle('admin-hidden', !isAdm);
   }
+  var mup = $('menuTabUpgrade');
+  if (mup) {
+    mup.classList.toggle('admin-hidden', !isAdm);
+  }
   var tabVis = {
     dash: true,
     md: showMd,
@@ -755,6 +760,7 @@ function updateAdminChrome() {
     users: isAdm,
     roles: isAdm,
     redis: isAdm,
+    upgrade: isAdm,
   };
   Object.keys(tabVis).forEach(function (tab) {
     var b = document.querySelector('.ry-menu-item[data-tab="' + tab + '"]');
@@ -771,6 +777,7 @@ function updateAdminChrome() {
     panelUsers: isAdm,
     panelRoles: isAdm,
     panelRedis: isAdm,
+    panelUpgrade: isAdm,
   };
   Object.keys(panelVis).forEach(function (pid) {
     var el = $(pid);
@@ -2382,6 +2389,17 @@ async function loadFiles() {
         regSel.value = m;
         regSel.disabled = !(window.__adminUser && window.__adminUser.role === 'admin');
       }
+      var embCard = $('siteEmbedAiCard');
+      if (embCard) {
+        embCard.classList.toggle(
+          'admin-hidden',
+          !(window.__adminUser && window.__adminUser.role === 'admin')
+        );
+      }
+      var embTa = $('site_embed_ai_chat');
+      if (embTa && window.__adminUser && window.__adminUser.role === 'admin') {
+        embTa.value = (ss.embed && ss.embed.aiChatHtml) || '';
+      }
     } catch (e) {}
   }
   syncDocSubNavForDataView();
@@ -2481,9 +2499,19 @@ async function loadRedisPanel() {
     var urlEl = $('redis_url');
     var hint = $('redisStatusHint');
     if (en) en.checked = !!r.enabled;
-    if (urlEl) urlEl.value = r.url != null ? String(r.url) : '';
+    window.__redisUrlConfiguredFromServer = !!(ss && ss.redisUrlConfigured);
+    if (urlEl) {
+      urlEl.value = r.url != null && String(r.url).trim() ? String(r.url) : '';
+      urlEl.placeholder = window.__redisUrlConfiguredFromServer
+        ? '已保存连接串（密码不返回；输入新地址可替换，留空并保存表示保持原值）'
+        : '';
+    }
     if (hint) {
-      hint.textContent = '保存后立即按新配置尝试连接。若已设置环境变量 REDIS_URL，将始终优先使用该地址。';
+      hint.textContent =
+        (ss && ss.redisUrlPreview
+          ? '当前站点配置预览（脱敏）：' + ss.redisUrlPreview + '。'
+          : '') +
+        '保存后立即按新配置尝试连接。若已设置环境变量 REDIS_URL，将始终优先使用该地址。';
     }
     updateRedisFormPreview();
     if (dbg) applyRedisPanelStatus(dbg);
@@ -2960,14 +2988,15 @@ async function initAdminPanel() {
         $('redisSettingsMsg').className = 'admin-msg';
       }
       try {
+        var ru = ($('redis_url') && $('redis_url').value.trim()) || '';
+        var redisPayload = {
+          enabled: !!($('redis_enabled') && $('redis_enabled').checked),
+        };
+        if (ru) redisPayload.url = ru;
+        else if (!window.__redisUrlConfiguredFromServer) redisPayload.url = '';
         await api('/api/admin/site-settings', {
           method: 'PUT',
-          body: JSON.stringify({
-            redis: {
-              enabled: !!($('redis_enabled') && $('redis_enabled').checked),
-              url: ($('redis_url') && $('redis_url').value) || '',
-            },
-          }),
+          body: JSON.stringify({ redis: redisPayload }),
         });
         if ($('redisSettingsMsg')) {
           $('redisSettingsMsg').textContent = '已保存并已尝试连接';
@@ -2990,21 +3019,27 @@ async function initAdminPanel() {
       $('siteSettingsMsg').textContent = '';
       $('siteSettingsMsg').className = 'admin-msg';
       try {
+        var sitePayload = {
+          maintenance: {
+            enabled: !!$('site_maint_enabled').checked,
+            fullSite: !!($('site_maint_full_site') && $('site_maint_full_site').checked),
+            message: ($('site_maint_message') && $('site_maint_message').value) || '',
+          },
+          registration: {
+            mode:
+              ($('site_registration_mode') && $('site_registration_mode').value === 'open'
+                ? 'open'
+                : 'invitation'),
+          },
+        };
+        if (window.__adminUser && window.__adminUser.role === 'admin') {
+          sitePayload.embed = {
+            aiChatHtml: ($('site_embed_ai_chat') && $('site_embed_ai_chat').value) || '',
+          };
+        }
         await api('/api/admin/site-settings', {
           method: 'PUT',
-          body: JSON.stringify({
-            maintenance: {
-              enabled: !!$('site_maint_enabled').checked,
-              fullSite: !!($('site_maint_full_site') && $('site_maint_full_site').checked),
-              message: ($('site_maint_message') && $('site_maint_message').value) || '',
-            },
-            registration: {
-              mode:
-                ($('site_registration_mode') && $('site_registration_mode').value === 'open'
-                  ? 'open'
-                  : 'invitation'),
-            },
-          }),
+          body: JSON.stringify(sitePayload),
         });
         $('siteSettingsMsg').textContent = '已保存';
         $('siteSettingsMsg').className = 'admin-msg ok';
@@ -3056,6 +3091,7 @@ async function initAdminPanel() {
     users: '用户管理',
     roles: '角色管理',
     redis: 'Redis',
+    upgrade: '系统升级',
     menu: '菜单显示',
   };
 
@@ -3637,6 +3673,8 @@ async function initAdminPanel() {
     $('panelRoles').classList.toggle('active', name === 'roles');
     var pr = $('panelRedis');
     if (pr) pr.classList.toggle('active', name === 'redis');
+    var pu = $('panelUpgrade');
+    if (pu) pu.classList.toggle('active', name === 'upgrade');
     $('panelMenu').classList.toggle('active', name === 'menu');
     if (name === 'dash') {
       loadDashboard();
@@ -3658,6 +3696,9 @@ async function initAdminPanel() {
     }
     if (name === 'redis') {
       loadRedisPanel();
+    }
+    if (name === 'upgrade') {
+      if (typeof window.loadUpgradePanel === 'function') window.loadUpgradePanel();
     }
     var crumb = $('ryCrumbTitle');
     if (crumb) {
@@ -3788,10 +3829,11 @@ async function initAdminPanel() {
           }
           var rows = list
             .map(function (x) {
-              var tok = x.sessionToken || '';
               var kick =
-                '<button type="button" class="de-btn de-btn-ghost de-btn-sm admin-kick-btn" data-session="' +
-                escapeHtml(tok) +
+                '<button type="button" class="de-btn de-btn-ghost de-btn-sm admin-kick-btn" data-kick-user="' +
+                escapeHtml(String(x.userId)) +
+                '" data-kick-at="' +
+                escapeHtml(String(x.at)) +
                 '">下线</button>';
               return (
                 '<tr><td>' +
@@ -3839,11 +3881,12 @@ async function initAdminPanel() {
     onlineHostKick.addEventListener('click', function (e) {
       var b = e.target.closest && e.target.closest('.admin-kick-btn');
       if (!b) return;
-      var tok = b.getAttribute('data-session');
-      if (!tok || !window.confirm('确定将该后台会话下线？')) return;
+      var uid = b.getAttribute('data-kick-user');
+      var at = b.getAttribute('data-kick-at');
+      if (uid == null || at == null || !window.confirm('确定将该后台会话下线？')) return;
       api('/api/admin/presence/kick', {
         method: 'POST',
-        body: JSON.stringify({ sessionToken: tok }),
+        body: JSON.stringify({ userId: parseInt(uid, 10), at: parseInt(at, 10) }),
       })
         .then(function () {
           showAdminToast('已下线');

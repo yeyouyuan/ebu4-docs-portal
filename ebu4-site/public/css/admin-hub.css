@@ -681,12 +681,14 @@
 
 #adminNewUserModal.modal-bg[hidden],
 #roleProfileModal.modal-bg[hidden],
-#mainDocsModal.modal-bg[hidden] {
+#mainDocsModal.modal-bg[hidden],
+#imageGalleryModal.modal-bg[hidden] {
   display: none !important;
 }
 #adminNewUserModal.modal-bg,
 #roleProfileModal.modal-bg,
-#mainDocsModal.modal-bg {
+#mainDocsModal.modal-bg,
+#imageGalleryModal.modal-bg {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
@@ -703,13 +705,15 @@
 }
 #adminNewUserModal.modal-bg.show,
 #roleProfileModal.modal-bg.show,
-#mainDocsModal.modal-bg.show {
+#mainDocsModal.modal-bg.show,
+#imageGalleryModal.modal-bg.show {
   opacity: 1;
   pointer-events: auto;
 }
 #adminNewUserModal .modal,
 #roleProfileModal .modal,
-#mainDocsModal .modal {
+#mainDocsModal .modal,
+#imageGalleryModal .modal {
   background: var(--surface, #18181f);
   border: 1px solid var(--border, #2a2a38);
   border-radius: var(--r3, 16px);
@@ -730,7 +734,8 @@
 }
 #adminNewUserModal.modal-bg.show .modal,
 #roleProfileModal.modal-bg.show .modal,
-#mainDocsModal.modal-bg.show .modal {
+#mainDocsModal.modal-bg.show .modal,
+#imageGalleryModal.modal-bg.show .modal {
   transform: scale(1);
 }
 #adminNewUserModal .modal.modal--md {
@@ -742,7 +747,8 @@
 }
 #adminNewUserModal .modal h3,
 #roleProfileModal .modal h3,
-#mainDocsModal .modal h3 {
+#mainDocsModal .modal h3,
+#imageGalleryModal .modal h3 {
   font-size: 18px;
   font-weight: 700;
   margin-bottom: 12px;

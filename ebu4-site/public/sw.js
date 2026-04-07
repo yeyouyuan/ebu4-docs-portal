@@ -3,7 +3,7 @@
  * E9 文档站 PWA — 离线壳层 + 运行时缓存
  * 更新缓存：修改 VERSION 并部署
  */
-const VERSION = 'ebu4-pwa-2026.03.22-5';
+const VERSION = 'ebu4-pwa-2026.04.06-1';
 const PRECACHE = 'precache-' + VERSION;
 const RUNTIME = 'runtime-' + VERSION;
 
@@ -16,6 +16,8 @@ const PRECACHE_URLS = [
   '/css/style.css',
   '/css/landing.css',
   '/css/admin.css',
+  '/js/docs-chrome.js',
+  '/js/lazy-images.js',
   '/js/app.js',
   '/js/admin.js',
   '/js/admin-config-forms.js',

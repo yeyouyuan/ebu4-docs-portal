@@ -3560,4 +3560,191 @@ body.admin-booting {
   word-break: break-all;
 }
 
+/* —— 图库弹窗（主文档侧栏「打开图库」） —— */
+.de-gallery-modal {
+  width: min(960px, 96vw) !important;
+  max-height: min(88vh, 900px);
+  padding: 20px 22px 22px !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.de-gallery-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.de-gallery-modal-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+.de-gallery-modal-lead {
+  margin: 0 0 14px !important;
+  font-size: 0.78rem !important;
+  line-height: 1.5 !important;
+}
+.de-gallery-modal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  min-height: 0;
+  flex: 1;
+}
+@media (max-width: 820px) {
+  .de-gallery-modal-layout {
+    grid-template-columns: 1fr;
+    max-height: min(70vh, 560px);
+  }
+  .de-gallery-detail-aside {
+    max-height: 42vh;
+    border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    padding-top: 12px;
+  }
+}
+.de-gallery-grid-wrap {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  background: color-mix(in srgb, var(--bg-code) 88%, transparent);
+}
+.de-gallery-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+.de-gallery-tile {
+  margin: 0;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-card) 94%, transparent);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.de-gallery-tile:hover {
+  border-color: color-mix(in srgb, var(--border) 90%, var(--indigo));
+}
+.de-gallery-tile.is-selected {
+  border-color: var(--gold, #d4a853);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold) 45%, transparent);
+}
+.de-gallery-tile-thumb {
+  display: block;
+  aspect-ratio: 1;
+  background: var(--bg-code);
+  overflow: hidden;
+}
+.de-gallery-tile-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.de-gallery-tile-meta {
+  display: block;
+  font-size: 0.62rem;
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  color: var(--text-dim);
+  padding: 6px 8px;
+}
+.de-gallery-grid-empty,
+.de-gallery-grid-loading {
+  margin: 0;
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+.de-gallery-detail-aside {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+  padding: 12px;
+  overflow: auto;
+}
+.de-gallery-detail-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  padding: 20px 8px;
+}
+.de-gallery-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.de-gallery-detail-preview {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: var(--bg-code);
+  max-height: min(36vh, 280px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.de-gallery-detail-preview img {
+  max-width: 100%;
+  max-height: min(36vh, 280px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+.de-gallery-detail-dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  font-size: 0.72rem;
+  align-items: start;
+}
+.de-gallery-detail-dl dt {
+  margin: 0;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.de-gallery-detail-dl dd {
+  margin: 0;
+  min-width: 0;
+  word-break: break-all;
+}
+.de-gallery-detail-url {
+  display: block;
+  font-size: 0.65rem;
+  line-height: 1.45;
+  color: var(--text-link);
+}
+.de-gallery-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+.de-gallery-detail-actions .de-btn {
+  flex: 1;
+  min-width: 0;
+}
+
 /* 用户/角色/菜单管理控制台样式见 css/admin-hub.css（与参考 HTML 一致） */

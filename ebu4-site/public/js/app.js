@@ -1,15 +1,25 @@
 // === State ===
 let sectionsMeta = [];
-let currentSection = 0;
+/** 当前章节：首页为 -1；正文为服务端章节 id（与 /api/sections/:id 一致，非过滤列表下标） */
+let currentSection = -1;
 /** 防止快速切换章节时旧请求覆盖新内容 */
 let loadSectionGeneration = 0;
+/** 首次 /docs 路由（含 await 正文）完成前，忽略 hashchange，避免与初始化竞态 */
+let docsRouteReady = false;
+/** 主文档切换重载中，忽略 hashchange（URL 与目录正在替换） */
+let docSwitchBusy = 0;
 
-/** 跳过 markdown 中标题与目录两节 */
-const SIDEBAR_SKIP = new Set([0, 1]);
+/** 侧栏可点的章节（跳过原文档前两节 # 标题 / 目录，按 id 判断，避免与权限过滤后的数组错位） */
+function sidebarNavSections() {
+  return sectionsMeta.filter((s) => s.id > 1);
+}
 
-function firstDocSectionIndex() {
-  const idx = sectionsMeta.findIndex((_, i) => !SIDEBAR_SKIP.has(i));
-  return idx >= 0 ? idx : 0;
+/** 进入文档按钮：首个可导航章节的 id */
+function firstNavVisibleSectionId() {
+  const nav = sidebarNavSections();
+  if (nav.length) return nav[0].id;
+  const any = sectionsMeta[0];
+  return any && typeof any.id === 'number' ? any.id : null;
 }
 
 let mainDocsList = [];
@@ -22,8 +32,8 @@ function publicSectionsApiPath() {
   return '/api/sections?doc=' + encodeURIComponent(activeDocSlug);
 }
 
-function publicSectionOneApiPath(idx) {
-  const base = '/api/sections/' + idx;
+function publicSectionOneApiPath(sectionId) {
+  const base = '/api/sections/' + sectionId;
   if (!activeDocSlug || activeDocSlug === defaultDocSlug) return base;
   return base + '?doc=' + encodeURIComponent(activeDocSlug);
 }
@@ -38,22 +48,28 @@ function syncDocsUrl() {
 }
 
 async function reloadDocsForActiveSlug() {
-  syncDocsUrl();
-  const resp = await fetch(publicSectionsApiPath());
-  if (!resp.ok) throw new Error('sections');
-  sectionsMeta = await resp.json();
-  renderSidebar();
-  const raw = window.location.hash.slice(1);
-  if (!raw || raw === 'home') {
-    await showHomeBody();
-  } else {
-    const slug = slugFromAddressBarHash();
-    const idx = slug != null ? sectionsMeta.findIndex((s) => s.slug === slug) : -1;
-    if (idx >= 0) await loadSection(idx);
-    else {
-      history.replaceState(null, '', `${location.pathname}${location.search}#home`);
+  docSwitchBusy++;
+  loadSectionGeneration++;
+  try {
+    syncDocsUrl();
+    const resp = await fetch(publicSectionsApiPath());
+    if (!resp.ok) throw new Error('sections');
+    sectionsMeta = await resp.json();
+    renderSidebar();
+    const raw = window.location.hash.slice(1);
+    if (!raw || raw === 'home') {
       await showHomeBody();
+    } else {
+      const slug = slugFromAddressBarHash();
+      const hit = slug != null ? sectionsMeta.find((s) => s.slug === slug) : null;
+      if (hit) await loadSection(hit.id);
+      else {
+        history.replaceState(null, '', `${location.pathname}${location.search}#home`);
+        await showHomeBody();
+      }
     }
+  } finally {
+    docSwitchBusy--;
   }
 }
 
@@ -83,7 +99,7 @@ function initSidebarNavDelegation() {
 
 // === Init ===
 document.addEventListener('DOMContentLoaded', async () => {
-  initThemePicker();
+  if (typeof window.initThemePicker === 'function') window.initThemePicker();
   initSidebarNavDelegation();
 
   // Configure marked
@@ -98,7 +114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     gfm: true
   });
 
-  initBgCanvas();
+  if (typeof window.initBgCanvas === 'function') window.initBgCanvas();
 
   try {
     await fetch('/api/site/session', { credentials: 'same-origin' });
@@ -135,7 +151,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     pubPicker.value = activeDocSlug;
     pubPicker.addEventListener('change', async () => {
       activeDocSlug = pubPicker.value || defaultDocSlug;
-      loadSectionGeneration++;
       try {
         await reloadDocsForActiveSlug();
       } catch (e) {
@@ -165,22 +180,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   window.addEventListener('hashchange', onHashChange);
 
-  // 首次路由（hash 中的中文需解码后再与 slug 比较）
-  const raw = window.location.hash.slice(1);
-  if (!raw || raw === 'home') {
-    if (!raw) history.replaceState(null, '', `${location.pathname}${location.search}#home`);
-    await showHomeBody();
-  } else {
-    const slug = slugFromAddressBarHash();
-    const idx = slug != null ? sectionsMeta.findIndex((s) => s.slug === slug) : -1;
-    if (idx >= 0) loadSection(idx);
-    else {
-      history.replaceState(null, '', `${location.pathname}${location.search}#home`);
+  // 首次路由：必须 await 正文加载完成再开放 hash 监听与搜索初始化，避免「顺序错乱 / 刷新后空白」
+  try {
+    const raw = window.location.hash.slice(1);
+    if (!raw || raw === 'home') {
+      if (!raw) history.replaceState(null, '', `${location.pathname}${location.search}#home`);
       await showHomeBody();
+    } else {
+      const slug = slugFromAddressBarHash();
+      const hit = slug != null ? sectionsMeta.find((s) => s.slug === slug) : null;
+      if (hit) await loadSection(hit.id);
+      else {
+        history.replaceState(null, '', `${location.pathname}${location.search}#home`);
+        await showHomeBody();
+      }
     }
+  } finally {
+    docsRouteReady = true;
   }
 
-  initSearchUI();
+  if (typeof window.initSearchUI === 'function') window.initSearchUI();
 });
 
 function setLayoutHomeMode(isHome) {
@@ -202,6 +221,7 @@ function slugFromAddressBarHash() {
 }
 
 function onHashChange() {
+  if (!docsRouteReady || docSwitchBusy > 0) return;
   const raw = window.location.hash.slice(1);
   if (!raw || raw === 'home') {
     if (currentSection === -1 && document.querySelector('#contentArea .home-view')) return;
@@ -209,10 +229,10 @@ function onHashChange() {
     return;
   }
   const slug = slugFromAddressBarHash();
-  const idx = slug != null ? sectionsMeta.findIndex((s) => s.slug === slug) : -1;
-  if (idx >= 0) {
-    if (idx === currentSection) return;
-    loadSection(idx);
+  const hit = slug != null ? sectionsMeta.find((s) => s.slug === slug) : null;
+  if (hit) {
+    if (hit.id === currentSection) return;
+    loadSection(hit.id);
   } else {
     console.warn('无法匹配章节 hash:', window.location.hash);
   }
@@ -229,8 +249,9 @@ async function showHomeBody() {
   currentSection = -1;
   setLayoutHomeMode(true);
   renderSidebar();
-  const firstIdx = firstDocSectionIndex();
-  const firstTitle = sectionsMeta[firstIdx] ? sectionsMeta[firstIdx].title : '文档';
+  const firstId = firstNavVisibleSectionId();
+  const firstTitle =
+    firstId != null ? (sectionsMeta.find((s) => s.id === firstId) || {}).title || '文档' : '文档';
   let extraBlock = '';
   try {
     const r = await fetch('/api/pages');
@@ -269,7 +290,11 @@ async function showHomeBody() {
         <h1>泛微 E9 二开技术支持门户</h1>
         <p class="lead">集中查阅接口、流程、表单与部署说明；支持全文搜索与章节导航，助力企业 IT 与实施同事快速定位问题。</p>
         <div class="home-actions">
-          <button type="button" class="home-btn primary" onclick="loadSection(${firstIdx})">进入文档 — ${escapeHtml(firstTitle)}</button>
+          ${
+            firstId != null
+              ? `<button type="button" class="home-btn primary" onclick="loadSection(${firstId})">进入文档 — ${escapeHtml(firstTitle)}</button>`
+              : `<button type="button" class="home-btn primary" disabled>暂无可用章节</button>`
+          }
           <button type="button" class="home-btn ghost" onclick="document.getElementById('sidebar')?.classList.add('open')">打开侧栏目录</button>
         </div>
       </div>
@@ -312,12 +337,13 @@ function renderSidebar() {
       <span class="link-num">⌂</span>
       <span>门户首页</span>
     </a>`;
-  sectionsMeta.forEach((s, i) => {
-    if (SIDEBAR_SKIP.has(i)) return;
-    const active = i === currentSection ? ' active' : '';
-    const num = i - 1;
-    html += `<a class="sidebar-link${active}" href="#${s.slug}" data-idx="${i}">
-      <span class="link-num">${num}</span>
+  let navNum = 0;
+  sectionsMeta.forEach((s) => {
+    if (s.id === 0 || s.id === 1) return;
+    navNum += 1;
+    const active = s.id === currentSection ? ' active' : '';
+    html += `<a class="sidebar-link${active}" href="#${encodeURIComponent(s.slug)}" data-idx="${s.id}">
+      <span class="link-num">${navNum}</span>
       <span>${escapeHtml(s.title)}</span>
     </a>`;
   });
@@ -330,15 +356,23 @@ function toggleSidebar() {
 }
 
 // === Load Section ===
-async function loadSection(idx) {
-  if (!sectionsMeta.length || idx < 0 || idx >= sectionsMeta.length) return;
-  const section = sectionsMeta[idx];
+async function loadSection(sectionId) {
+  const sid =
+    typeof sectionId === 'number' && !Number.isNaN(sectionId)
+      ? sectionId
+      : parseInt(sectionId, 10);
+  if (Number.isNaN(sid)) return;
+  const section = sectionsMeta.find((s) => s.id === sid);
   if (!section) return;
 
   const gen = ++loadSectionGeneration;
-  currentSection = idx;
+  currentSection = sid;
 
-  window.location.hash = section.slug;
+  // 与地址栏已一致时不要改 hash，避免多余 hashchange 与 onHashChange 重复加载
+  const curSlug = slugFromAddressBarHash();
+  if (curSlug !== section.slug) {
+    window.location.hash = section.slug;
+  }
   setLayoutHomeMode(false);
   renderSidebar();
   document.getElementById('sidebar').classList.remove('open');
@@ -356,7 +390,7 @@ async function loadSection(idx) {
 
   let resp;
   try {
-    resp = await fetch(publicSectionOneApiPath(idx));
+    resp = await fetch(publicSectionOneApiPath(sid));
   } catch (_) {
     if (gen !== loadSectionGeneration) return;
     document.getElementById('contentArea').innerHTML = `
@@ -378,17 +412,18 @@ async function loadSection(idx) {
 
   let html = `<div class="md-content">${marked.parse(data.content)}</div>`;
 
-  // Prev/Next
-  const prev = idx > 2 ? sectionsMeta[idx - 1] : null;
-  const next = idx < sectionsMeta.length - 1 ? sectionsMeta[idx + 1] : null;
+  const navChain = sidebarNavSections();
+  const pos = navChain.findIndex((x) => x.id === section.id);
+  const prev = pos > 0 ? navChain[pos - 1] : null;
+  const next = pos >= 0 && pos < navChain.length - 1 ? navChain[pos + 1] : null;
   html += '<div class="page-nav">';
   if (prev) {
-    html += `<a href="#${prev.slug}" onclick="event.preventDefault(); loadSection(${idx-1})">← ${prev.title}</a>`;
+    html += `<a href="#${encodeURIComponent(prev.slug)}" onclick="event.preventDefault(); loadSection(${prev.id})">← ${escapeHtml(prev.title)}</a>`;
   } else {
     html += '<span></span>';
   }
   if (next) {
-    html += `<a href="#${next.slug}" onclick="event.preventDefault(); loadSection(${idx+1})">${next.title} →</a>`;
+    html += `<a href="#${encodeURIComponent(next.slug)}" onclick="event.preventDefault(); loadSection(${next.id})">${escapeHtml(next.title)} →</a>`;
   }
   html += '</div>';
 

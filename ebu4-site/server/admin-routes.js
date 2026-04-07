@@ -16,6 +16,12 @@ const presenceStore = require('./presence-store');
 const inviteStore = require('./invite-store');
 const siteSession = require('./site-session');
 const { normalizeSiteSettings } = require('./lib/site-settings-normalize');
+const {
+  sanitizeSiteSettingsForAdminGet,
+  sanitizeAuditEntries,
+} = require('./lib/admin-sensitive');
+const upgradeService = require('./lib/upgrade-service');
+const { buildUpgradeArtifacts } = require('./lib/build-upgrade-artifacts');
 const redisCache = require('./redis-cache');
 const {
   generateRegistrationOptions,
@@ -79,6 +85,21 @@ function registerAdminRoutes(app, ctx) {
     'data',
     'site-settings.json'
   );
+  const siteRoot = ctx.siteRoot || path.join(__dirname, '..');
+
+  function readNormalizedSiteSettings() {
+    let raw = null;
+    try {
+      if (siteDatabase.isSiteSqlite()) {
+        const kv = siteDatabase.getKv('site_settings');
+        if (kv) raw = JSON.parse(kv);
+      } else if (fs.existsSync(SITE_SETTINGS_PATH)) {
+        raw = JSON.parse(fs.readFileSync(SITE_SETTINGS_PATH, 'utf-8'));
+      }
+    } catch (_) {}
+    return normalizeSiteSettings(raw);
+  }
+
   const EDITOR_MODULE_ACCESS_PATH = path.join(
     path.dirname(TOOLS_JSON_PATH),
     '..',
@@ -109,7 +130,7 @@ function registerAdminRoutes(app, ctx) {
   /** 编辑角色数据查看范围（对应后台侧栏与 API；管理员不受限） */
   const DATA_VIEW_KEYS = ['mainDoc', 'tools', 'landing', 'extraPages', 'images', 'stats'];
   const ADMIN_MENU_ORDER_PATH = path.join(path.dirname(TOOLS_JSON_PATH), 'admin-menu-order.json');
-  const ADMIN_MENU_TAB_IDS = ['dash', 'md', 'tools', 'landing', 'site', 'seo', 'audit', 'users', 'roles', 'redis'];
+  const ADMIN_MENU_TAB_IDS = ['dash', 'md', 'tools', 'landing', 'site', 'upgrade', 'seo', 'audit', 'users', 'roles', 'redis'];
   /** 可单独「停用」侧栏项（含「菜单显示」meta 项） */
   const ADMIN_MENU_DISABLE_KEYS = [
     'dash',
@@ -513,8 +534,10 @@ function registerAdminRoutes(app, ctx) {
       const isAdmin = req.adminUser && req.adminUser.role === 'admin';
       if (!isAdmin) {
         delete normalized.redis;
+        delete normalized.upgrade;
+        return res.json(normalized);
       }
-      return res.json(normalized);
+      return res.json(sanitizeSiteSettingsForAdminGet(normalized));
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
     }
@@ -551,6 +574,20 @@ function registerAdminRoutes(app, ctx) {
         }
         if (isAdminUser && body.redis && typeof body.redis === 'object') {
           merged.redis = Object.assign({}, prev.redis || {}, body.redis);
+        }
+        if (isAdminUser && body.upgrade && typeof body.upgrade === 'object') {
+          merged.upgrade = Object.assign({}, prev.upgrade || {}, body.upgrade);
+          const au = body.upgrade.autoUpdate;
+          if (au && typeof au === 'object') {
+            merged.upgrade.autoUpdate = Object.assign(
+              {},
+              (prev.upgrade && prev.upgrade.autoUpdate) || {},
+              au
+            );
+          }
+        }
+        if (isAdminUser && body.embed && typeof body.embed === 'object') {
+          merged.embed = Object.assign({}, prev.embed || {}, body.embed);
         }
         const normalized = normalizeSiteSettings(merged);
         const out = JSON.stringify(normalized);
@@ -603,7 +640,7 @@ function registerAdminRoutes(app, ctx) {
   siteMetaRouter.get('/audit-log', requireAdmin, requireAdminOrEditorCapability('audit'), (req, res) => {
     try {
       const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
-      const entries = auditLog.readTail(limit);
+      const entries = sanitizeAuditEntries(auditLog.readTail(limit));
       res.json({ entries });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
@@ -634,11 +671,22 @@ function registerAdminRoutes(app, ctx) {
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const sessionToken = String(body.sessionToken || '').trim();
-      if (!sessionToken) return res.status(400).json({ error: '缺少 sessionToken' });
-      destroySession(sessionToken);
-      await presenceStore.del(sessionToken);
-      audit(req, 'admin.presence.kick', 'ok', {});
-      res.json({ ok: true });
+      if (sessionToken) {
+        destroySession(sessionToken);
+        await presenceStore.del(sessionToken);
+        audit(req, 'admin.presence.kick', 'ok', { by: 'token' });
+        return res.json({ ok: true });
+      }
+      if (body.userId != null && body.at != null) {
+        const r = await presenceStore.kickByUserIdAndAt(body.userId, body.at);
+        if (!r.ok) {
+          return res.status(404).json({ error: '未找到对应会话或已过期' });
+        }
+        if (r.sessionToken) destroySession(r.sessionToken);
+        audit(req, 'admin.presence.kick', 'ok', { by: 'userId_at' });
+        return res.json({ ok: true });
+      }
+      return res.status(400).json({ error: '缺少 userId+at 或 sessionToken' });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
     }
@@ -670,6 +718,133 @@ function registerAdminRoutes(app, ctx) {
       res.status(500).json({ error: String(e.message || e) });
     }
   });
+
+  siteMetaRouter.post('/upgrade/check', requireAdmin, requireRole('admin'), async (req, res) => {
+    try {
+      const st = readNormalizedSiteSettings();
+      const result = await upgradeService.withUpgradeLock(() =>
+        upgradeService.runUpgradeCheck({
+          siteDatabase,
+          siteSettings: st,
+          siteRoot,
+          trigger: 'manual',
+        })
+      );
+      audit(req, 'upgrade.check', 'ok', {});
+      res.json(result);
+    } catch (e) {
+      audit(req, 'upgrade.check', 'error', { message: String(e.message || e).slice(0, 200) });
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+  siteMetaRouter.post('/upgrade/apply', requireAdmin, requireRole('admin'), async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const channel = body.channel === 'system' ? 'system' : 'docs';
+      const artifactIndex = body.artifactIndex != null ? parseInt(body.artifactIndex, 10) : 0;
+      const st = readNormalizedSiteSettings();
+      const result = await upgradeService.withUpgradeLock(async () => {
+        if (channel === 'docs') {
+          return upgradeService.runUpgradeApplyDocs({
+            siteDatabase,
+            siteSettings: st,
+            siteRoot,
+            artifactIndex,
+            reloadDocData,
+            backupKeepCount,
+            trigger: 'manual',
+          });
+        }
+        return upgradeService.runUpgradeApplySystem({
+          siteDatabase,
+          siteSettings: st,
+          siteRoot,
+          artifactIndex,
+          trigger: 'manual',
+        });
+      });
+      const out =
+        channel === 'system' && result.needsRestart
+          ? Object.assign({}, result, {
+              autoExitScheduled:
+                process.env.UPGRADE_AUTO_EXIT_ON_APPLY === '1' ||
+                process.env.UPGRADE_AUTO_EXIT_ON_APPLY === 'true',
+            })
+          : result;
+      audit(req, 'upgrade.apply', 'ok', { channel });
+      res.json(out);
+      if (
+        channel === 'system' &&
+        result.needsRestart &&
+        out.autoExitScheduled
+      ) {
+        res.on('finish', () => {
+          setTimeout(() => process.exit(0), 200);
+        });
+      }
+    } catch (e) {
+      audit(req, 'upgrade.apply', 'error', { message: String(e.message || e).slice(0, 200) });
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+  siteMetaRouter.get('/upgrade/history', requireAdmin, requireRole('admin'), (req, res) => {
+    try {
+      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+      const before = req.query.before ? String(req.query.before) : '';
+      let items = upgradeService.readUpgradeHistory(siteDatabase);
+      if (before) {
+        const idx = items.findIndex((x) => x.id === before);
+        if (idx >= 0) items = items.slice(idx + 1);
+      }
+      const slice = items.slice(0, limit);
+      res.json({ items: slice, hasMore: items.length > limit });
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+  siteMetaRouter.get('/upgrade/status', requireAdmin, requireRole('admin'), (req, res) => {
+    try {
+      res.json({
+        lastCheck: upgradeService.getKvJson(siteDatabase, 'upgrade_last_check_at'),
+        lastApply: upgradeService.getKvJson(siteDatabase, 'upgrade_last_apply_at'),
+        lastResult: upgradeService.getKvJson(siteDatabase, 'upgrade_last_result'),
+      });
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+  siteMetaRouter.post('/upgrade/build-artifacts', requireAdmin, requireRole('admin'), async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const docs = body.docs !== false;
+      const system = body.system !== false;
+      const result = await upgradeService.withUpgradeLock(() =>
+        Promise.resolve(
+          buildUpgradeArtifacts(siteRoot, siteDatabase, {
+            docs,
+            system,
+          })
+        )
+      );
+      upgradeService.appendHistory(siteDatabase, {
+        kind: 'build',
+        trigger: 'manual',
+        channel: 'both',
+        fromVersion: null,
+        toVersion: result.manifest && result.manifest.docsVersion,
+        status: 'success',
+        message: '本机一键生成升级清单（docs=' + (result.docs ? '是' : '否') + ' system=' + (result.system ? '是' : '否') + '）',
+        remoteProduct: null,
+        remoteBaseUrlHost: '',
+      });
+      audit(req, 'upgrade.build_artifacts', 'ok', { docs: !!result.docs, system: !!result.system });
+      res.json(result);
+    } catch (e) {
+      audit(req, 'upgrade.build_artifacts', 'error', { message: String(e.message || e).slice(0, 200) });
+      res.status(400).json({ error: String(e.message || e) });
+    }
+  });
+
   app.use('/api/admin', siteMetaRouter);
 
   app.get('/api/admin/role-profiles', requireAdmin, requireRole('admin'), (req, res) => {

@@ -263,3 +263,12 @@ function initSearchUI() {
     document.querySelectorAll('.search-kbd').forEach((k) => (k.textContent = 'Ctrl+K'));
   }
 }
+
+/** 显式挂到 window，保证与 app.js 等脚本之间的全局引用一致（部分环境/缓存下裸函数声明不可靠） */
+if (typeof window !== 'undefined') {
+  window.initThemePicker = initThemePicker;
+  window.initBgCanvas = initBgCanvas;
+  window.initSearchUI = initSearchUI;
+  window.escapeHtml = escapeHtml;
+  window.applyTheme = applyTheme;
+}
