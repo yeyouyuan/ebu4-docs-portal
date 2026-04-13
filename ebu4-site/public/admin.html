@@ -27,8 +27,9 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script>
   (function () {
-    var KEY = 'ebu4-admin-asset-v';
-    var DEFAULT_V = '20260329a';
+    /* 变更 KEY 可强制全量刷新后台 CSS（避免仅改 DEFAULT_V 仍读旧 localStorage） */
+    var KEY = 'ebu4-admin-asset-v20260414';
+    var DEFAULT_V = '20260414a';
     var v = DEFAULT_V;
     try {
       var s = localStorage.getItem(KEY);
@@ -205,7 +206,7 @@
       </div>
 
       <div class="admin-panel" id="panelMd">
-        <div class="doc-editor-hub dm-hub">
+        <div class="doc-editor-hub dm-hub doc-mgmt-studio">
           <div class="admin-docs-subnav dm-tabs" role="tablist" aria-label="文档子模块">
             <button type="button" class="admin-docs-subnav-btn active" data-doc-sub="main" id="docSubBtnMain">主文档</button>
             <button type="button" class="admin-docs-subnav-btn" data-doc-sub="extra" id="docSubBtnExtra">扩展页面</button>
@@ -218,10 +219,11 @@
                   <div class="de-main-doc-bar">
                     <div class="de-main-doc-bar-head">
                       <label class="de-main-doc-bar-label" for="mainDocPicker">当前文档</label>
-                      <div class="de-main-doc-bar-meta" id="mainDocPickerMeta">
-                        <span id="mainDocPickerMetaSlug">slug —</span>
-                        <span class="de-main-doc-bar-meta-sep">·</span>
-                        <span id="mainDocPickerMetaCount">0 章</span>
+                      <div class="de-main-doc-bar-meta" id="mainDocPickerMeta" title="当前主文档 slug 与章节总数">
+                        <span class="de-main-doc-meta-k">Slug</span>
+                        <code class="de-main-doc-meta-slug" id="mainDocPickerMetaSlug">—</code>
+                        <span class="de-main-doc-bar-meta-sep" aria-hidden="true">·</span>
+                        <span class="de-main-doc-meta-count" id="mainDocPickerMetaCount">0 章</span>
                       </div>
                     </div>
                     <div class="de-main-doc-bar-row">
@@ -1322,7 +1324,7 @@
   <script src="/js/admin-pages.js" defer></script>
   <script src="/js/admin-tools-nav.js" defer></script>
   <script src="/js/webauthn-client.js?v=20260324a"></script>
-  <script src="/js/admin.js?v=20260413b" defer></script>
+  <script src="/js/admin.js?v=20260413e" defer></script>
   <script src="/js/admin-upgrade.js?v=20260407c" defer></script>
 </body>
 </html>

@@ -1708,7 +1708,7 @@ function updateMainDocChrome() {
   var drawerSlug = $('mainDocFullMdDocSlug');
   if (drawerSlug) drawerSlug.textContent = docSlug;
   var metaSlug = $('mainDocPickerMetaSlug');
-  if (metaSlug) metaSlug.textContent = docSlug ? 'slug ' + docSlug : 'slug —';
+  if (metaSlug) metaSlug.textContent = docSlug ? docSlug : '—';
   var metaCount = $('mainDocPickerMetaCount');
   if (metaCount) metaCount.textContent = (docSectionsCache.length || 0) + ' 章';
   updateMainDocSaveInd();

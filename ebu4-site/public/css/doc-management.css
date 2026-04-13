@@ -133,6 +133,60 @@
   flex: 1;
 }
 
+#panelMd .dm-sidebar .de-main-doc-bar-head {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+#panelMd .dm-sidebar .de-main-doc-bar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--dm-text-3);
+}
+
+#panelMd .dm-sidebar .de-main-doc-meta-k {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dm-text-3);
+  opacity: 0.85;
+}
+
+#panelMd .dm-sidebar .de-main-doc-meta-slug {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--dm-border);
+  background: color-mix(in srgb, var(--dm-surface-muted) 80%, var(--dm-surface));
+  font-family: var(--dm-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dm-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#panelMd .dm-sidebar .de-main-doc-bar-meta-sep {
+  opacity: 0.45;
+  user-select: none;
+}
+
+#panelMd .dm-sidebar .de-main-doc-meta-count {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: var(--dm-text-2);
+}
+
 #panelMd .dm-sidebar .de-main-doc-bar-label,
 #panelMd .dm-sidebar .de-count {
   font-size: 10.5px;
@@ -1128,5 +1182,260 @@ body.dm-drawer-open {
 
   #panelMd .de-md-fullfile-head {
     flex-direction: column;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   文档管理「工作室」布局（GitBook / CMS 式：画布 + 白纸编辑区 + 侧栏卡片）
+   作用域：.doc-mgmt-studio（#panelMd 内）
+   -------------------------------------------------------------------------- */
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio {
+  position: relative;
+  padding: 4px 2px 16px;
+  margin: 0 -4px 0 0;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio::before {
+  content: '';
+  position: absolute;
+  inset: -8px -6px 0 -8px;
+  border-radius: 20px;
+  background: radial-gradient(
+      100% 120% at 50% -20%,
+      color-mix(in srgb, var(--gold) 9%, transparent) 0%,
+      transparent 55%
+    ),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-deep) 92%, #0a0a10) 0%, var(--bg-deep) 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio > * {
+  position: relative;
+  z-index: 1;
+}
+
+#panelMd .doc-mgmt-studio .dm-workspace.de-workspace {
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--gold) 14%, var(--dm-border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--gold) 6%, transparent),
+    0 24px 56px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
+  background: color-mix(in srgb, var(--dm-surface) 94%, var(--bg-deep));
+}
+
+#panelMd .doc-mgmt-studio .dm-workspace .de-workspace-inner {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--dm-surface-soft) 70%, var(--dm-surface)) 0%,
+    color-mix(in srgb, var(--dm-surface-soft) 28%, var(--dm-surface)) 32%,
+    var(--dm-surface) 32%,
+    var(--dm-surface) 100%
+  );
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar.de-list-aside {
+  width: min(300px, 34vw);
+  padding: 16px 14px;
+  border-right: 1px solid color-mix(in srgb, var(--gold) 8%, var(--dm-border));
+  background: color-mix(in srgb, var(--dm-surface-soft) 45%, var(--bg-deep));
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-bar,
+#panelMd .doc-mgmt-studio .dm-sidebar .de-search-wrap--chapter {
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 3%, transparent);
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar #btnNewSection {
+  border-radius: 14px;
+  box-shadow:
+    0 2px 0 color-mix(in srgb, #000 18%, transparent),
+    0 10px 24px rgba(232, 185, 49, 0.22);
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-btn {
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: color-mix(in srgb, var(--dm-surface) 55%, transparent);
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-btn:hover {
+  border-color: color-mix(in srgb, var(--gold) 16%, var(--dm-border));
+  background: color-mix(in srgb, var(--dm-surface) 88%, var(--bg-deep));
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-btn.active {
+  border-color: color-mix(in srgb, var(--gold) 28%, var(--dm-border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--gold) 14%, var(--dm-surface)) 0%,
+    color-mix(in srgb, var(--gold) 6%, var(--dm-surface)) 100%
+  );
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+/* ---------- 中间「内容区」：参考 CMS 稿（浅灰底 + 白卡片 + 细线框 + 金强调）---------- */
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-center.de-center-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--ebu4-bg);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-toolbar-wrap.de-main-toolbar-wrap {
+  flex: 0 0 auto;
+  background: var(--ebu4-surface);
+  border-bottom: 1px solid var(--ebu4-border);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-toolbar.de-toolbar {
+  min-height: 52px;
+  padding: 10px 16px;
+  gap: 8px 10px;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-doc-summary {
+  flex: 0 0 auto;
+  margin: 12px 16px 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--ebu4-border);
+  background: var(--ebu4-surface);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-editor-scroll {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 16px 10px;
+  background: transparent;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-editor-content--main {
+  border-radius: 10px;
+  border: 1px solid var(--ebu4-border);
+  background: var(--ebu4-surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .main-doc-quill-wrap .ql-toolbar.ql-snow {
+  background: var(--ebu4-surface2);
+  border-bottom: 1px solid var(--ebu4-border);
+  padding: 8px 10px;
+  border-radius: 10px 10px 0 0;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .main-doc-quill-wrap .ql-container.ql-snow {
+  background: var(--ebu4-surface);
+  border-radius: 0 0 10px 10px;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .main-doc-quill-wrap .ql-editor {
+  max-width: min(860px, 100%);
+  min-height: min(52vh, 620px);
+  margin: 0 auto;
+  padding: 22px 28px 36px;
+  border-radius: 0 0 10px 10px;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--ebu4-text);
+}
+
+/* 引用块：浅金底 + 左侧金条（与参考图说明框一致） */
+body.admin-dash-mode #panelMd .doc-mgmt-studio .main-doc-quill-wrap .ql-editor blockquote {
+  margin: 1.1em 0;
+  padding: 14px 18px;
+  border-left: 4px solid var(--ebu4-accent);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--ebu4-accent) 12%, var(--ebu4-surface2));
+  color: var(--ebu4-text2);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .main-doc-quill-wrap .ql-editor h1 {
+  font-size: clamp(1.5rem, 2.2vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--ebu4-text);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-statusbar {
+  flex: 0 0 auto;
+  margin: 10px 16px 14px;
+  padding: 9px 14px;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--ebu4-border);
+  background: var(--ebu4-surface2);
+  color: var(--ebu4-text2);
+  font-size: 12px;
+  box-shadow: none;
+}
+
+/* 内容区内主操作按钮：略小圆角，贴近参考控件 */
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-center .de-btn {
+  border-radius: 8px;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-center .de-btn-accent {
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-center .dm-save-ind {
+  border-radius: 8px;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-center .de-main-mode-tabs {
+  border-radius: 8px;
+}
+
+#panelMd .doc-mgmt-studio .dm-props.de-props-panel.open {
+  width: min(318px, 32vw);
+}
+
+#panelMd .doc-mgmt-studio .dm-props .de-props-inner {
+  width: min(318px, 32vw);
+  padding: 16px 14px 20px;
+  gap: 14px;
+}
+
+#panelMd .doc-mgmt-studio .dm-props-header,
+#panelMd .doc-mgmt-studio .dm-props .de-panel-section {
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--gold) 12%, var(--dm-border));
+  background: color-mix(in srgb, var(--dm-surface) 96%, var(--bg-deep));
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+#panelMd .doc-mgmt-studio .dm-props-h3 {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
+/* 浅色下列表区与编辑区边界更清晰（system 浅色见下方） */
+html[data-theme='light'] body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-workspace .de-workspace-inner {
+  background: linear-gradient(
+    90deg,
+    #f3f4f6 0%,
+    #f5f5f5 26%,
+    #fafafa 26%,
+    var(--ebu4-bg) 100%
+  );
+}
+
+@media (prefers-color-scheme: light) {
+  html[data-theme='system'] body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-workspace .de-workspace-inner {
+    background: linear-gradient(
+      90deg,
+      #f3f4f6 0%,
+      #f5f5f5 26%,
+      #fafafa 26%,
+      var(--ebu4-bg) 100%
+    );
   }
 }
