@@ -3,7 +3,7 @@
  * E9 文档站 PWA — 离线壳层 + 运行时缓存
  * 更新缓存：修改 VERSION 并部署
  */
-const VERSION = 'ebu4-pwa-2026.04.06-1';
+const VERSION = 'ebu4-pwa-2026.04.13-1';
 const PRECACHE = 'precache-' + VERSION;
 const RUNTIME = 'runtime-' + VERSION;
 
@@ -110,6 +110,19 @@ self.addEventListener('fetch', function (event) {
             return h || caches.match('/docs');
           });
         }
+      })
+    );
+    return;
+  }
+
+  /**
+   * 后台脚本须 network-first：否则 cache-first 会把 /js/admin.js?v=… 缓存在 runtime，
+   * 版本号未变时长期返回旧脚本，后台界面逻辑不更新。
+   */
+  if (url.pathname.startsWith('/js/admin')) {
+    event.respondWith(
+      fetchFollow(req).catch(function () {
+        return caches.match(req);
       })
     );
     return;

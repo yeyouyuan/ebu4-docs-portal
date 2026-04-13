@@ -1446,13 +1446,24 @@ var mainDocFullMdDrawerTimer = null;
 window.__mainDocEditMode = 'rich';
 
 function getCurrentAdminMainDocMeta() {
-  var pick = adminMainDocsCache.find(function (x) {
-    return x.slug === adminMainDocSlug;
-  });
+  var slugKey = adminMainDocSlug;
+  try {
+    var sel = $('mainDocPicker');
+    if (sel && sel.value != null && String(sel.value).trim() !== '') {
+      slugKey = String(sel.value).trim();
+    }
+  } catch (e) {}
+  var pick =
+    slugKey != null && slugKey !== ''
+      ? adminMainDocsCache.find(function (x) {
+          return x.slug === slugKey;
+        })
+      : null;
   if (!pick && adminMainDocsCache.length) {
-    pick = adminMainDocsCache.find(function (x) {
-      return !!x.isDefault;
-    }) || adminMainDocsCache[0];
+    pick =
+      adminMainDocsCache.find(function (x) {
+        return !!x.isDefault;
+      }) || adminMainDocsCache[0];
   }
   return pick || null;
 }
@@ -1680,7 +1691,7 @@ function updateMainDocChrome() {
   var summarySlug = $('mainDocSummarySlug');
   if (summarySlug) summarySlug.textContent = docSlug;
   var summaryCount = $('mainDocSummaryCount');
-  if (summaryCount) summaryCount.textContent = (docSectionsCache.length || 0) + ' 章';
+  if (summaryCount) summaryCount.textContent = String(docSectionsCache.length || 0);
   var summarySection = $('mainDocSummarySection');
   if (summarySection) {
     summarySection.textContent =
@@ -1696,6 +1707,10 @@ function updateMainDocChrome() {
   if (drawerName) drawerName.textContent = docLabel;
   var drawerSlug = $('mainDocFullMdDocSlug');
   if (drawerSlug) drawerSlug.textContent = docSlug;
+  var metaSlug = $('mainDocPickerMetaSlug');
+  if (metaSlug) metaSlug.textContent = docSlug ? 'slug ' + docSlug : 'slug —';
+  var metaCount = $('mainDocPickerMetaCount');
+  if (metaCount) metaCount.textContent = (docSectionsCache.length || 0) + ' 章';
   updateMainDocSaveInd();
 }
 
@@ -1909,7 +1924,9 @@ async function selectDocSection(id) {
   updateMainDocChrome();
 }
 
-async function refreshDocSections(preferredId) {
+async function refreshDocSections(preferredId, opts) {
+  opts = opts || {};
+  var preferSlugFirst = !!opts.preferSlugFirst;
   try {
     var d = await api('/api/admin/docs/sections' + adminDocQ());
     docSectionsCache = d.sections || [];
@@ -1926,7 +1943,13 @@ async function refreshDocSections(preferredId) {
       return;
     }
     var pick = null;
-    if (preferredId != null && preferredId !== '') {
+    // 上移/下移后服务端会 reindex，章节 id 会变；须按 slug 找回同一章，不能再用旧 id
+    if (preferSlugFirst && selectedDocSlug) {
+      pick = docSectionsCache.find(function (s) {
+        return s.slug === selectedDocSlug;
+      });
+    }
+    if (!pick && preferredId != null && preferredId !== '') {
       pick = docSectionsCache.find(function (s) {
         return s.id === Number(preferredId);
       });
@@ -2085,9 +2108,8 @@ function initDocSectionManager() {
       body: JSON.stringify({ id: selectedDocId, delta: delta }),
     })
       .then(async function () {
-        var keepId = selectedDocId;
         await refreshMdTaFromServer();
-        await refreshDocSections(keepId);
+        await refreshDocSections(null, { preferSlugFirst: true });
         loadStats();
       })
       .catch(function (e) {
