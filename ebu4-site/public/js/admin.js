@@ -1308,6 +1308,7 @@ var docSectionsCache = [];
 var selectedDocId = null;
 /** 当前编辑的主文档 slug（与 ?doc= 一致；默认主文档可为 null，请求省略 doc） */
 var adminMainDocSlug = null;
+var adminMainDocsCache = [];
 
 function adminDocQ() {
   if (!adminMainDocSlug) return '';
@@ -1317,6 +1318,7 @@ function adminDocQ() {
 async function initAdminMainDocSlug() {
   var d = await api('/api/admin/docs/main-docs');
   var docs = d.docs || [];
+  adminMainDocsCache = docs.slice();
   var saved = null;
   try {
     saved = sessionStorage.getItem('ebu4_admin_main_doc');
@@ -1349,15 +1351,17 @@ async function initAdminMainDocSlug() {
       .join('');
   }
   var book = $('mainDocCrumbBook');
-  if (book && pick) book.textContent = (pick.title || pick.slug || '').trim() || '主文档';
+  if (book && pick) book.textContent = (pick.title || pick.slug || '').trim() || '当前文档';
   updateMdTaChrome();
+  updateMainDocChrome();
 }
 
 /** 整文件 Markdown 区：标题显示当前主文档 slug、字数统计 */
 function updateMdTaChrome() {
   var slug = adminMainDocSlug || 'default';
+  var docLabel = getCurrentAdminDocDisplayName();
   var label = $('mdTaLabel');
-  if (label) label.textContent = '完整 Markdown（' + slug + '）';
+  if (label) label.textContent = '完整 Markdown（' + docLabel + ' / ' + slug + '）';
   var meta = $('mdTaMeta');
   var ta = $('mdTa');
   if (meta && ta) {
@@ -1369,6 +1373,19 @@ function updateMdTaChrome() {
     } catch (e) {}
     meta.textContent = chars + ' 字符 · 约 ' + bytes + ' 字节（UTF-8）';
   }
+  var docNameEl = $('mainDocFullMdDocName');
+  if (docNameEl) docNameEl.textContent = docLabel;
+  var docSlugEl = $('mainDocFullMdDocSlug');
+  if (docSlugEl) docSlugEl.textContent = slug;
+  updateMainDocChrome();
+}
+
+function setMainDocFullMarkdownValue(raw) {
+  var ta = $('mdTa');
+  if (!ta) return;
+  ta.value = raw || '';
+  mainDocFullMdSavedValue = ta.value || '';
+  updateMdTaChrome();
 }
 
 async function refreshMainDocsModalTable() {
@@ -1376,6 +1393,7 @@ async function refreshMainDocsModalTable() {
   if (!host) return;
   var d = await api('/api/admin/docs/main-docs');
   var docs = d.docs || [];
+  adminMainDocsCache = docs.slice();
   if (!docs.length) {
     host.innerHTML =
       '<tr><td colspan="4" style="padding:14px;color:var(--text-dim,#9ca3af);text-align:center">暂无主文档（若长期如此请检查接口 <code>/api/admin/docs/main-docs</code>）</td></tr>';
@@ -1423,7 +1441,100 @@ var mainDocQuill = null;
 var mainDocTurndown = null;
 var mainDocSyncTimer = null;
 var mainDocDirty = false;
+var mainDocFullMdSavedValue = '';
+var mainDocFullMdDrawerTimer = null;
 window.__mainDocEditMode = 'rich';
+
+function getCurrentAdminMainDocMeta() {
+  var pick = adminMainDocsCache.find(function (x) {
+    return x.slug === adminMainDocSlug;
+  });
+  if (!pick && adminMainDocsCache.length) {
+    pick = adminMainDocsCache.find(function (x) {
+      return !!x.isDefault;
+    }) || adminMainDocsCache[0];
+  }
+  return pick || null;
+}
+
+function getCurrentAdminDocDisplayName() {
+  var sel = $('mainDocPicker');
+  if (sel && sel.selectedOptions && sel.selectedOptions[0]) {
+    return String(sel.selectedOptions[0].textContent || '')
+      .replace(/\s*（默认）\s*$/, '')
+      .trim();
+  }
+  return adminMainDocSlug || 'default';
+}
+
+function hasUnsavedMainDocFullMarkdown() {
+  var ta = $('mdTa');
+  return !!ta && (ta.value || '') !== (mainDocFullMdSavedValue || '');
+}
+
+function hasUnsavedMainDocChanges() {
+  return !!mainDocDirty || hasUnsavedMainDocFullMarkdown();
+}
+
+function getCurrentAdminSectionMeta() {
+  if (selectedDocId == null) return null;
+  return (
+    docSectionsCache.find(function (x) {
+      return x.id === selectedDocId;
+    }) || null
+  );
+}
+
+function confirmDiscardMainDocChanges(nextDocLabel) {
+  if (!hasUnsavedMainDocChanges()) return true;
+  var cur = getCurrentAdminDocDisplayName();
+  var next = nextDocLabel || '目标文档';
+  return window.confirm(
+    '当前文档「' +
+      cur +
+      '」还有未保存修改，切换到「' +
+      next +
+      '」后这些修改会丢失。是否继续？'
+  );
+}
+
+function setMainDocDrawerOpen(open) {
+  var drawer = $('mainDocFullMdDrawer');
+  if (!drawer) return;
+  if (mainDocFullMdDrawerTimer) {
+    clearTimeout(mainDocFullMdDrawerTimer);
+    mainDocFullMdDrawerTimer = null;
+  }
+  if (open) {
+    drawer.classList.remove('admin-hidden');
+    drawer.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('dm-drawer-open');
+    requestAnimationFrame(function () {
+      drawer.classList.add('open');
+    });
+    return;
+  }
+  drawer.classList.remove('open');
+  drawer.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('dm-drawer-open');
+  mainDocFullMdDrawerTimer = setTimeout(function () {
+    drawer.classList.add('admin-hidden');
+    mainDocFullMdDrawerTimer = null;
+  }, 220);
+}
+
+function openMainDocFullMarkdownDrawer() {
+  setMainDocDrawerOpen(true);
+  updateMdTaChrome();
+  setTimeout(function () {
+    var ta = $('mdTa');
+    if (ta) ta.focus();
+  }, 120);
+}
+
+function closeMainDocFullMarkdownDrawer() {
+  setMainDocDrawerOpen(false);
+}
 
 function updateMainDocSaveInd() {
   var dot = $('mainDocSaveDot');
@@ -1477,9 +1588,8 @@ function applyMainDocEditMode() {
 async function refreshMdTaFromServer() {
   try {
     const md = await api('/api/admin/files/markdown' + adminDocQ());
-    $('mdTa').value = md.content || '';
+    setMainDocFullMarkdownValue(md.content || '');
   } catch (_) {}
-  updateMdTaChrome();
 }
 
 function renderDocSectionList(filterText) {
@@ -1505,9 +1615,17 @@ function renderDocSectionList(filterText) {
   rows.forEach(function (s) {
     var li = document.createElement('li');
     var btn = document.createElement('button');
+    var order = docSectionsCache.indexOf(s) + 1;
     btn.type = 'button';
     btn.className = 'de-chapter-btn';
-    btn.textContent = s.title;
+    btn.innerHTML =
+      '<span class="de-chapter-title">' +
+      escapeHtml(s.title || '未命名章节') +
+      '</span><span class="de-chapter-meta">第 ' +
+      String(order) +
+      ' 章' +
+      (s.slug ? ' · /' + escapeHtml(s.slug) : '') +
+      '</span>';
     btn.dataset.id = String(s.id);
     if (selectedDocId === s.id) btn.classList.add('active');
     btn.addEventListener('click', function () {
@@ -1520,12 +1638,15 @@ function renderDocSectionList(filterText) {
 }
 
 function updateMainDocChrome() {
+  var docMeta = getCurrentAdminMainDocMeta();
+  var sectionMeta = getCurrentAdminSectionMeta();
+  var docLabel =
+    (docMeta && String(docMeta.title || docMeta.slug || '').trim()) ||
+    getCurrentAdminDocDisplayName() ||
+    '当前文档';
+  var docSlug = (docMeta && docMeta.slug) || adminMainDocSlug || 'default';
   var book = $('mainDocCrumbBook');
-  var sel = $('mainDocPicker');
-  if (book && sel && sel.selectedOptions && sel.selectedOptions[0]) {
-    var lab = String(sel.selectedOptions[0].textContent || '').replace(/\s*（默认）\s*$/, '').trim();
-    book.textContent = lab || '主文档';
-  }
+  if (book) book.textContent = docLabel;
   var crumb = $('mainDocCrumbChapter');
   var left = $('mainDocStatusLeft');
   var right = $('mainDocStatusRight');
@@ -1534,25 +1655,47 @@ function updateMainDocChrome() {
     if (selectedDocId == null) {
       crumb.textContent = '—';
     } else {
-      var found = docSectionsCache.find(function (x) {
-        return x.id === selectedDocId;
-      });
-      crumb.textContent = (found && found.title) || '章节 #' + selectedDocId;
+      crumb.textContent = (sectionMeta && sectionMeta.title) || '章节 #' + selectedDocId;
     }
   }
   if (left) {
-    left.textContent = selectedDocId == null ? '未选择章节' : '已载入 · 可编辑';
+    left.textContent =
+      selectedDocId == null
+        ? '未选择章节'
+        : '当前章节 · ' + ((sectionMeta && sectionMeta.title) || '章节 #' + selectedDocId);
   }
   if (right) {
     var n = docSectionsCache.length || 0;
+    var dirtyText = hasUnsavedMainDocChanges() ? '未保存改动' : '已同步';
     try {
       var md = typeof getMainDocMarkdown === 'function' ? getMainDocMarkdown() : ta && ta.value ? ta.value : '';
       var bytes = new Blob([md || '']).size;
-      right.textContent = bytes + ' 字节 · ' + n + ' 章';
+      right.textContent = dirtyText + ' · ' + bytes + ' 字节 · ' + n + ' 章';
     } catch (_) {
-      right.textContent = n + ' 章';
+      right.textContent = dirtyText + ' · ' + n + ' 章';
     }
   }
+  var summaryTitle = $('mainDocSummaryTitle');
+  if (summaryTitle) summaryTitle.textContent = docLabel;
+  var summarySlug = $('mainDocSummarySlug');
+  if (summarySlug) summarySlug.textContent = docSlug;
+  var summaryCount = $('mainDocSummaryCount');
+  if (summaryCount) summaryCount.textContent = (docSectionsCache.length || 0) + ' 章';
+  var summarySection = $('mainDocSummarySection');
+  if (summarySection) {
+    summarySection.textContent =
+      selectedDocId == null
+        ? '未选择'
+        : (sectionMeta && sectionMeta.title) || '章节 #' + selectedDocId;
+  }
+  var summaryDefault = $('mainDocSummaryDefault');
+  if (summaryDefault) summaryDefault.classList.toggle('admin-hidden', !(docMeta && docMeta.isDefault));
+  var summaryDirty = $('mainDocSummaryDirty');
+  if (summaryDirty) summaryDirty.classList.toggle('admin-hidden', !hasUnsavedMainDocChanges());
+  var drawerName = $('mainDocFullMdDocName');
+  if (drawerName) drawerName.textContent = docLabel;
+  var drawerSlug = $('mainDocFullMdDocSlug');
+  if (drawerSlug) drawerSlug.textContent = docSlug;
   updateMainDocSaveInd();
 }
 
@@ -1832,7 +1975,35 @@ function initDocSectionManager() {
     taMd._dmDirtyBound = true;
     taMd.addEventListener('input', function () {
       mainDocDirty = true;
-      updateMainDocSaveInd();
+      updateMainDocChrome();
+    });
+  }
+
+  var btnOpenFullMd = $('btnOpenFullMarkdown');
+  if (btnOpenFullMd && !btnOpenFullMd._bound) {
+    btnOpenFullMd._bound = true;
+    btnOpenFullMd.addEventListener('click', openMainDocFullMarkdownDrawer);
+  }
+  var btnCloseFullMd = $('btnCloseFullMarkdown');
+  if (btnCloseFullMd && !btnCloseFullMd._bound) {
+    btnCloseFullMd._bound = true;
+    btnCloseFullMd.addEventListener('click', closeMainDocFullMarkdownDrawer);
+  }
+  var drawer = $('mainDocFullMdDrawer');
+  if (drawer && !drawer._bound) {
+    drawer._bound = true;
+    drawer.addEventListener('click', function (e) {
+      var closeHit = e.target.closest('[data-drawer-close]');
+      if (!closeHit) return;
+      closeMainDocFullMarkdownDrawer();
+    });
+  }
+  if (!document._mainDocDrawerEscBound) {
+    document._mainDocDrawerEscBound = true;
+    document.addEventListener('keydown', function (e) {
+      var drawerEl = $('mainDocFullMdDrawer');
+      if (e.key !== 'Escape' || !drawerEl || drawerEl.classList.contains('admin-hidden')) return;
+      closeMainDocFullMarkdownDrawer();
     });
   }
 
@@ -1948,7 +2119,16 @@ function initDocSectionManager() {
   var mainPicker = $('mainDocPicker');
   if (mainPicker) {
     mainPicker.addEventListener('change', async function () {
-      adminMainDocSlug = mainPicker.value || null;
+      var nextSlug = mainPicker.value || null;
+      var nextLabel =
+        mainPicker.selectedOptions && mainPicker.selectedOptions[0]
+          ? String(mainPicker.selectedOptions[0].textContent || '').replace(/\s*（默认）\s*$/, '').trim()
+          : nextSlug || '目标文档';
+      if (!confirmDiscardMainDocChanges(nextLabel)) {
+        mainPicker.value = adminMainDocSlug || '';
+        return;
+      }
+      adminMainDocSlug = nextSlug;
       try {
         if (adminMainDocSlug) sessionStorage.setItem('ebu4_admin_main_doc', adminMainDocSlug);
       } catch (e) {}
@@ -2331,14 +2511,14 @@ async function loadFiles() {
       console.warn(e);
     }
     const md = await api('/api/admin/files/markdown' + adminDocQ());
-    $('mdTa').value = md.content || '';
+    setMainDocFullMarkdownValue(md.content || '');
     try {
       await refreshDocSections();
     } catch (e) {
       console.warn(e);
     }
   } else if ($('mdTa')) {
-    $('mdTa').value = '';
+    setMainDocFullMarkdownValue('');
   }
 
   if (dv.landing) {
@@ -2593,7 +2773,8 @@ async function initAdminPanel() {
         method: 'PUT',
         body: JSON.stringify({ content: $('mdTa').value }),
       });
-      $('mdMsg').textContent = '已保存，当前 ' + d.sectionCount + ' 个章节';
+      mainDocFullMdSavedValue = $('mdTa').value || '';
+      $('mdMsg').textContent = '已保存「' + getCurrentAdminDocDisplayName() + '」，当前 ' + d.sectionCount + ' 个章节';
       $('mdMsg').className = 'admin-msg ok';
       selectedDocSlug = null;
       updateMdTaChrome();

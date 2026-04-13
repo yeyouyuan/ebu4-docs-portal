@@ -177,6 +177,24 @@ function escapeHtml(str) {
 
 let searchTimer = null;
 
+function getCurrentSearchDocParam() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const doc = params.get('doc');
+    return doc && doc.trim() ? doc.trim() : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function buildDocsHref(slug, doc) {
+  const params = new URLSearchParams();
+  const docSlug = doc && String(doc).trim() ? String(doc).trim() : getCurrentSearchDocParam();
+  if (docSlug) params.set('doc', docSlug);
+  const query = params.toString();
+  return '/docs' + (query ? `?${query}` : '') + '#' + encodeURIComponent(String(slug || 'home'));
+}
+
 async function doSearch(query) {
   const results = document.getElementById('searchResults');
   if (!results) return;
@@ -185,7 +203,11 @@ async function doSearch(query) {
     return;
   }
 
-  const resp = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+  const params = new URLSearchParams();
+  params.set('q', query);
+  const doc = getCurrentSearchDocParam();
+  if (doc) params.set('doc', doc);
+  const resp = await fetch(`/api/search?${params.toString()}`);
   const data = await resp.json();
 
   if (data.length === 0) {
@@ -212,8 +234,8 @@ async function doSearch(query) {
       } else if (typeof loadSection === 'function' && r.id != null) {
         click = `loadSection(${r.id}); document.getElementById('searchResults').classList.remove('active');`;
       } else if (r.slug) {
-        const enc = JSON.stringify(String(r.slug));
-        click = `location.href='/docs#' + encodeURIComponent(${enc}); document.getElementById('searchResults').classList.remove('active');`;
+        const href = JSON.stringify(buildDocsHref(r.slug, r.doc));
+        click = `location.href=${href}; document.getElementById('searchResults').classList.remove('active');`;
       } else {
         click = `document.getElementById('searchResults').classList.remove('active');`;
       }

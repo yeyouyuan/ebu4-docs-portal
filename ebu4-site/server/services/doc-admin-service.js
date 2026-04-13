@@ -36,6 +36,10 @@ function createDocAdminService(opts) {
 
   function readSectionsFromDisk(slug) {
     try {
+      const s = slug || siteDatabase.getDefaultMainDocSlug();
+      if (siteDatabase && siteDatabase.isSiteSqlite()) {
+        return siteDatabase.listSectionsForSlug(s);
+      }
       const raw = readRawMarkdown(slug);
       if (!raw) return [];
       return docMd.parseSectionsFromRaw(raw);

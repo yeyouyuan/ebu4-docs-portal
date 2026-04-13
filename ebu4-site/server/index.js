@@ -332,7 +332,7 @@ function readMainMarkdownRaw() {
 }
 
 function parseSections() {
-  return parseSectionsFromRaw(readMainMarkdownRaw());
+  return parseSectionsForSlug(siteDatabase.getDefaultMainDocSlug());
 }
 
 function buildSearchIndex(sectionArr) {
@@ -349,6 +349,8 @@ let sections = [];
 let searchIndex = [];
 /** 非默认主文档 slug → 解析后的章节数组（随 reloadDocData 清空） */
 let docSectionsCache = new Map();
+/** 非默认主文档 slug → 搜索索引（随 reloadDocData 清空） */
+let docSearchIndexCache = new Map();
 
 function resolvePublicDocSlug(q) {
   const trimmed = q == null ? '' : String(q).trim();
@@ -361,6 +363,9 @@ function resolvePublicDocSlug(q) {
 }
 
 function parseSectionsForSlug(slug) {
+  if (siteDatabase.isSiteSqlite()) {
+    return siteDatabase.listSectionsForSlug(slug);
+  }
   const raw = siteDatabase.getMainMarkdownForSlug(slug);
   if (!raw && slug === siteDatabase.getDefaultMainDocSlug() && fs.existsSync(MD_PATH)) {
     try {
@@ -382,8 +387,19 @@ function getSectionsForPublic(slug) {
   return docSectionsCache.get(s);
 }
 
+function getSearchIndexForPublic(slug) {
+  const def = siteDatabase.getDefaultMainDocSlug();
+  const s = slug || def;
+  if (s === def) return searchIndex;
+  if (!docSearchIndexCache.has(s)) {
+    docSearchIndexCache.set(s, buildSearchIndex(getSectionsForPublic(s)));
+  }
+  return docSearchIndexCache.get(s);
+}
+
 function reloadDocData() {
   docSectionsCache.clear();
+  docSearchIndexCache.clear();
   sections = parseSections();
   searchIndex = buildSearchIndex(sections);
   redisCache.bumpEpoch();
@@ -778,10 +794,14 @@ function snippetFromText(textLower, keywords) {
 app.get('/api/search', async (req, res) => {
   const q = (req.query.q || '').toLowerCase().trim();
   if (!q || q.length < 2) return res.json([]);
+  const docSlug = resolvePublicDocSlug(req.query.doc);
+  if (docSlug === null) {
+    return res.status(400).json({ error: '无效 doc 参数' });
+  }
   const keywords = q.split(/\s+/).filter(Boolean);
   const clearance = req.siteClearance || 'guest';
   const qHash = crypto.createHash('sha256').update(q).digest('hex').slice(0, 32);
-  const sKey = `v1:search:${redisCache.getEpoch()}:${clearance}:${qHash}`;
+  const sKey = `v1:search:${redisCache.getEpoch()}:${clearance}:${docSlug}:${qHash}`;
   const cachedSearch = await redisCache.getJsonTracked(sKey);
   if (cachedSearch != null) {
     redisCache.cacheHeader(res, true);
@@ -794,13 +814,14 @@ app.get('/api/search', async (req, res) => {
     seo.includeExtraPagesInSearch === true;
 
   try {
-    const sectionRows = searchIndex
+    const sectionRows = getSearchIndexForPublic(docSlug)
       .filter((item) => canReadContent(clearance, item.securityLevel || 'public'))
       .map((item) => {
         const titleLower = (item.title || '').toLowerCase();
         const score = scoreAgainstKeywords(item.text, titleLower, keywords);
         return {
           kind: 'section',
+          doc: docSlug,
           id: item.id,
           title: item.title,
           slug: item.slug,
@@ -844,6 +865,7 @@ app.get('/api/search', async (req, res) => {
       if (r.kind === 'section') {
         return {
           kind: 'section',
+          doc: r.doc,
           id: r.id,
           title: r.title,
           slug: r.slug,

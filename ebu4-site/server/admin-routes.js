@@ -248,6 +248,14 @@ function registerAdminRoutes(app, ctx) {
     return slug;
   }
 
+  function getSectionCountForDoc(slug) {
+    const s = slug || siteDatabase.getDefaultMainDocSlug();
+    if (siteDatabase.isSiteSqlite()) {
+      return siteDatabase.countSectionsForSlug(s);
+    }
+    return docAdmin.readSectionsFromDisk(s).length;
+  }
+
   const MIME_TO_EXT = {
     'image/jpeg': '.jpg',
     'image/png': '.png',
@@ -1654,12 +1662,13 @@ function registerAdminRoutes(app, ctx) {
     }
     try {
       docAdmin.writeFullMarkdown(content, slug);
+      const sectionCount = getSectionCountForDoc(slug);
       audit(req, 'file.markdown.write', 'ok', {
         doc: slug,
         bytes: Buffer.byteLength(content, 'utf-8'),
-        sectionCount: ctx.getSectionCount(),
+        sectionCount,
       });
-      res.json({ ok: true, sectionCount: ctx.getSectionCount(), doc: slug });
+      res.json({ ok: true, sectionCount, doc: slug });
     } catch (e) {
       audit(req, 'file.markdown.write', 'error', {
         message: String(e.message || e).slice(0, 200),
@@ -1793,12 +1802,13 @@ function registerAdminRoutes(app, ctx) {
       const sections = docAdmin.readSectionsFromDisk(slug);
       const next = docMd.replaceSection(sections, id, content);
       docAdmin.persistSections(next, slug);
+      const sectionCount = getSectionCountForDoc(slug);
       audit(req, 'docs.section.update', 'ok', {
         doc: slug,
         sectionId: id,
         bytes: Buffer.byteLength(content, 'utf-8'),
       });
-      res.json({ ok: true, sectionCount: ctx.getSectionCount(), doc: slug });
+      res.json({ ok: true, sectionCount, doc: slug });
     } catch (e) {
       const code = e.code === 'VALIDATION' ? 400 : e.code === 'NOT_FOUND' ? 404 : 500;
       if (code >= 500) {
@@ -1826,6 +1836,7 @@ function registerAdminRoutes(app, ctx) {
       const sections = docAdmin.readSectionsFromDisk(slug);
       const { sections: next, insertedId } = docMd.insertSection(sections, afterId, content);
       docAdmin.persistSections(next, slug);
+      const sectionCount = getSectionCountForDoc(slug);
       audit(req, 'docs.section.create', 'ok', {
         doc: slug,
         insertedId,
@@ -1834,7 +1845,7 @@ function registerAdminRoutes(app, ctx) {
       });
       res.json({
         ok: true,
-        sectionCount: ctx.getSectionCount(),
+        sectionCount,
         insertedId,
         doc: slug,
       });
@@ -1860,8 +1871,9 @@ function registerAdminRoutes(app, ctx) {
       const sections = docAdmin.readSectionsFromDisk(slug);
       const next = docMd.deleteSection(sections, id);
       docAdmin.persistSections(next, slug);
+      const sectionCount = getSectionCountForDoc(slug);
       audit(req, 'docs.section.delete', 'ok', { sectionId: id, doc: slug });
-      res.json({ ok: true, sectionCount: ctx.getSectionCount(), doc: slug });
+      res.json({ ok: true, sectionCount, doc: slug });
     } catch (e) {
       const code = e.code === 'VALIDATION' ? 400 : e.code === 'NOT_FOUND' ? 404 : 500;
       if (code >= 500) {
@@ -1886,8 +1898,9 @@ function registerAdminRoutes(app, ctx) {
       const sections = docAdmin.readSectionsFromDisk(slug);
       const next = docMd.moveSection(sections, id, delta);
       docAdmin.persistSections(next, slug);
+      const sectionCount = getSectionCountForDoc(slug);
       audit(req, 'docs.section.move', 'ok', { sectionId: id, delta, doc: slug });
-      res.json({ ok: true, sectionCount: ctx.getSectionCount(), doc: slug });
+      res.json({ ok: true, sectionCount, doc: slug });
     } catch (e) {
       const code = e.code === 'VALIDATION' ? 400 : e.code === 'NOT_FOUND' ? 404 : 500;
       if (code >= 500) {
@@ -1910,8 +1923,9 @@ function registerAdminRoutes(app, ctx) {
       const sections = docAdmin.readSectionsFromDisk(slug);
       const next = docMd.reorderSections(sections, order);
       docAdmin.persistSections(next, slug);
+      const sectionCount = getSectionCountForDoc(slug);
       audit(req, 'docs.section.reorder', 'ok', { orderLen: order.length, doc: slug });
-      res.json({ ok: true, sectionCount: ctx.getSectionCount(), doc: slug });
+      res.json({ ok: true, sectionCount, doc: slug });
     } catch (e) {
       const code = e.code === 'VALIDATION' ? 400 : 500;
       if (code >= 500) {

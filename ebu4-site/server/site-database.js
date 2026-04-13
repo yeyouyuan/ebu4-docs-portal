@@ -4,6 +4,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const docMd = require('./doc-md');
 const extraPagesStore = require('./extra-pages-store');
 
 const DEFAULT_DB = path.join(__dirname, '..', 'data', 'site.db');
@@ -84,6 +85,22 @@ function ensureSchema() {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_main_documents_sort ON main_documents (sort_order, id);
+
+    CREATE TABLE IF NOT EXISTS document_sections (
+      main_document_id INTEGER NOT NULL REFERENCES main_documents(id) ON DELETE CASCADE,
+      section_index INTEGER NOT NULL,
+      slug TEXT NOT NULL DEFAULT '',
+      title TEXT NOT NULL DEFAULT '',
+      content TEXT NOT NULL DEFAULT '',
+      security_level TEXT NOT NULL DEFAULT 'public',
+      toc TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (main_document_id, section_index)
+    );
+    CREATE INDEX IF NOT EXISTS idx_document_sections_doc_sort
+      ON document_sections (main_document_id, section_index);
+    CREATE INDEX IF NOT EXISTS idx_document_sections_doc_slug
+      ON document_sections (main_document_id, slug);
 
     CREATE TABLE IF NOT EXISTS admin_users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -232,6 +249,96 @@ function migrateMainDocumentsFromLegacySqlite() {
   console.log('[site-db] 已迁移主文档至 main_documents（default）');
 }
 
+function getMainDocumentRowBySlug(slug) {
+  if (!siteSqliteMode || !db) return null;
+  const s = normalizeMainDocSlug(slug) || getDefaultMainDocSlug();
+  return db
+    .prepare(
+      `SELECT id, slug, title, content, sort_order, updated_at
+         FROM main_documents
+        WHERE slug = ?`
+    )
+    .get(s);
+}
+
+function normalizeSectionRows(raw, updatedAt) {
+  const t = updatedAt || nowIso();
+  return docMd.parseSectionsFromRaw(String(raw || '')).map((section, index) => ({
+    section_index: index,
+    slug: section.slug != null ? String(section.slug) : '',
+    title: section.title != null ? String(section.title) : '',
+    content: section.content != null ? String(section.content) : '',
+    security_level: section.securityLevel != null ? String(section.securityLevel) : 'public',
+    toc: JSON.stringify(Array.isArray(section.toc) ? section.toc : []),
+    updated_at: t,
+  }));
+}
+
+function replaceSectionsForMainDocumentId(mainDocumentId, raw, updatedAt) {
+  if (!siteSqliteMode || !db) return;
+  const docId = parseInt(mainDocumentId, 10);
+  if (!Number.isFinite(docId)) return;
+  const insert = db.prepare(
+    `INSERT INTO document_sections (
+       main_document_id,
+       section_index,
+       slug,
+       title,
+       content,
+       security_level,
+       toc,
+       updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const rows = normalizeSectionRows(raw, updatedAt);
+  db.prepare('DELETE FROM document_sections WHERE main_document_id = ?').run(docId);
+  for (const row of rows) {
+    insert.run(
+      docId,
+      row.section_index,
+      row.slug,
+      row.title,
+      row.content,
+      row.security_level,
+      row.toc,
+      row.updated_at
+    );
+  }
+}
+
+function rebuildDocumentSections() {
+  if (!siteSqliteMode || !db) return;
+  const docs = db
+    .prepare(`SELECT id, content, updated_at FROM main_documents ORDER BY sort_order ASC, id ASC`)
+    .all();
+  const tx = db.transaction((items) => {
+    db.prepare('DELETE FROM document_sections').run();
+    for (const item of items) {
+      replaceSectionsForMainDocumentId(item.id, item.content, item.updated_at || nowIso());
+    }
+  });
+  tx(docs);
+}
+
+function sectionRowToObject(row) {
+  let toc = [];
+  if (typeof row.toc === 'string' && row.toc) {
+    try {
+      const parsed = JSON.parse(row.toc);
+      if (Array.isArray(parsed)) toc = parsed;
+    } catch (_) {}
+  }
+  return {
+    id: row.section_index,
+    title: row.title != null ? String(row.title) : '',
+    slug: row.slug != null ? String(row.slug) : '',
+    content: row.content != null ? String(row.content) : '',
+    toc,
+    securityLevel: row.security_level != null ? String(row.security_level) : 'public',
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString(),
+  };
+}
+
 function mainDocsRootFile() {
   if (!fileModePaths || !fileModePaths.mdPath) return null;
   return path.join(path.dirname(fileModePaths.mdPath), 'main-docs');
@@ -318,6 +425,55 @@ function listMainDocuments() {
   }));
 }
 
+function listSectionsForSlug(slug) {
+  const s = normalizeMainDocSlug(slug) || getDefaultMainDocSlug();
+  if (siteSqliteMode && db) {
+    const docRow = getMainDocumentRowBySlug(s);
+    if (!docRow) return [];
+    let rows = db
+      .prepare(
+        `SELECT section_index, slug, title, content, security_level, toc, updated_at
+           FROM document_sections
+          WHERE main_document_id = ?
+          ORDER BY section_index ASC`
+      )
+      .all(docRow.id);
+    if (rows.length === 0 && String(docRow.content || '').trim()) {
+      replaceSectionsForMainDocumentId(docRow.id, docRow.content, docRow.updated_at || nowIso());
+      rows = db
+        .prepare(
+          `SELECT section_index, slug, title, content, security_level, toc, updated_at
+             FROM document_sections
+            WHERE main_document_id = ?
+            ORDER BY section_index ASC`
+        )
+        .all(docRow.id);
+    }
+    return rows.map(sectionRowToObject);
+  }
+  return docMd.parseSectionsFromRaw(getMainMarkdownForSlug(s) || '');
+}
+
+function countSectionsForSlug(slug) {
+  const s = normalizeMainDocSlug(slug) || getDefaultMainDocSlug();
+  if (siteSqliteMode && db) {
+    const docRow = getMainDocumentRowBySlug(s);
+    if (!docRow) return 0;
+    let row = db
+      .prepare(`SELECT COUNT(*) AS c FROM document_sections WHERE main_document_id = ?`)
+      .get(docRow.id);
+    if (row && row.c === 0 && String(docRow.content || '').trim()) {
+      replaceSectionsForMainDocumentId(docRow.id, docRow.content, docRow.updated_at || nowIso());
+      row = db
+        .prepare(`SELECT COUNT(*) AS c FROM document_sections WHERE main_document_id = ?`)
+        .get(docRow.id);
+    }
+    if (row && Number.isFinite(row.c)) return row.c;
+    return 0;
+  }
+  return listSectionsForSlug(s).length;
+}
+
 function getMainMarkdownForSlug(slug) {
   const s = normalizeMainDocSlug(slug) || getDefaultMainDocSlug();
   if (siteSqliteMode && db) {
@@ -343,9 +499,13 @@ function setMainMarkdownForSlug(slug, content) {
   if (siteSqliteMode && db) {
     const row = db.prepare('SELECT id FROM main_documents WHERE slug = ?').get(s);
     if (!row) throw new Error('主文档不存在: ' + s);
-    db.prepare(
-      `UPDATE main_documents SET content = ?, updated_at = ? WHERE slug = ?`
-    ).run(body, t, s);
+    const tx = db.transaction(() => {
+      db.prepare(
+        `UPDATE main_documents SET content = ?, updated_at = ? WHERE slug = ?`
+      ).run(body, t, s);
+      replaceSectionsForMainDocumentId(row.id, body, t);
+    });
+    tx();
     return;
   }
   const reg = readMainDocsRegistryFile();
@@ -380,9 +540,15 @@ function createMainDocument({ slug, title }) {
     if (ex) throw new Error('slug 已存在');
     const maxRow = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM main_documents').get();
     const ord = (maxRow && maxRow.m != null ? maxRow.m : -1) + 1;
-    db.prepare(
-      `INSERT INTO main_documents (slug, title, content, sort_order, updated_at) VALUES (?, ?, ?, ?, ?)`
-    ).run(s, tit, seed, ord, t);
+    const tx = db.transaction(() => {
+      const info = db
+        .prepare(
+          `INSERT INTO main_documents (slug, title, content, sort_order, updated_at) VALUES (?, ?, ?, ?, ?)`
+        )
+        .run(s, tit, seed, ord, t);
+      replaceSectionsForMainDocumentId(info.lastInsertRowid, seed, t);
+    });
+    tx();
     return s;
   }
   migrateFileModeMainDocuments();
@@ -639,6 +805,7 @@ function init(paths) {
   });
   migrateMainDocFromFile(p.mdPath);
   migrateMainDocumentsFromLegacySqlite();
+  rebuildDocumentSections();
   migrateExtraPagesFromJson(p.extraPagesJsonPath);
   console.log('[site-db] SQLite 就绪:', dbPathResolved);
 }
@@ -777,6 +944,8 @@ module.exports = {
   setMainMarkdown,
   getMainMarkdownForSlug,
   setMainMarkdownForSlug,
+  listSectionsForSlug,
+  countSectionsForSlug,
   normalizeMainDocSlug,
   getDefaultMainDocSlug,
   setDefaultMainDocSlug,
@@ -784,6 +953,7 @@ module.exports = {
   createMainDocument,
   updateMainDocumentTitle,
   deleteMainDocument,
+  rebuildDocumentSections,
   ping,
   kvMeta,
   mainDocMeta,

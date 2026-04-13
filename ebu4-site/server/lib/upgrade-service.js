@@ -328,6 +328,7 @@ function applyDocsBundle(siteDatabase, bundle) {
     }
   });
   tx();
+  siteDatabase.rebuildDocumentSections();
   const defSlug =
     bundle.defaultSlug && siteDatabase.normalizeMainDocSlug(bundle.defaultSlug)
       ? siteDatabase.normalizeMainDocSlug(bundle.defaultSlug)
