@@ -3,7 +3,7 @@
  * E9 文档站 PWA — 离线壳层 + 运行时缓存
  * 更新缓存：修改 VERSION 并部署
  */
-const VERSION = 'ebu4-pwa-2026.04.13-1';
+const VERSION = 'ebu4-pwa-2026.04.16-1';
 const PRECACHE = 'precache-' + VERSION;
 const RUNTIME = 'runtime-' + VERSION;
 
@@ -78,6 +78,15 @@ function fetchFollow(req) {
   return fetch(new Request(req, { redirect: 'follow' }));
 }
 
+/** respondWith 必须得到 Response；勿返回 undefined，否则会抛 Failed to convert value to 'Response' */
+function offline503() {
+  return new Response('Network unavailable', {
+    status: 503,
+    statusText: 'Service Unavailable',
+    headers: { 'Content-Type': 'text/plain; charset=UTF-8' },
+  });
+}
+
 self.addEventListener('fetch', function (event) {
   var req = event.request;
   if (req.method !== 'GET') return;
@@ -91,26 +100,26 @@ self.addEventListener('fetch', function (event) {
 
   if (url.origin !== self.location.origin) return;
 
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(fetchFollow(req));
-    return;
-  }
-
-  if (url.pathname.startsWith('/data/')) {
-    event.respondWith(fetchFollow(req));
-    return;
-  }
+  /**
+   * /api/、/data/ 不拦截：交给浏览器默认网络请求。
+   * 若用 respondWith(fetch(...)) 且离线，Promise 拒绝会导致 FetchEvent network error。
+   */
 
   /** 后台与登录页必须走网络，禁止 cache-first（否则会长期返回预缓存的登录 HTML） */
   if (url.pathname.startsWith('/admin')) {
     event.respondWith(
-      fetchFollow(req).catch(function () {
-        if (req.mode === 'navigate') {
-          return caches.match('/admin/login').then(function (h) {
-            return h || caches.match('/docs');
-          });
-        }
-      })
+      fetchFollow(req)
+        .catch(function () {
+          if (req.mode === 'navigate') {
+            return caches.match('/admin/login').then(function (h) {
+              return h || caches.match('/docs');
+            });
+          }
+          return offline503();
+        })
+        .then(function (res) {
+          return res instanceof Response ? res : offline503();
+        })
     );
     return;
   }
@@ -121,9 +130,13 @@ self.addEventListener('fetch', function (event) {
    */
   if (url.pathname.startsWith('/js/admin')) {
     event.respondWith(
-      fetchFollow(req).catch(function () {
-        return caches.match(req);
-      })
+      fetchFollow(req)
+        .catch(function () {
+          return caches.match(req);
+        })
+        .then(function (res) {
+          return res instanceof Response ? res : offline503();
+        })
     );
     return;
   }
@@ -148,6 +161,10 @@ self.addEventListener('fetch', function (event) {
               return d || caches.match('/index');
             });
           }
+          return offline503();
+        })
+        .then(function (res) {
+          return res instanceof Response ? res : offline503();
         });
     })
   );

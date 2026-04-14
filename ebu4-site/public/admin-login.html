@@ -150,9 +150,18 @@ a{color:inherit;text-decoration:none}
   .brand-icon{width:38px;height:38px;border-radius:11px}
   .security-notice{padding:10px 16px;font-size:10.5px}
 }
+
+body.admin-no-radius{
+  --r:0;--r2:0;--r3:0;
+}
+body.admin-no-radius *,
+body.admin-no-radius *::before,
+body.admin-no-radius *::after{
+  border-radius:0 !important;
+}
 </style>
 </head>
-<body>
+<body class="admin-no-radius">
 
 <div class="bg-canvas">
   <div class="bg-gradient"></div>

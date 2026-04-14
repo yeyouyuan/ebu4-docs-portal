@@ -118,11 +118,22 @@
   box-shadow: var(--dm-shadow-sm);
 }
 
+#panelMd .dm-sidebar .de-main-doc-bar {
+  padding: 15px 16px 16px;
+  border-color: color-mix(in srgb, var(--gold) 16%, var(--dm-border));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--dm-surface) 82%, var(--gold-glow)),
+    color-mix(in srgb, var(--dm-surface-soft) 36%, var(--dm-surface))
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), var(--dm-shadow-sm);
+}
+
 #panelMd .dm-sidebar .de-main-doc-bar-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 #panelMd .dm-sidebar .de-main-doc-bar-row > * {
@@ -135,9 +146,20 @@
 
 #panelMd .dm-sidebar .de-main-doc-bar-head {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#panelMd .dm-sidebar .de-main-doc-bar-copy {
+  min-width: 0;
+}
+
+#panelMd .dm-sidebar .de-main-doc-bar-note {
+  margin: 6px 0 0;
+  color: var(--dm-text-3);
+  font-size: 11px;
+  line-height: 1.55;
 }
 
 #panelMd .dm-sidebar .de-main-doc-bar-meta {
@@ -145,6 +167,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 8px;
+  justify-content: flex-end;
+  min-width: fit-content;
   font-size: 11px;
   line-height: 1.35;
   color: var(--dm-text-3);
@@ -204,6 +228,11 @@
   background: var(--dm-surface-muted);
   color: var(--dm-text);
   box-shadow: none;
+}
+
+#panelMd .dm-sidebar .de-main-doc-bar-row #btnManageMainDocs {
+  white-space: nowrap;
+  padding-inline: 12px;
 }
 
 #panelMd .dm-sidebar .de-main-doc-select:focus,
@@ -554,6 +583,21 @@
   background: color-mix(in srgb, var(--red) 14%, transparent);
 }
 
+#panelMd .de-btn:disabled,
+#panelMd .de-tool-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+#panelMd .de-btn:disabled:hover,
+#panelMd .de-tool-btn:disabled:hover {
+  transform: none;
+  border-color: var(--dm-border);
+  box-shadow: none;
+}
+
 #panelMd .de-kbd {
   margin-left: 4px;
   font-size: 10px;
@@ -583,6 +627,14 @@
 
 #panelMd .dm-doc-summary-copy {
   min-width: 0;
+}
+
+#panelMd .dm-doc-summary-subline {
+  margin: 10px 0 0;
+  max-width: 58ch;
+  color: var(--dm-text-3);
+  font-size: 12.5px;
+  line-height: 1.65;
 }
 
 #panelMd .dm-doc-summary-kicker,
@@ -1054,6 +1106,43 @@ body.dm-drawer-open {
   gap: 8px;
 }
 
+#panelMd .dm-props .dm-order-meta {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+#panelMd .dm-props .dm-order-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--gold) 12%, var(--dm-border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--dm-surface-soft) 50%, var(--dm-surface));
+}
+
+#panelMd .dm-props .dm-order-chip strong {
+  min-width: 0;
+  color: var(--dm-text);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#panelMd .dm-props .dm-order-chip-label {
+  color: var(--dm-text-3);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 #panelMd .dm-props .de-file-pick-btn,
 #panelMd .dm-props .de-cover-thumb-wrap {
   border-radius: 16px;
@@ -1437,5 +1526,1533 @@ html[data-theme='light'] body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-work
       #fafafa 26%,
       var(--ebu4-bg) 100%
     );
+  }
+}
+
+/*
+ * 文档编辑器壳层（顶栏 tabs + meta 芯片、右侧 tab）— 必须挂在 .doc-mgmt-studio 下，
+ * 否则会被本文件内 #panelMd .doc-mgmt-studio … 更高优先级规则盖掉。
+ */
+#panelMd .doc-mgmt-studio .de-doc-editor-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+
+#panelMd .doc-mgmt-studio .de-doc-card-head {
+  flex-shrink: 0;
+  padding: 4px 6px 14px;
+}
+
+#panelMd .doc-mgmt-studio .de-editor-tabs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+}
+
+#panelMd .doc-mgmt-studio .de-doc-editor-card .admin-docs-subnav.dm-tabs {
+  margin: 0;
+}
+
+#panelMd .doc-mgmt-studio .de-editor-meta-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 10px;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+#panelMd .doc-mgmt-studio .de-editor-meta-rail.admin-hidden {
+  display: none !important;
+}
+
+#panelMd .doc-mgmt-studio .de-meta-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--gold) 16%, var(--dm-border));
+  background: color-mix(in srgb, var(--dm-surface) 88%, var(--gold-glow));
+  color: var(--dm-text-2);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+#panelMd .doc-mgmt-studio .de-meta-chip-k {
+  color: var(--dm-text-3);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+#panelMd .doc-mgmt-studio .de-meta-chip code {
+  font-family: var(--dm-mono);
+  font-size: 11px;
+  color: var(--dm-accent-strong);
+  word-break: break-all;
+}
+
+#panelMd .doc-mgmt-studio .de-meta-chip strong {
+  color: var(--dm-text);
+  font-weight: 800;
+}
+
+#panelMd .doc-mgmt-studio .de-meta-chip-wide {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+#panelMd .doc-mgmt-studio .de-meta-chip-wide span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#panelMd .doc-mgmt-studio .doc-tree-skin.de-list-aside {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--gold) 28%, transparent);
+}
+
+#panelMd .doc-mgmt-studio .de-center-col.de-editor-shell {
+  min-width: 0;
+}
+
+#panelMd .doc-mgmt-studio .dm-props.de-props-panel.open {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#panelMd .doc-mgmt-studio .dm-props-tabs {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  padding: 8px 10px 0;
+  border-bottom: 1px solid var(--dm-border);
+  background: color-mix(in srgb, var(--dm-surface-soft) 50%, var(--dm-surface));
+}
+
+#panelMd .doc-mgmt-studio .dm-props-tab {
+  flex: 1;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  color: var(--dm-text-3);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+#panelMd .doc-mgmt-studio .dm-props-tab:hover {
+  color: var(--dm-text-2);
+  background: color-mix(in srgb, var(--dm-surface) 70%, transparent);
+}
+
+#panelMd .doc-mgmt-studio .dm-props-tab.active {
+  color: var(--dm-accent-strong);
+  background: var(--dm-surface);
+  box-shadow: 0 -1px 0 var(--dm-surface);
+}
+
+#panelMd .doc-mgmt-studio .dm-props .de-props-inner {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+#panelMd .doc-mgmt-studio .de-props-page {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#panelMd .doc-mgmt-studio .de-props-page.is-active {
+  display: flex;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props-tabs {
+  border-bottom-color: color-mix(in srgb, var(--gold) 12%, var(--dm-border));
+}
+
+@media (max-width: 1100px) {
+  #panelMd .doc-mgmt-studio .de-editor-tabs-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #panelMd .doc-mgmt-studio .de-editor-meta-rail {
+    justify-content: flex-start;
+  }
+
+  #panelMd .dm-sidebar .de-main-doc-bar-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #panelMd .dm-sidebar .de-main-doc-bar-meta {
+    justify-content: flex-start;
+  }
+}
+
+/*
+ * Redesign v2
+ * 对齐 /Users/meaili/Downloads/doc-editor-redesign-v2.html 的暗色编辑器风格，
+ * 以覆盖方式落到现有后台结构上，尽量不改动交互逻辑。
+ */
+#panelMd {
+  --dm-bg: #0b0b14;
+  --dm-surface: #141420;
+  --dm-surface-soft: #1a1a2a;
+  --dm-surface-muted: #11111c;
+  --dm-border: rgba(255, 255, 255, 0.07);
+  --dm-border-strong: rgba(212, 168, 83, 0.22);
+  --dm-text: #eeeef8;
+  --dm-text-2: #c8c8e0;
+  --dm-text-3: #6a6a90;
+  --dm-accent: #4f5bd5;
+  --dm-accent-2: #6470e0;
+  --dm-accent-soft: rgba(79, 91, 213, 0.12);
+  --dm-accent-strong: #818cf8;
+  --dm-success-soft: rgba(52, 211, 153, 0.1);
+  --dm-danger-soft: rgba(248, 113, 113, 0.08);
+  --dm-shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.38);
+  --dm-shadow-md: 0 12px 28px rgba(0, 0, 0, 0.28);
+  --dm-shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+#panelMd .doc-mgmt-studio {
+  color: var(--dm-text-2);
+}
+
+#panelMd .doc-mgmt-studio .de-doc-card-head {
+  padding: 2px 0 10px;
+}
+
+#panelMd .doc-mgmt-studio .de-editor-tabs-row {
+  justify-content: flex-start;
+}
+
+#panelMd .doc-mgmt-studio .de-doc-editor-card .admin-docs-subnav.dm-tabs {
+  margin: 0;
+  padding: 4px;
+  gap: 3px;
+  border-radius: 999px;
+  border-color: var(--dm-border);
+  background: color-mix(in srgb, var(--dm-surface-muted) 92%, transparent);
+  box-shadow: none;
+}
+
+#panelMd .doc-mgmt-studio .dm-tabs .admin-docs-subnav-btn {
+  min-width: 136px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: var(--dm-text-3);
+  font-size: 12px;
+}
+
+#panelMd .doc-mgmt-studio .dm-tabs .admin-docs-subnav-btn:hover {
+  color: var(--dm-text);
+  background: color-mix(in srgb, var(--dm-surface) 75%, transparent);
+}
+
+#panelMd .doc-mgmt-studio .dm-tabs .admin-docs-subnav-btn.active {
+  color: var(--dm-text);
+  border-color: color-mix(in srgb, var(--gold) 42%, var(--dm-border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, rgba(212, 168, 83, 0.12) 92%, transparent),
+    color-mix(in srgb, rgba(79, 91, 213, 0.12) 88%, transparent)
+  );
+  box-shadow: 0 2px 14px -3px rgba(212, 168, 83, 0.28);
+}
+
+#panelMd .doc-mgmt-studio .dm-workspace.de-workspace {
+  min-height: min(80vh, 940px);
+  max-height: min(calc(100dvh - 130px), 960px);
+  border-color: var(--dm-border);
+  border-radius: 18px;
+  background: var(--dm-surface);
+  box-shadow: var(--dm-shadow-lg);
+}
+
+#panelMd .doc-mgmt-studio .dm-workspace .de-workspace-inner {
+  background:
+    radial-gradient(ellipse 100% 58% at 50% -24%, rgba(212, 168, 83, 0.05), transparent 52%),
+    radial-gradient(ellipse 90% 48% at 100% 80%, rgba(79, 91, 213, 0.08), transparent 48%),
+    var(--dm-surface);
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar.de-list-aside {
+  width: min(276px, 30vw);
+  min-width: 232px;
+  padding: 0;
+  gap: 0;
+  background: #0f0f1a;
+  border-right: 1px solid var(--dm-border);
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-bar,
+#panelMd .doc-mgmt-studio .dm-sidebar .de-search-wrap--chapter,
+#panelMd .doc-mgmt-studio .dm-sidebar #btnNewSection,
+#panelMd .doc-mgmt-studio .dm-sidebar #btnExtraPageNew {
+  margin-left: 10px;
+  margin-right: 10px;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-bar {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border-color: var(--dm-border);
+  background: var(--dm-surface-muted);
+  box-shadow: none;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-bar-head {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-bar-label,
+#panelMd .doc-mgmt-studio .dm-sidebar .de-count {
+  color: var(--dm-text-3);
+  font-size: 10px;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-bar-note {
+  color: var(--dm-text-3);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-bar-meta {
+  justify-content: flex-start;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-meta-slug {
+  border-radius: 8px;
+  border-color: var(--dm-border);
+  background: var(--dm-surface);
+  color: var(--dm-text-2);
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-meta-count,
+#panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-meta-k {
+  color: var(--dm-text-3);
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-select,
+#panelMd .doc-mgmt-studio .dm-sidebar .de-search {
+  min-height: 38px;
+  border-radius: 10px;
+  border-color: var(--dm-border);
+  background: var(--dm-surface);
+  color: var(--dm-text);
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-search-wrap--chapter {
+  margin-top: 8px;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-search-wrap--chapter::before {
+  left: 11px;
+  opacity: 0.45;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-search--chapter {
+  padding: 8px 10px 8px 34px !important;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--dm-surface) 94%, var(--dm-accent) 6%);
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-list,
+#panelMd .doc-mgmt-studio .dm-sidebar .de-extra-page-list {
+  padding: 6px 8px 8px;
+  gap: 4px;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-btn,
+#panelMd .doc-mgmt-studio .dm-sidebar .extra-pages-li-btn {
+  margin-bottom: 0;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border-color: color-mix(in srgb, var(--dm-border) 58%, transparent);
+  background: color-mix(in srgb, var(--dm-surface) 92%, transparent);
+  box-shadow: none;
+  font-family: var(--dm-mono);
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-btn:hover,
+#panelMd .doc-mgmt-studio .dm-sidebar .extra-pages-li-btn:hover {
+  transform: translateX(2px);
+  border-color: color-mix(in srgb, var(--dm-text) 16%, var(--dm-border));
+  box-shadow: none;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-btn.active,
+#panelMd .doc-mgmt-studio .dm-sidebar .extra-pages-li-btn.active {
+  border-color: color-mix(in srgb, var(--gold) 48%, var(--dm-border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, rgba(212, 168, 83, 0.1) 86%, transparent),
+    color-mix(in srgb, rgba(79, 91, 213, 0.1) 90%, transparent)
+  );
+  box-shadow: inset 3px 0 0 var(--gold), 0 4px 16px -4px rgba(212, 168, 83, 0.24);
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-btn.active::before,
+#panelMd .doc-mgmt-studio .dm-sidebar .extra-pages-li-btn.active::before {
+  content: none;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-title,
+#panelMd .doc-mgmt-studio .dm-sidebar .extra-pages-li-title {
+  color: var(--dm-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-meta,
+#panelMd .doc-mgmt-studio .dm-sidebar .extra-pages-li-slug {
+  color: var(--dm-text-3);
+  font-size: 10px;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar #btnNewSection,
+#panelMd .doc-mgmt-studio .dm-sidebar #btnExtraPageNew {
+  min-height: 40px;
+  margin-top: 8px;
+  margin-bottom: 10px;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--dm-border-strong) 90%, var(--dm-border));
+  background: transparent;
+  color: var(--dm-text-3);
+  box-shadow: none;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar #btnNewSection:hover,
+#panelMd .doc-mgmt-studio .dm-sidebar #btnExtraPageNew:hover {
+  color: var(--gold);
+  background: rgba(212, 168, 83, 0.1);
+  border-color: rgba(212, 168, 83, 0.42);
+}
+
+#panelMd .doc-mgmt-studio .dm-center.de-center-col {
+  background:
+    radial-gradient(ellipse 100% 55% at 50% -25%, rgba(212, 168, 83, 0.06), transparent 52%),
+    radial-gradient(ellipse 90% 45% at 100% 80%, rgba(99, 102, 241, 0.08), transparent 48%),
+    #11111c;
+}
+
+#panelMd .doc-mgmt-studio .dm-toolbar-wrap.de-main-toolbar-wrap,
+#panelMd .doc-mgmt-studio .de-workspace-extra .de-toolbar {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--dm-surface) 88%, var(--dm-surface-muted)), var(--dm-surface));
+  border-bottom-color: color-mix(in srgb, var(--dm-border) 88%, var(--gold) 12%);
+}
+
+#panelMd .doc-mgmt-studio .dm-toolbar.de-toolbar {
+  min-height: 50px;
+  padding: 0 14px 0 16px;
+  gap: 8px 12px;
+}
+
+#panelMd .doc-mgmt-studio .dm-toolbar .de-toolbar-left,
+#panelMd .doc-mgmt-studio .dm-toolbar .de-toolbar-center,
+#panelMd .doc-mgmt-studio .dm-toolbar .de-toolbar-right {
+  gap: 8px;
+}
+
+#panelMd .doc-mgmt-studio .dm-toolbar .de-toolbar-right {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+#panelMd .doc-mgmt-studio .dm-toolbar .de-breadcrumb {
+  color: var(--dm-text-3);
+  font-size: 11px;
+}
+
+#panelMd .doc-mgmt-studio .dm-toolbar .de-breadcrumb span {
+  color: var(--dm-text-3);
+}
+
+#panelMd .doc-mgmt-studio .dm-toolbar .de-breadcrumb .de-bc-current,
+#panelMd .doc-mgmt-studio .dm-toolbar .de-breadcrumb #mainDocCrumbBook {
+  color: var(--dm-text);
+}
+
+#panelMd .doc-mgmt-studio .dm-toolbar .de-main-mode-tabs {
+  border-radius: 999px;
+  border-color: color-mix(in srgb, var(--dm-border) 65%, transparent);
+  background: color-mix(in srgb, var(--dm-surface-muted) 88%, transparent);
+}
+
+#panelMd .doc-mgmt-studio .dm-toolbar .de-main-mode-tabs .de-btn {
+  min-height: 34px;
+  padding: 5px 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dm-text-3);
+  font-family: var(--dm-mono);
+}
+
+#panelMd .doc-mgmt-studio .dm-toolbar .de-main-mode-tabs .de-btn-ghost:hover {
+  background: color-mix(in srgb, var(--dm-surface) 78%, transparent);
+  color: var(--dm-text);
+}
+
+#panelMd .doc-mgmt-studio .dm-toolbar .de-main-mode-tabs .de-btn-accent {
+  color: var(--dm-text);
+  border-color: color-mix(in srgb, var(--gold) 38%, var(--dm-border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, rgba(212, 168, 83, 0.1) 88%, transparent),
+    color-mix(in srgb, rgba(79, 91, 213, 0.1) 85%, transparent)
+  );
+  box-shadow: 0 2px 10px -2px rgba(212, 168, 83, 0.24);
+}
+
+#panelMd .doc-mgmt-studio .de-btn-accent,
+#panelMd .doc-mgmt-studio .admin-btn-primary {
+  border-color: color-mix(in srgb, var(--dm-accent) 70%, var(--dm-accent-2));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--dm-accent) 92%, white 8%), var(--dm-accent-2));
+  color: #fff;
+}
+
+#panelMd .doc-mgmt-studio .de-btn-accent:hover,
+#panelMd .doc-mgmt-studio .admin-btn-primary:hover {
+  box-shadow: 0 6px 20px rgba(79, 91, 213, 0.35);
+}
+
+#panelMd .doc-mgmt-studio #btnOpenFullMarkdown {
+  border-color: color-mix(in srgb, var(--gold) 48%, var(--dm-border));
+  background: rgba(212, 168, 83, 0.08);
+  color: var(--gold);
+}
+
+#panelMd .doc-mgmt-studio #btnOpenFullMarkdown:hover {
+  background: rgba(212, 168, 83, 0.12);
+  box-shadow: 0 6px 20px rgba(212, 168, 83, 0.18);
+}
+
+#panelMd .doc-mgmt-studio .dm-save-ind,
+#panelMd .doc-mgmt-studio .de-status-badge {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 20px;
+  border-color: var(--dm-border);
+  background: var(--dm-surface-muted);
+  color: var(--dm-text-3);
+  font-family: var(--dm-mono);
+}
+
+#panelMd .doc-mgmt-studio .dm-save-dot {
+  box-shadow: 0 0 5px var(--green);
+}
+
+#panelMd .doc-mgmt-studio .de-editor-meta-rail {
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 0 1 auto;
+}
+
+#panelMd .doc-mgmt-studio .de-meta-chip {
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border-color: var(--dm-border);
+  background: var(--dm-surface-muted);
+  color: var(--dm-text-3);
+  font-family: var(--dm-mono);
+  font-size: 11px;
+}
+
+#panelMd .doc-mgmt-studio .de-meta-chip-k {
+  display: none;
+}
+
+#panelMd .doc-mgmt-studio .de-meta-chip code,
+#panelMd .doc-mgmt-studio .de-meta-chip strong,
+#panelMd .doc-mgmt-studio .de-meta-chip-wide span:last-child {
+  color: var(--dm-text-2);
+}
+
+#panelMd .doc-mgmt-studio .de-meta-chip-wide {
+  flex: 0 1 auto;
+}
+
+#panelMd .doc-mgmt-studio .dm-doc-summary {
+  margin: 0;
+  padding: 8px 16px 9px;
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--dm-border) 55%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--dm-border) 60%, transparent);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--dm-surface-muted) 48%, var(--dm-surface));
+  box-shadow: none;
+  align-items: center;
+}
+
+#panelMd .doc-mgmt-studio .dm-doc-summary-kicker {
+  display: none;
+}
+
+#panelMd .doc-mgmt-studio .dm-doc-summary-title {
+  font-size: 12px;
+  line-height: 1.35;
+  letter-spacing: 0;
+  font-family: var(--dm-mono);
+  color: var(--dm-text);
+}
+
+#panelMd .doc-mgmt-studio .dm-doc-summary-title-row {
+  gap: 6px;
+}
+
+#panelMd .doc-mgmt-studio .dm-doc-summary-pill {
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+#panelMd .doc-mgmt-studio .dm-doc-summary-subline {
+  margin: 4px 0 0;
+  max-width: none;
+  color: var(--dm-text-3);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+#panelMd .doc-mgmt-studio .dm-doc-summary-actions {
+  width: auto;
+  flex: 0 0 auto;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+#panelMd .doc-mgmt-studio .dm-doc-summary-actions #btnOpenFullMarkdown {
+  width: auto;
+  min-height: 34px;
+  padding-inline: 12px;
+}
+
+#panelMd .doc-mgmt-studio .dm-doc-summary-hint {
+  display: none;
+}
+
+#panelMd .doc-mgmt-studio .de-editor-scroll {
+  padding: 0;
+}
+
+#panelMd .doc-mgmt-studio .de-editor-content--main,
+#panelMd .doc-mgmt-studio .de-editor-content--extra {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#panelMd .doc-mgmt-studio .main-doc-quill-wrap .ql-toolbar.ql-snow,
+#panelMd .doc-mgmt-studio #extraPageWrapQuill .ql-toolbar.ql-snow {
+  padding: 6px 12px;
+  background: color-mix(in srgb, var(--dm-surface) 88%, var(--dm-surface-muted));
+  border-bottom-color: var(--dm-border);
+}
+
+#panelMd .doc-mgmt-studio .main-doc-quill-wrap .ql-container.ql-snow,
+#panelMd .doc-mgmt-studio #extraPageWrapQuill .ql-container.ql-snow {
+  background: transparent;
+}
+
+#panelMd .doc-mgmt-studio .main-doc-quill-wrap .ql-editor,
+#panelMd .doc-mgmt-studio #extraPageWrapQuill .ql-editor {
+  min-height: min(54vh, 640px);
+  max-width: 860px;
+  padding: 28px 32px 40px;
+}
+
+#panelMd .doc-mgmt-studio .de-main-md-ta,
+#panelMd .doc-mgmt-studio .de-md-fullfile-ta,
+#panelMd .doc-mgmt-studio .de-body-textarea {
+  border-color: var(--dm-border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--dm-surface-soft) 42%, var(--dm-surface));
+}
+
+#panelMd .doc-mgmt-studio .de-main-md-ta,
+#panelMd .doc-mgmt-studio .de-md-fullfile-ta {
+  margin: 16px auto 24px;
+  padding: 22px 24px;
+}
+
+#panelMd .doc-mgmt-studio .de-statusbar {
+  min-height: 30px;
+  margin: 0;
+  padding: 5px 14px;
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--dm-border) 80%, transparent);
+  border-radius: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--dm-surface) 88%, var(--dm-surface-muted)), var(--dm-surface));
+  box-shadow: none;
+  font-family: var(--dm-mono);
+}
+
+#panelMd .doc-mgmt-studio .dm-props.de-props-panel {
+  width: 0;
+  min-width: 0;
+  background: var(--dm-surface);
+  border-left: none;
+}
+
+#panelMd .doc-mgmt-studio .dm-props.de-props-panel.open {
+  width: 240px;
+  min-width: 240px;
+  border-left: 1px solid var(--dm-border);
+}
+
+#panelMd .doc-mgmt-studio .dm-props-tabs {
+  gap: 0;
+  padding: 0;
+  border-bottom-color: var(--dm-border);
+  background: transparent;
+}
+
+#panelMd .doc-mgmt-studio .dm-props-tab {
+  min-height: 40px;
+  padding: 10px 6px;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--dm-text-3);
+  font-family: var(--dm-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+#panelMd .doc-mgmt-studio .dm-props-tab:hover {
+  color: var(--dm-text);
+  background: transparent;
+}
+
+#panelMd .doc-mgmt-studio .dm-props-tab.active {
+  color: var(--gold);
+  background: transparent;
+  border-bottom-color: var(--gold);
+  box-shadow: none;
+}
+
+#panelMd .doc-mgmt-studio .dm-props .de-props-inner {
+  width: 100%;
+  padding: 0;
+}
+
+#panelMd .doc-mgmt-studio .dm-props-header {
+  display: none;
+}
+
+#panelMd .doc-mgmt-studio .dm-props .de-panel-section {
+  padding: 14px 13px 15px;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--dm-border) 75%, transparent);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#panelMd .doc-mgmt-studio .dm-props .de-panel-title {
+  margin-bottom: 12px;
+  color: #c49a42;
+}
+
+#panelMd .doc-mgmt-studio .dm-props .de-panel-title::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--gold), color-mix(in srgb, var(--gold) 55%, var(--dm-accent)));
+}
+
+#panelMd .doc-mgmt-studio .dm-props .de-panel-hint {
+  color: var(--dm-text-3);
+}
+
+#panelMd .doc-mgmt-studio .dm-props .de-file-pick-btn {
+  border-radius: 12px;
+  border: 1px dashed color-mix(in srgb, var(--dm-border) 70%, var(--dm-accent));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--dm-surface-muted) 94%, var(--dm-accent) 6%), color-mix(in srgb, var(--dm-surface) 88%, transparent));
+}
+
+#panelMd .doc-mgmt-studio .dm-props .de-file-pick-btn:hover {
+  border-color: color-mix(in srgb, var(--dm-accent-2) 80%, var(--dm-border));
+  background: color-mix(in srgb, var(--dm-accent-soft) 35%, var(--dm-surface-muted));
+  box-shadow: 0 4px 14px -6px rgba(79, 91, 213, 0.35);
+}
+
+#panelMd .doc-mgmt-studio .dm-props .de-file-pick-text {
+  color: var(--dm-text);
+}
+
+#panelMd .doc-mgmt-studio .dm-props .de-file-pick-hint,
+#panelMd .doc-mgmt-studio .dm-props #adminImageCountHint {
+  color: var(--dm-text-3) !important;
+}
+
+#panelMd .doc-mgmt-studio .dm-props #btnOpenImageGallery {
+  margin-top: 4px;
+}
+
+#panelMd .doc-mgmt-studio .dm-props .dm-order-meta {
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+#panelMd .doc-mgmt-studio .dm-props .dm-order-chip {
+  padding: 10px 11px;
+  border-radius: 10px;
+  border-color: var(--dm-border);
+  background: var(--dm-surface-muted);
+}
+
+#panelMd .doc-mgmt-studio .dm-props .dm-order-chip strong {
+  color: var(--dm-text);
+}
+
+#panelMd .doc-mgmt-studio .dm-props .dm-order-chip-label {
+  color: var(--dm-text-3);
+}
+
+#panelMd .doc-mgmt-studio .dm-props .de-panel-actions-row {
+  grid-template-columns: 1fr;
+}
+
+#panelMd .doc-mgmt-studio .dm-props .de-panel-actions-row .de-btn {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+#panelMd .doc-mgmt-studio .dm-drawer-backdrop {
+  background: rgba(0, 0, 0, 0.42);
+}
+
+#panelMd .doc-mgmt-studio .dm-drawer {
+  background: #141420;
+  border-left-color: var(--dm-border);
+  box-shadow: -16px 0 48px rgba(0, 0, 0, 0.38);
+}
+
+#panelMd .doc-mgmt-studio .dm-drawer-header {
+  border-bottom-color: var(--dm-border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--dm-surface) 90%, var(--dm-surface-muted)), var(--dm-surface));
+}
+
+#panelMd .doc-mgmt-studio .de-md-fullfile-head,
+#panelMd .doc-mgmt-studio .de-md-fullfile-wrap {
+  border-color: var(--dm-border);
+  background: transparent;
+}
+
+@media (max-width: 1260px) {
+  #panelMd .doc-mgmt-studio .dm-toolbar.de-toolbar {
+    min-height: 58px;
+    padding: 10px 14px 12px 16px;
+  }
+
+  #panelMd .doc-mgmt-studio .de-editor-meta-rail {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+
+  #panelMd .doc-mgmt-studio .dm-doc-summary {
+    align-items: flex-start;
+  }
+
+  #panelMd .doc-mgmt-studio .dm-doc-summary-actions {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 980px) {
+  #panelMd .doc-mgmt-studio .dm-workspace .de-workspace-inner {
+    flex-direction: column;
+  }
+
+  #panelMd .doc-mgmt-studio .dm-sidebar.de-list-aside,
+  #panelMd .doc-mgmt-studio .dm-props.de-props-panel {
+    width: 100%;
+    min-width: 0;
+    border-right: none;
+    border-left: none;
+  }
+
+  #panelMd .doc-mgmt-studio .dm-props.de-props-panel.open {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #panelMd .doc-mgmt-studio .dm-sidebar.de-list-aside {
+    border-bottom: 1px solid var(--dm-border);
+  }
+}
+
+/*
+ * Layout lock
+ * 目标：固定左栏、顶部工具区、右栏、底部状态栏，只让正文区域滚动。
+ */
+#panelMd,
+#panelMd .doc-mgmt-studio,
+#panelMd .doc-mgmt-studio .de-doc-editor-card,
+#panelMd .doc-mgmt-studio .doc-sub-panel {
+  min-height: 0;
+}
+
+#panelMd .doc-mgmt-studio {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 176px);
+  overflow: hidden;
+}
+
+#panelMd .doc-mgmt-studio .de-doc-editor-card,
+#panelMd .doc-mgmt-studio .doc-sub-panel,
+#panelMd .doc-mgmt-studio .dm-workspace.de-workspace {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#panelMd .doc-mgmt-studio .de-doc-card-head {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 12;
+}
+
+#panelMd .doc-mgmt-studio .dm-workspace.de-workspace {
+  height: 100%;
+  max-height: none;
+}
+
+#panelMd .doc-mgmt-studio .dm-workspace .de-workspace-inner {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar.de-list-aside {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-bar,
+#panelMd .doc-mgmt-studio .dm-sidebar .de-search-wrap--chapter,
+#panelMd .doc-mgmt-studio .dm-sidebar .de-search-row,
+#panelMd .doc-mgmt-studio .dm-sidebar .de-count {
+  flex-shrink: 0;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-list,
+#panelMd .doc-mgmt-studio .dm-sidebar .de-extra-page-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#panelMd .doc-mgmt-studio .dm-sidebar #btnNewSection,
+#panelMd .doc-mgmt-studio .dm-sidebar #btnExtraPageNew {
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
+#panelMd .doc-mgmt-studio .de-center-col,
+#panelMd .doc-mgmt-studio .dm-center.de-center-col,
+#panelMd .doc-mgmt-studio .de-center-col.de-editor-shell {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#panelMd .doc-mgmt-studio .de-main-toolbar-wrap,
+#panelMd .doc-mgmt-studio .de-toolbar,
+#panelMd .doc-mgmt-studio .dm-doc-summary,
+#panelMd .doc-mgmt-studio .de-statusbar {
+  flex-shrink: 0;
+}
+
+#panelMd .doc-mgmt-studio .de-main-toolbar-wrap,
+#panelMd .doc-mgmt-studio .de-workspace-extra .de-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+#panelMd .doc-mgmt-studio .dm-doc-summary {
+  position: sticky;
+  top: 50px;
+  z-index: 9;
+}
+
+#panelMd .doc-mgmt-studio .de-editor-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#panelMd .doc-mgmt-studio .de-statusbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+}
+
+#panelMd .doc-mgmt-studio .dm-props.de-props-panel,
+#panelMd .doc-mgmt-studio .dm-props.de-props-panel.open,
+#panelMd .doc-mgmt-studio #extraPropsPanel.de-props-panel,
+#panelMd .doc-mgmt-studio #extraPropsPanel.de-props-panel.open {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#panelMd .doc-mgmt-studio .dm-props-tabs {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+
+#panelMd .doc-mgmt-studio .dm-props .de-props-inner,
+#panelMd .doc-mgmt-studio #extraPropsPanel .de-props-inner {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+@media (max-width: 1100px) {
+  #panelMd .doc-mgmt-studio {
+    height: auto;
+    overflow: visible;
+  }
+
+  #panelMd .doc-mgmt-studio .de-doc-card-head,
+  #panelMd .doc-mgmt-studio .de-main-toolbar-wrap,
+  #panelMd .doc-mgmt-studio .de-workspace-extra .de-toolbar,
+  #panelMd .doc-mgmt-studio .dm-doc-summary,
+  #panelMd .doc-mgmt-studio .de-statusbar,
+  #panelMd .doc-mgmt-studio .dm-props-tabs {
+    position: static;
+  }
+}
+
+/*
+ * 内容平面校正
+ * 目标：文档管理页与后台主区共用同一背景平面，去掉左右边缘的额外色带和舞台感。
+ */
+body.admin-dash-mode #panelMd {
+  background: transparent;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio {
+  padding: 0;
+  margin: 0;
+  background: transparent;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio::before {
+  display: none;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-doc-editor-card,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .doc-sub-panel,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-doc-card-head {
+  background: transparent;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-doc-card-head {
+  padding: 0 0 14px;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-workspace.de-workspace {
+  width: 100%;
+  border-color: var(--ebu4-border);
+  background: var(--ebu4-surface);
+  box-shadow: none;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-workspace .de-workspace-inner {
+  background: var(--ebu4-surface);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar.de-list-aside,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props.de-props-panel,
+body.admin-dash-mode #panelMd .doc-mgmt-studio #extraPropsPanel.de-props-panel {
+  background: color-mix(in srgb, var(--ebu4-surface) 94%, var(--ebu4-bg) 6%);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-center.de-center-col,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-center-col.de-editor-shell {
+  background: var(--ebu4-surface);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-main-toolbar-wrap,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-workspace-extra .de-toolbar,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-doc-summary,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-statusbar,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props-tabs {
+  background: var(--ebu4-surface);
+}
+
+/*
+ * 若依式文档管理适配
+ * 目标：文档管理页与后台主壳层保持同一套企业后台层级、色彩和工具面板密度。
+ */
+body.admin-dash-mode #panelMd {
+  --dm-bg: var(--ebu4-bg);
+  --dm-surface: var(--ebu4-surface);
+  --dm-surface-soft: var(--ebu4-surface2);
+  --dm-surface-muted: var(--ebu4-surface3);
+  --dm-border: var(--ebu4-border);
+  --dm-border-strong: var(--ebu4-border2);
+  --dm-text: var(--ebu4-text);
+  --dm-text-2: var(--ebu4-text2);
+  --dm-text-3: var(--ebu4-text3);
+  --dm-accent: var(--ebu4-accent);
+  --dm-accent-soft: var(--ebu4-accent-dim);
+  --dm-accent-strong: var(--ebu4-accent);
+  --dm-success-soft: rgba(103, 194, 58, 0.12);
+  --dm-danger-soft: rgba(245, 108, 108, 0.12);
+  --dm-shadow-lg: 0 1px 4px rgba(0, 21, 41, 0.08);
+  --dm-shadow-md: 0 1px 3px rgba(0, 21, 41, 0.06);
+  --dm-shadow-sm: 0 1px 2px rgba(0, 21, 41, 0.06);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-doc-card-head {
+  padding: 0 0 12px;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-doc-editor-card .admin-docs-subnav.dm-tabs {
+  padding: 4px;
+  border: 1px solid var(--ebu4-border);
+  background: var(--ebu4-surface);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-tabs .admin-docs-subnav-btn {
+  min-width: 124px;
+  padding: 8px 14px;
+  color: var(--ebu4-text2);
+  font-weight: 600;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-tabs .admin-docs-subnav-btn:hover {
+  color: var(--ebu4-text);
+  background: var(--ebu4-surface2);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-tabs .admin-docs-subnav-btn.active {
+  color: var(--ebu4-accent);
+  border-color: color-mix(in srgb, var(--ebu4-accent) 22%, var(--ebu4-border));
+  background: color-mix(in srgb, var(--ebu4-accent) 10%, white);
+  box-shadow: none;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-workspace.de-workspace {
+  border: 1px solid var(--ebu4-border);
+  background: var(--ebu4-surface);
+  box-shadow: none;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-workspace .de-workspace-inner {
+  background: var(--ebu4-surface);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar.de-list-aside {
+  width: 280px;
+  min-width: 280px;
+  padding: 0;
+  gap: 0;
+  background: var(--ebu4-surface2);
+  border-right: 1px solid var(--ebu4-border);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-bar,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .de-search-wrap--chapter,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar #btnNewSection,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar #btnExtraPageNew {
+  margin: 12px;
+  background: var(--ebu4-surface);
+  border-color: var(--ebu4-border);
+  box-shadow: none;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-bar {
+  background: var(--ebu4-surface);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .de-main-doc-select,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .de-search {
+  background: var(--ebu4-surface);
+  border-color: var(--ebu4-border);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .de-search-wrap--chapter {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .de-search--chapter {
+  background: var(--ebu4-surface);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-list,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .de-extra-page-list {
+  margin: 0;
+  padding: 0 0 12px;
+  background: transparent;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-btn,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .extra-pages-li-btn {
+  min-height: 42px;
+  padding: 10px 14px 10px 18px;
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--ebu4-border) 78%, transparent);
+  background: transparent;
+  color: var(--ebu4-text2);
+  box-shadow: none;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-btn:hover,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .extra-pages-li-btn:hover {
+  background: color-mix(in srgb, var(--ebu4-accent) 6%, white);
+  color: var(--ebu4-text);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-btn.active,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .extra-pages-li-btn.active {
+  color: var(--ebu4-accent);
+  border-top-color: color-mix(in srgb, var(--ebu4-accent) 12%, var(--ebu4-border));
+  background: color-mix(in srgb, var(--ebu4-accent) 10%, white);
+  box-shadow: inset 3px 0 0 var(--ebu4-accent);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .de-chapter-btn.active::before,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar .extra-pages-li-btn.active::before {
+  display: none;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-center.de-center-col,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-center-col.de-editor-shell {
+  background: var(--ebu4-surface);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-toolbar-wrap.de-main-toolbar-wrap,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-workspace-extra .de-toolbar {
+  background: var(--ebu4-surface);
+  border-bottom: 1px solid var(--ebu4-border);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-toolbar.de-toolbar {
+  min-height: 48px;
+  padding: 0 16px;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-toolbar .de-main-mode-tabs {
+  border: 1px solid var(--ebu4-border);
+  background: var(--ebu4-surface2);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-toolbar .de-main-mode-tabs .de-btn {
+  color: var(--ebu4-text2);
+  background: transparent;
+  font-family: inherit;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-toolbar .de-main-mode-tabs .de-btn-ghost:hover {
+  color: var(--ebu4-text);
+  background: var(--ebu4-surface);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-toolbar .de-main-mode-tabs .de-btn-accent {
+  color: var(--ebu4-accent);
+  border-color: color-mix(in srgb, var(--ebu4-accent) 20%, var(--ebu4-border));
+  background: color-mix(in srgb, var(--ebu4-accent) 10%, white);
+  box-shadow: none;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-btn-accent,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .admin-btn-primary {
+  border-color: var(--ebu4-accent);
+  background: var(--ebu4-accent);
+  color: #fff;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-btn-accent:hover,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .admin-btn-primary:hover {
+  background: var(--ebu4-accent2);
+  box-shadow: none;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio #btnOpenFullMarkdown {
+  border-color: var(--ebu4-border);
+  background: var(--ebu4-surface2);
+  color: var(--ebu4-text2);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio #btnOpenFullMarkdown:hover {
+  background: color-mix(in srgb, var(--ebu4-accent) 8%, white);
+  color: var(--ebu4-accent);
+  box-shadow: none;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-save-ind,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-status-badge,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-meta-chip {
+  background: var(--ebu4-surface2);
+  border-color: var(--ebu4-border);
+  color: var(--ebu4-text2);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-meta-chip code,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-meta-chip strong,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-meta-chip-wide span:last-child {
+  color: var(--ebu4-text);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-doc-summary {
+  background: var(--ebu4-surface2);
+  border-top: 1px solid var(--ebu4-border);
+  border-bottom: 1px solid var(--ebu4-border);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-doc-summary-title {
+  color: var(--ebu4-text);
+  font-family: inherit;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-doc-summary-pill {
+  border: 1px solid var(--ebu4-border);
+  background: var(--ebu4-surface);
+  color: var(--ebu4-text2);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-editor-content--main,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-editor-content--extra,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .main-doc-quill-wrap,
+body.admin-dash-mode #panelMd .doc-mgmt-studio #extraPageWrapQuill {
+  background: var(--ebu4-surface);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .main-doc-quill-wrap .ql-toolbar.ql-snow,
+body.admin-dash-mode #panelMd .doc-mgmt-studio #extraPageWrapQuill .ql-toolbar.ql-snow {
+  background: var(--ebu4-surface2);
+  border-bottom: 1px solid var(--ebu4-border);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .main-doc-quill-wrap .ql-container.ql-snow,
+body.admin-dash-mode #panelMd .doc-mgmt-studio #extraPageWrapQuill .ql-container.ql-snow,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .main-doc-quill-wrap .ql-editor,
+body.admin-dash-mode #panelMd .doc-mgmt-studio #extraPageWrapQuill .ql-editor {
+  background: var(--ebu4-surface);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-main-md-ta,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-md-fullfile-ta,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-body-textarea {
+  background: var(--ebu4-surface);
+  border-color: var(--ebu4-border);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-statusbar {
+  border-top: 1px solid var(--ebu4-border);
+  background: var(--ebu4-surface);
+  color: var(--ebu4-text3);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props.de-props-panel,
+body.admin-dash-mode #panelMd .doc-mgmt-studio #extraPropsPanel.de-props-panel {
+  background: var(--ebu4-surface2);
+  border-left-color: var(--ebu4-border);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props-tabs {
+  border-bottom: 1px solid var(--ebu4-border);
+  background: var(--ebu4-surface);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props-tab {
+  color: var(--ebu4-text2);
+  font-family: inherit;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props-tab.active {
+  color: var(--ebu4-accent);
+  border-bottom-color: var(--ebu4-accent);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props .de-panel-section {
+  border-bottom: 1px solid var(--ebu4-border);
+  background: transparent;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props .de-panel-title {
+  color: var(--ebu4-text);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props .de-panel-title::before {
+  background: var(--ebu4-accent);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props .de-file-pick-btn {
+  border-color: color-mix(in srgb, var(--ebu4-accent) 28%, var(--ebu4-border));
+  background: color-mix(in srgb, var(--ebu4-accent) 6%, white);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props .de-file-pick-btn:hover {
+  border-color: color-mix(in srgb, var(--ebu4-accent) 50%, var(--ebu4-border));
+  background: color-mix(in srgb, var(--ebu4-accent) 10%, white);
+  box-shadow: none;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props .dm-order-chip {
+  background: var(--ebu4-surface);
+  border-color: var(--ebu4-border);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-drawer-backdrop {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-drawer {
+  background: var(--ebu4-surface);
+  border-left-color: var(--ebu4-border);
+  box-shadow: -8px 0 24px rgba(0, 21, 41, 0.08);
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-drawer-header,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-md-fullfile-head,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-md-fullfile-wrap {
+  background: var(--ebu4-surface);
+  border-color: var(--ebu4-border);
+}
+
+/*
+ * 企业后台布局收口
+ * 目标：让文档管理真正遵循后台主区的剩余空间布局，并稳定三栏比例。
+ */
+body.admin-dash-mode #panelMd.admin-panel.active {
+  min-height: 0;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio {
+  height: 100%;
+  min-height: 0;
+  gap: 12px;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-doc-editor-card,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .doc-sub-panel,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-workspace.de-workspace {
+  min-height: 0;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-workspace .de-workspace-inner {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) auto;
+  align-items: stretch;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar.de-list-aside {
+  width: 280px;
+  min-width: 0;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-center.de-center-col,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-center-col.de-editor-shell {
+  min-width: 0;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-editor-scroll {
+  padding: 0 18px 18px;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .main-doc-quill-wrap .ql-editor,
+body.admin-dash-mode #panelMd .doc-mgmt-studio #extraPageWrapQuill .ql-editor,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-main-md-ta,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-md-fullfile-ta,
+body.admin-dash-mode #panelMd .doc-mgmt-studio .de-body-textarea {
+  max-width: 980px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props.de-props-panel.open,
+body.admin-dash-mode #panelMd .doc-mgmt-studio #extraPropsPanel.de-props-panel.open {
+  width: 252px;
+  min-width: 252px;
+}
+
+@media (max-width: 1400px) {
+  body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-workspace .de-workspace-inner {
+    grid-template-columns: 256px minmax(0, 1fr) auto;
+  }
+
+  body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar.de-list-aside {
+    width: 256px;
+  }
+
+  body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props.de-props-panel.open,
+  body.admin-dash-mode #panelMd .doc-mgmt-studio #extraPropsPanel.de-props-panel.open {
+    width: 228px;
+    min-width: 228px;
+  }
+}
+
+@media (max-width: 1180px) {
+  body.admin-dash-mode #panelMd .doc-mgmt-studio {
+    height: auto;
+  }
+
+  body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-workspace .de-workspace-inner {
+    display: flex;
+    flex-direction: column;
+  }
+
+  body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-sidebar.de-list-aside,
+  body.admin-dash-mode #panelMd .doc-mgmt-studio .dm-props.de-props-panel.open,
+  body.admin-dash-mode #panelMd .doc-mgmt-studio #extraPropsPanel.de-props-panel.open {
+    width: 100%;
+    min-width: 0;
+  }
+
+  body.admin-dash-mode #panelMd .doc-mgmt-studio .de-editor-scroll {
+    padding: 0 12px 12px;
   }
 }

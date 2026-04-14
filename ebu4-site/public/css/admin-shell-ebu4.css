@@ -1,26 +1,27 @@
 /**
- * 后台登录后全屏布局 — 与参考 HTML（EBU4 用户管理）一致的深色底、金强调、Plus Jakarta Sans
- * 通过覆盖 style.css 的语义变量，让 .ry-*、.admin-card、表单等无需改类名即统一视觉
+ * 后台登录后全屏布局
+ * 默认按若依式企业后台骨架：浅色主区、固定左侧菜单、固定顶栏、灰底内容区。
+ * 通过覆盖 style.css 的语义变量，让 .ry-*、.admin-card、表单等无需改类名即统一视觉。
  * 作用域：body.admin-dash-mode（由 admin.js 在登录成功后添加）
  */
 
 body.admin-dash-mode {
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
 
-  /* 参考稿 :root */
-  --ebu4-bg: #0f0f12;
-  --ebu4-surface: #18181f;
-  --ebu4-surface2: #1e1e28;
-  --ebu4-surface3: #252530;
-  --ebu4-border: #2a2a38;
-  --ebu4-border2: #363648;
-  --ebu4-text: #e4e4ef;
-  --ebu4-text2: #9898aa;
-  --ebu4-text3: #66667a;
-  --ebu4-accent: #e8b931;
-  --ebu4-accent2: #f0c848;
-  --ebu4-accent-dim: rgba(232, 185, 49, 0.08);
-  --ebu4-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  /* 若依式企业后台：浅灰底 + 白面板 + 蓝色主强调 */
+  --ebu4-bg: #f5f7fa;
+  --ebu4-surface: #ffffff;
+  --ebu4-surface2: #f8fafc;
+  --ebu4-surface3: #eef3f8;
+  --ebu4-border: #dcdfe6;
+  --ebu4-border2: #cfd7e3;
+  --ebu4-text: #303133;
+  --ebu4-text2: #606266;
+  --ebu4-text3: #909399;
+  --ebu4-accent: #409eff;
+  --ebu4-accent2: #66b1ff;
+  --ebu4-accent-dim: rgba(64, 158, 255, 0.12);
+  --ebu4-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
 
   /* 映射到全站语义变量（style.css / admin.css 使用） */
   --bg-deep: var(--ebu4-bg);
@@ -30,14 +31,14 @@ body.admin-dash-mode {
   --bg-hover: var(--ebu4-surface2);
 
   --sidebar-bg: var(--ebu4-surface);
-  --navbar-bg: rgba(15, 15, 18, 0.92);
-  --status-bg: rgba(15, 15, 18, 0.95);
+  --navbar-bg: rgba(255, 255, 255, 0.96);
+  --status-bg: rgba(255, 255, 255, 0.96);
 
   --gold: var(--ebu4-accent);
   --gold-light: var(--ebu4-accent2);
-  --gold-dim: #c9a028;
+  --gold-dim: #3a8ee6;
   --gold-glow: var(--ebu4-accent-dim);
-  --border-gold: rgba(232, 185, 49, 0.18);
+  --border-gold: rgba(64, 158, 255, 0.18);
 
   /* 侧栏高亮原用 indigo，改为金强调（与参考稿 .nav-item.on 一致） */
   --indigo: var(--ebu4-accent);
@@ -51,16 +52,16 @@ body.admin-dash-mode {
 
   --border: var(--ebu4-border);
 
-  --green: #34d399;
-  --red: #ef4444;
+  --green: #67c23a;
+  --red: #f56c6c;
 
-  --focus-ring: 0 0 0 3px rgba(232, 185, 49, 0.12);
+  --focus-ring: 0 0 0 2px rgba(64, 158, 255, 0.16);
   --img-shadow: var(--ebu4-shadow);
   --scrollbar-thumb: var(--ebu4-border);
   --scrollbar-thumb-hover: var(--ebu4-border2);
 
-  --theme-rgb-p: 232, 185, 49;
-  --theme-rgb-a: 232, 185, 49;
+  --theme-rgb-p: 64, 158, 255;
+  --theme-rgb-a: 64, 158, 255;
 
   /**
    * Toast、Modal 等挂在 body 下，不在 .admin-hub 内，需与 hub 共用同一套命名变量，
@@ -71,7 +72,7 @@ body.admin-dash-mode {
   --surface3: var(--ebu4-surface3);
   --border2: var(--ebu4-border2);
   --shadow: var(--ebu4-shadow);
-  --shadow2: 0 8px 32px rgba(0, 0, 0, 0.42);
+  --shadow2: 0 8px 24px rgba(0, 21, 41, 0.08);
   --accent: var(--ebu4-accent);
   --accent2: var(--ebu4-accent2);
   --accent-dim: var(--ebu4-accent-dim);
@@ -87,8 +88,8 @@ body.admin-dash-mode {
 
 /* 侧栏宽度与参考稿一致 */
 body.admin-dash-mode .ry-sidebar {
-  width: 252px;
-  min-width: 252px;
+  width: 220px;
+  min-width: 220px;
   box-shadow: none;
   border-right: 1px solid var(--ebu4-border);
   background: var(--ebu4-surface);
@@ -96,26 +97,26 @@ body.admin-dash-mode .ry-sidebar {
 
 body.admin-dash-mode .ry-sidebar-logo {
   min-height: 56px;
-  padding: 18px 18px 14px;
+  padding: 0 18px;
   background: var(--ebu4-surface);
   border-bottom: 1px solid var(--ebu4-border);
 }
 
 body.admin-dash-mode .ry-logo-mark {
-  background: linear-gradient(135deg, var(--ebu4-accent), #fb923c);
-  color: var(--ebu4-bg);
-  border-radius: 10px;
+  background: linear-gradient(135deg, var(--ebu4-accent), var(--ebu4-accent2));
+  color: #fff;
 }
 
 body.admin-dash-mode .ry-menu {
-  padding: 10px 8px;
+  padding: 10px 0 16px;
 }
 
 body.admin-dash-mode .ry-menu-item {
-  padding: 7px 10px 7px 14px;
-  border-radius: 6px;
-  font-size: 12.5px;
-  margin: 0 4px 2px;
+  min-height: 40px;
+  padding: 0 16px 0 20px;
+  border-left: 3px solid transparent;
+  font-size: 13px;
+  margin: 0;
   color: var(--ebu4-text2);
 }
 
@@ -125,10 +126,11 @@ body.admin-dash-mode .ry-menu-item:hover {
 }
 
 body.admin-dash-mode .ry-menu-item.active {
-  background: var(--ebu4-accent-dim);
+  background: color-mix(in srgb, var(--ebu4-accent) 10%, white);
   color: var(--ebu4-accent);
   box-shadow: none;
   border: none;
+  border-left-color: var(--ebu4-accent);
 }
 
 body.admin-dash-mode .ry-menu-item.active .ry-menu-ico {
@@ -147,10 +149,12 @@ body.admin-dash-mode .ry-menu-item.active .ry-menu-ico {
 }
 
 body.admin-dash-mode .ry-menu-meta {
+  background: var(--ebu4-surface);
   border-top-color: var(--ebu4-border);
 }
 
 body.admin-dash-mode .ry-menu-footer {
+  background: var(--ebu4-surface);
   border-top-color: var(--ebu4-border);
 }
 
@@ -160,9 +164,9 @@ body.admin-dash-mode .ry-main {
 
 body.admin-dash-mode .ry-header {
   height: auto;
-  min-height: 48px;
-  padding: 12px 20px 12px 24px;
-  background: var(--ebu4-bg);
+  min-height: 50px;
+  padding: 0 18px 0 20px;
+  background: var(--ebu4-surface);
   border-bottom: 1px solid var(--ebu4-border);
   box-shadow: none;
 }
@@ -184,8 +188,13 @@ body.admin-dash-mode .ry-header-link:hover {
 }
 
 body.admin-dash-mode .ry-body {
-  padding: 0 32px 32px 32px;
+  padding: 16px;
   background: var(--ebu4-bg);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  gap: 16px;
 }
 
 body.admin-dash-mode .ry-body::-webkit-scrollbar {
@@ -201,7 +210,6 @@ body.admin-dash-mode .ry-body::-webkit-scrollbar-thumb:hover {
 
 /* 通用卡片与主区文档块，贴近参考稿圆角与边框 */
 body.admin-dash-mode .admin-card {
-  border-radius: 16px;
   border-color: var(--ebu4-border);
   background: var(--ebu4-surface);
   box-shadow: none;
@@ -209,9 +217,8 @@ body.admin-dash-mode .admin-card {
 
 body.admin-dash-mode .admin-input,
 body.admin-dash-mode .admin-textarea {
-  border-radius: 8px;
   border-color: var(--ebu4-border);
-  background: var(--ebu4-bg);
+  background: var(--ebu4-surface);
 }
 
 body.admin-dash-mode .admin-input:focus,
@@ -223,11 +230,11 @@ body.admin-dash-mode .admin-textarea:focus {
 body.admin-dash-mode .admin-btn-primary {
   border-color: transparent;
   background: linear-gradient(180deg, var(--ebu4-accent2), var(--ebu4-accent));
-  color: var(--ebu4-bg);
+  color: #fff;
 }
 
 body.admin-dash-mode .admin-btn-primary:hover {
-  box-shadow: 0 4px 14px rgba(232, 185, 49, 0.25);
+  box-shadow: 0 4px 14px rgba(64, 158, 255, 0.18);
 }
 
 body.admin-dash-mode .status-bar {
@@ -236,36 +243,36 @@ body.admin-dash-mode .status-bar {
   font-size: 11px;
 }
 
-/* 浅色：保留可读性，仍用金强调 */
-:root[data-theme='light'] body.admin-dash-mode {
-  --ebu4-bg: #f4f4f7;
-  --ebu4-surface: #ffffff;
-  --ebu4-surface2: #f1f5f9;
-  --ebu4-surface3: #e2e8f0;
-  --ebu4-border: #e2e8f0;
-  --ebu4-border2: #cbd5e1;
-  --ebu4-text: #0f172a;
-  --ebu4-text2: #64748b;
+/* 深色主题：保留备用，但默认后台壳层按企业后台浅色模式呈现 */
+:root[data-theme='dark'] body.admin-dash-mode {
+  --ebu4-bg: #0f172a;
+  --ebu4-surface: #111827;
+  --ebu4-surface2: #1f2937;
+  --ebu4-surface3: #273449;
+  --ebu4-border: #334155;
+  --ebu4-border2: #475569;
+  --ebu4-text: #e5e7eb;
+  --ebu4-text2: #cbd5e1;
   --ebu4-text3: #94a3b8;
-  --navbar-bg: rgba(255, 255, 255, 0.92);
-  --status-bg: rgba(255, 255, 255, 0.96);
-  --shadow2: 0 12px 40px rgba(15, 23, 42, 0.08);
+  --navbar-bg: rgba(17, 24, 39, 0.96);
+  --status-bg: rgba(17, 24, 39, 0.96);
+  --shadow2: 0 10px 32px rgba(0, 0, 0, 0.32);
 }
 
-@media (prefers-color-scheme: light) {
+@media (prefers-color-scheme: dark) {
   :root[data-theme='system'] body.admin-dash-mode {
-    --ebu4-bg: #f4f4f7;
-    --ebu4-surface: #ffffff;
-    --ebu4-surface2: #f1f5f9;
-    --ebu4-surface3: #e2e8f0;
-    --ebu4-border: #e2e8f0;
-    --ebu4-border2: #cbd5e1;
-    --ebu4-text: #0f172a;
-    --ebu4-text2: #64748b;
+    --ebu4-bg: #0f172a;
+    --ebu4-surface: #111827;
+    --ebu4-surface2: #1f2937;
+    --ebu4-surface3: #273449;
+    --ebu4-border: #334155;
+    --ebu4-border2: #475569;
+    --ebu4-text: #e5e7eb;
+    --ebu4-text2: #cbd5e1;
     --ebu4-text3: #94a3b8;
-    --navbar-bg: rgba(255, 255, 255, 0.92);
-    --status-bg: rgba(255, 255, 255, 0.96);
-    --shadow2: 0 12px 40px rgba(15, 23, 42, 0.08);
+    --navbar-bg: rgba(17, 24, 39, 0.96);
+    --status-bg: rgba(17, 24, 39, 0.96);
+    --shadow2: 0 10px 32px rgba(0, 0, 0, 0.32);
   }
 }
 

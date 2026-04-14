@@ -41,7 +41,8 @@ body.admin-dash-mode .dashboard-ref {
   --dr-ease: cubic-bezier(0.4, 0, 0.2, 1);
   font-family: var(--dr-sans);
   color: var(--dr-text);
-  max-width: 1200px;
+  width: 100%;
+  max-width: none;
 }
 
 body.admin-dash-mode .dashboard-ref *,

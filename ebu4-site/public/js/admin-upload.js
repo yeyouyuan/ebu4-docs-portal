@@ -409,7 +409,6 @@
   document.addEventListener('DOMContentLoaded', function () {
     bindAllMdTextareas();
     initImagePanel();
-    if ($('adminImageCountHint') || $('imageGalleryGridHost')) refreshImageList();
   });
 
   window.refreshAdminImageList = refreshImageList;

@@ -638,6 +638,93 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;');
 }
 
+const ADMIN_SESSION_TIMEOUT_MS = 5000;
+const ADMIN_TAB_TITLES = {
+  dash: '数据看板',
+  md: '文档管理',
+  tools: '工具导航',
+  landing: '门户首页',
+  site: '站点设置',
+  seo: 'SEO 设置',
+  audit: '操作日志',
+  users: '用户管理',
+  roles: '角色管理',
+  redis: 'Redis',
+  upgrade: '系统升级',
+  menu: '菜单显示',
+};
+
+var adminPanelLoaderState = Object.create(null);
+var dashboardLoadSeq = 0;
+var statsLoadSeq = 0;
+
+function clearAdminSessionState() {
+  window.__adminUser = null;
+  window.__adminCapabilities = null;
+  window.__adminDataViews = null;
+  window.__adminRoleMeta = null;
+}
+
+function setAdminBootState(message, opts) {
+  opts = opts || {};
+  var overlay = $('adminBootOverlay');
+  var status = $('adminBootStatus');
+  var retry = $('btnAdminBootRetry');
+  if (status && message != null) status.textContent = String(message);
+  if (overlay) overlay.classList.toggle('is-error', !!opts.error);
+  if (retry) retry.classList.toggle('admin-hidden', !opts.error);
+}
+
+function clearAdminPanelLoaderState(keys) {
+  if (!keys) {
+    adminPanelLoaderState = Object.create(null);
+    return;
+  }
+  var list = Array.isArray(keys) ? keys : [keys];
+  list.forEach(function (key) {
+    delete adminPanelLoaderState[key];
+  });
+}
+
+function runAdminPanelLoader(key, loader, opts) {
+  opts = opts || {};
+  if (!key || typeof loader !== 'function') return Promise.resolve();
+  if (opts.force) clearAdminPanelLoaderState(key);
+  var state = adminPanelLoaderState[key];
+  if (!state) {
+    state = adminPanelLoaderState[key] = {
+      loaded: false,
+      pending: null,
+      error: null,
+      value: null,
+    };
+  }
+  if (state.loaded) return Promise.resolve(state.value);
+  if (state.pending) return state.pending;
+  state.pending = Promise.resolve()
+    .then(loader)
+    .then(function (value) {
+      state.loaded = true;
+      state.error = null;
+      state.pending = null;
+      state.value = value;
+      return value;
+    })
+    .catch(function (err) {
+      state.error = err;
+      state.pending = null;
+      throw err;
+    });
+  return state.pending;
+}
+
+function setAdminLoaderMsg(id, text, type) {
+  var el = $(id);
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = text ? 'admin-msg' + (type ? ' ' + type : '') : 'admin-msg';
+}
+
 function roleLabelFromStore(st, roleId) {
   var r = st && st.roles && st.roles[roleId];
   return (r && r.label) || roleId;
@@ -664,13 +751,29 @@ function buildRoleOptionsHtml(st, currentRole) {
     .join('');
 }
 
-async function checkSession() {
+async function checkSession(opts) {
+  opts = opts || {};
+  var timeoutMs = Number(opts.timeoutMs) > 0 ? Number(opts.timeoutMs) : 0;
+  var controller = typeof AbortController === 'function' ? new AbortController() : null;
+  var timeoutId = null;
+  if (controller && timeoutMs) {
+    timeoutId = setTimeout(function () {
+      controller.abort();
+    }, timeoutMs);
+  }
   try {
     const r = await fetch('/api/admin/session', {
       credentials: 'same-origin',
       headers: { Accept: 'application/json' },
+      signal: controller ? controller.signal : undefined,
     });
-    const d = await r.json();
+    const text = await r.text();
+    var d = {};
+    try {
+      d = text ? JSON.parse(text) : {};
+    } catch (e) {
+      d = {};
+    }
     if (d.ok === true && d.user) {
       window.__adminUser = d.user;
       window.__adminCapabilities = d.capabilities || {
@@ -687,19 +790,33 @@ async function checkSession() {
         stats: true,
       };
       window.__adminRoleMeta = d.roleMeta || null;
-      return true;
+      return { ok: true, unauthorized: false };
     }
-    window.__adminUser = null;
-    window.__adminCapabilities = null;
-    window.__adminDataViews = null;
-    window.__adminRoleMeta = null;
-    return false;
+    clearAdminSessionState();
+    if (r.status === 401 || r.status === 403) {
+      return {
+        ok: false,
+        unauthorized: true,
+        message: d.error || '登录状态已失效，请重新登录。',
+      };
+    }
+    return {
+      ok: false,
+      unauthorized: false,
+      message: d.error || '会话校验失败，请稍后重试。',
+    };
   } catch (e) {
-    window.__adminUser = null;
-    window.__adminCapabilities = null;
-    window.__adminDataViews = null;
-    window.__adminRoleMeta = null;
-    return false;
+    clearAdminSessionState();
+    return {
+      ok: false,
+      unauthorized: false,
+      message:
+        e && e.name === 'AbortError'
+          ? '会话校验超时，请检查网络或服务状态后重试。'
+          : '无法连接后台服务，请稍后重试。',
+    };
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 }
 
@@ -806,23 +923,39 @@ function syncDocSubNavForDataView() {
   else if (dv.mainDoc && btnMain) btnMain.click();
 }
 
-function ensureVisibleAdminTab() {
+function getActiveAdminTabName() {
   var nav = $('ryMenuNav');
-  if (!nav) return;
+  if (!nav) return null;
   var active = nav.querySelector('.ry-menu-item[data-tab].active');
-  if (active && !active.classList.contains('admin-hidden')) return;
+  if (active && !active.classList.contains('admin-hidden')) {
+    return active.getAttribute('data-tab') || 'dash';
+  }
+  return null;
+}
+
+function resolveVisibleAdminTabName() {
+  var nav = $('ryMenuNav');
+  if (!nav) return 'dash';
+  var active = getActiveAdminTabName();
+  if (active) return active;
   var dash = $('menuTabDash');
   if (dash && !dash.classList.contains('admin-hidden')) {
-    dash.click();
-    return;
+    return 'dash';
   }
   var first = nav.querySelector('.ry-menu-item[data-tab]:not(.admin-hidden)');
   if (first) {
-    first.click();
-    return;
+    return first.getAttribute('data-tab') || 'dash';
   }
   var meta = document.querySelector('.ry-menu-meta .ry-menu-item[data-tab]:not(.admin-hidden)');
-  if (meta) meta.click();
+  return meta ? meta.getAttribute('data-tab') || 'dash' : 'dash';
+}
+
+function ensureVisibleAdminTab() {
+  var tab = resolveVisibleAdminTabName();
+  if (tab && typeof window.__ebu4SwitchAdminTab === 'function') {
+    window.__ebu4SwitchAdminTab(tab);
+  }
+  return tab;
 }
 
 function showDash() {
@@ -839,8 +972,10 @@ async function loadStats() {
     if (inner) inner.textContent = '无权限查看统计（由管理员在「数据查看范围」中配置）';
     return;
   }
+  var seq = ++statsLoadSeq;
   try {
     const s = await api('/api/admin/stats');
+    if (seq !== statsLoadSeq) return;
     let h = '';
     h += '<div>章节数：<strong>' + s.sectionCount + '</strong></div>';
     if (s.markdown) {
@@ -890,6 +1025,7 @@ async function loadStats() {
     }
     if (inner) inner.innerHTML = h;
   } catch (e) {
+    if (seq !== statsLoadSeq) return;
     if (inner) inner.textContent = '统计加载失败：' + (e.message || String(e));
   }
 }
@@ -1000,6 +1136,7 @@ function initDashboardRefUi(host) {
 async function loadDashboard() {
   var host = $('dashboardHost');
   if (!host) return;
+  var seq = ++dashboardLoadSeq;
   host.innerHTML = '<p class="admin-tools-hint">加载中…</p>';
   try {
     var inviteFetch = Promise.resolve({ codes: [] });
@@ -1009,6 +1146,7 @@ async function loadDashboard() {
       });
     }
     const results = await Promise.all([api('/api/admin/dashboard'), inviteFetch]);
+    if (seq !== dashboardLoadSeq) return;
     const d = results[0];
     const inv = results[1];
     const v = d.visits || {};
@@ -1278,6 +1416,7 @@ async function loadDashboard() {
     host.innerHTML = h;
     initDashboardRefUi(host);
   } catch (e) {
+    if (seq !== dashboardLoadSeq) return;
     host.innerHTML = '<p class="admin-msg err">' + escapeHtml(e.message || String(e)) + '</p>';
   }
 }
@@ -1388,6 +1527,20 @@ function setMainDocFullMarkdownValue(raw) {
   updateMdTaChrome();
 }
 
+async function fetchMainDocFullMarkdownFromServer(force) {
+  var docKey = currentAdminDocCacheKey();
+  return runAdminPanelLoader(
+    mainDocMarkdownLoaderKey(docKey),
+    async function () {
+      const md = await api('/api/admin/files/markdown' + adminDocQ());
+      setMainDocFullMarkdownValue(md.content || '');
+      markMainDocFullMarkdownLoaded(docKey, true);
+      return md;
+    },
+    { force: !!force }
+  );
+}
+
 async function refreshMainDocsModalTable() {
   var host = $('mainDocsTableBody');
   if (!host) return;
@@ -1443,7 +1596,36 @@ var mainDocSyncTimer = null;
 var mainDocDirty = false;
 var mainDocFullMdSavedValue = '';
 var mainDocFullMdDrawerTimer = null;
+var mainDocFullMarkdownLoadedByDoc = Object.create(null);
+var docSectionViewSeq = 0;
 window.__mainDocEditMode = 'rich';
+
+function currentAdminDocCacheKey() {
+  return adminMainDocSlug || '__default__';
+}
+
+function mainDocMarkdownLoaderKey(slugKey) {
+  return 'main-doc-full-markdown:' + String(slugKey || '__default__');
+}
+
+function markMainDocFullMarkdownLoaded(slugKey, loaded) {
+  var key = slugKey || '__default__';
+  if (loaded) {
+    mainDocFullMarkdownLoadedByDoc[key] = true;
+    return;
+  }
+  delete mainDocFullMarkdownLoadedByDoc[key];
+  clearAdminPanelLoaderState(mainDocMarkdownLoaderKey(key));
+}
+
+function isMainDocFullMarkdownLoadedForCurrentDoc() {
+  return !!mainDocFullMarkdownLoadedByDoc[currentAdminDocCacheKey()];
+}
+
+function isMainDocDrawerOpen() {
+  var drawer = $('mainDocFullMdDrawer');
+  return !!drawer && !drawer.classList.contains('admin-hidden');
+}
 
 function getCurrentAdminMainDocMeta() {
   var slugKey = adminMainDocSlug;
@@ -1496,6 +1678,13 @@ function getCurrentAdminSectionMeta() {
   );
 }
 
+function getCurrentAdminSectionIndex() {
+  if (selectedDocId == null) return -1;
+  return docSectionsCache.findIndex(function (x) {
+    return x.id === selectedDocId;
+  });
+}
+
 function confirmDiscardMainDocChanges(nextDocLabel) {
   if (!hasUnsavedMainDocChanges()) return true;
   var cur = getCurrentAdminDocDisplayName();
@@ -1534,8 +1723,26 @@ function setMainDocDrawerOpen(open) {
   }, 220);
 }
 
-function openMainDocFullMarkdownDrawer() {
+async function openMainDocFullMarkdownDrawer() {
   setMainDocDrawerOpen(true);
+  var msg = $('mdMsg');
+  if (msg) {
+    if (!isMainDocFullMarkdownLoadedForCurrentDoc()) {
+      msg.textContent = '正在加载整篇 Markdown…';
+      msg.className = 'admin-msg';
+    } else {
+      msg.textContent = '';
+      msg.className = 'admin-msg';
+    }
+  }
+  try {
+    await ensureMainDocFullMarkdownLoaded();
+  } catch (e) {
+    if (msg) {
+      msg.textContent = e.message || String(e);
+      msg.className = 'admin-msg err';
+    }
+  }
   updateMdTaChrome();
   setTimeout(function () {
     var ta = $('mdTa');
@@ -1579,6 +1786,11 @@ function applyMainDocEditMode() {
       bm.classList.remove('de-btn-ghost');
     }
   } else {
+    if (!initMainDocQuill()) {
+      window.__mainDocEditMode = 'markdown';
+      applyMainDocEditMode();
+      return;
+    }
     ta.classList.add('admin-hidden');
     ta.setAttribute('aria-hidden', 'true');
     ta.setAttribute('tabindex', '-1');
@@ -1598,9 +1810,18 @@ function applyMainDocEditMode() {
 
 async function refreshMdTaFromServer() {
   try {
-    const md = await api('/api/admin/files/markdown' + adminDocQ());
-    setMainDocFullMarkdownValue(md.content || '');
+    await fetchMainDocFullMarkdownFromServer(true);
   } catch (_) {}
+}
+
+async function ensureMainDocFullMarkdownLoaded(force) {
+  if (!force && isMainDocFullMarkdownLoadedForCurrentDoc()) return;
+  await fetchMainDocFullMarkdownFromServer(!!force);
+}
+
+async function maybeRefreshMdTaFromServer() {
+  if (!isMainDocFullMarkdownLoadedForCurrentDoc() && !isMainDocDrawerOpen()) return;
+  await refreshMdTaFromServer();
 }
 
 function renderDocSectionList(filterText) {
@@ -1651,11 +1872,18 @@ function renderDocSectionList(filterText) {
 function updateMainDocChrome() {
   var docMeta = getCurrentAdminMainDocMeta();
   var sectionMeta = getCurrentAdminSectionMeta();
+  var sectionIndex = getCurrentAdminSectionIndex();
+  var totalSections = docSectionsCache.length || 0;
+  var hasSectionSelection = selectedDocId != null && sectionIndex >= 0;
   var docLabel =
     (docMeta && String(docMeta.title || docMeta.slug || '').trim()) ||
     getCurrentAdminDocDisplayName() ||
     '当前文档';
   var docSlug = (docMeta && docMeta.slug) || adminMainDocSlug || 'default';
+  var sectionLabel =
+    selectedDocId == null
+      ? '未选择'
+      : (sectionMeta && sectionMeta.title) || '章节 #' + selectedDocId;
   var book = $('mainDocCrumbBook');
   if (book) book.textContent = docLabel;
   var crumb = $('mainDocCrumbChapter');
@@ -1666,39 +1894,48 @@ function updateMainDocChrome() {
     if (selectedDocId == null) {
       crumb.textContent = '—';
     } else {
-      crumb.textContent = (sectionMeta && sectionMeta.title) || '章节 #' + selectedDocId;
+      crumb.textContent = sectionLabel;
     }
   }
   if (left) {
     left.textContent =
       selectedDocId == null
         ? '未选择章节'
-        : '当前章节 · ' + ((sectionMeta && sectionMeta.title) || '章节 #' + selectedDocId);
+        : '当前章节 · ' + sectionLabel;
   }
   if (right) {
-    var n = docSectionsCache.length || 0;
     var dirtyText = hasUnsavedMainDocChanges() ? '未保存改动' : '已同步';
     try {
       var md = typeof getMainDocMarkdown === 'function' ? getMainDocMarkdown() : ta && ta.value ? ta.value : '';
       var bytes = new Blob([md || '']).size;
-      right.textContent = dirtyText + ' · ' + bytes + ' 字节 · ' + n + ' 章';
+      right.textContent = dirtyText + ' · ' + bytes + ' 字节 · ' + totalSections + ' 章';
     } catch (_) {
-      right.textContent = dirtyText + ' · ' + n + ' 章';
+      right.textContent = dirtyText + ' · ' + totalSections + ' 章';
     }
   }
   var summaryTitle = $('mainDocSummaryTitle');
   if (summaryTitle) summaryTitle.textContent = docLabel;
+  var summarySubline = $('mainDocSummarySubline');
+  if (summarySubline) {
+    if (!totalSections) {
+      summarySubline.textContent = '当前文档还没有章节，先在左侧创建章节，再进入正文编辑。';
+    } else if (!hasSectionSelection) {
+      summarySubline.textContent = '当前文档共 ' + totalSections + ' 个章节。先从左侧选中一个章节，再在中间编辑区继续处理内容。';
+    } else {
+      summarySubline.textContent =
+        '正在编辑第 ' +
+        String(sectionIndex + 1) +
+        ' 章，共 ' +
+        String(totalSections) +
+        ' 章。顺序调整和删除都只会作用于当前选中的章节。';
+    }
+  }
   var summarySlug = $('mainDocSummarySlug');
   if (summarySlug) summarySlug.textContent = docSlug;
   var summaryCount = $('mainDocSummaryCount');
-  if (summaryCount) summaryCount.textContent = String(docSectionsCache.length || 0);
+  if (summaryCount) summaryCount.textContent = String(totalSections);
   var summarySection = $('mainDocSummarySection');
-  if (summarySection) {
-    summarySection.textContent =
-      selectedDocId == null
-        ? '未选择'
-        : (sectionMeta && sectionMeta.title) || '章节 #' + selectedDocId;
-  }
+  if (summarySection) summarySection.textContent = sectionLabel;
   var summaryDefault = $('mainDocSummaryDefault');
   if (summaryDefault) summaryDefault.classList.toggle('admin-hidden', !(docMeta && docMeta.isDefault));
   var summaryDirty = $('mainDocSummaryDirty');
@@ -1710,7 +1947,42 @@ function updateMainDocChrome() {
   var metaSlug = $('mainDocPickerMetaSlug');
   if (metaSlug) metaSlug.textContent = docSlug ? docSlug : '—';
   var metaCount = $('mainDocPickerMetaCount');
-  if (metaCount) metaCount.textContent = (docSectionsCache.length || 0) + ' 章';
+  if (metaCount) metaCount.textContent = totalSections + ' 章';
+  var pickerHint = $('mainDocPickerHint');
+  if (pickerHint) {
+    pickerHint.textContent =
+      '当前正在处理「' +
+      docLabel +
+      '」，切换后左侧章节列表、正文编辑区和整篇 Markdown 都会跟着切换。';
+  }
+  var orderHint = $('mainDocOrderHint');
+  if (orderHint) {
+    if (!totalSections) {
+      orderHint.textContent = '当前文档还没有章节，先新建章节后再调整顺序。';
+    } else if (!hasSectionSelection) {
+      orderHint.textContent = '请选择左侧章节后，再调整它在当前文档中的位置。';
+    } else if (totalSections === 1) {
+      orderHint.textContent = '当前文档只有 1 个章节，暂时不需要调整顺序。';
+    } else if (sectionIndex === 0) {
+      orderHint.textContent = '当前章节已经在第一位，只能继续下移。';
+    } else if (sectionIndex === totalSections - 1) {
+      orderHint.textContent = '当前章节已经在最后一位，只能继续上移。';
+    } else {
+      orderHint.textContent = '顺序调整只会移动当前选中的章节，不会影响其它文档。';
+    }
+  }
+  var orderSectionName = $('mainDocOrderSectionName');
+  if (orderSectionName) orderSectionName.textContent = hasSectionSelection ? sectionLabel : '未选择';
+  var orderPosition = $('mainDocOrderPosition');
+  if (orderPosition) {
+    orderPosition.textContent = hasSectionSelection ? '第 ' + String(sectionIndex + 1) + ' / ' + String(totalSections) + ' 章' : '—';
+  }
+  var btnMoveUp = $('btnMoveSectionUp');
+  if (btnMoveUp) btnMoveUp.disabled = !hasSectionSelection || sectionIndex <= 0;
+  var btnMoveDown = $('btnMoveSectionDown');
+  if (btnMoveDown) btnMoveDown.disabled = !hasSectionSelection || sectionIndex >= totalSections - 1;
+  var btnDelete = $('btnDeleteSection');
+  if (btnDelete) btnDelete.disabled = !hasSectionSelection;
   updateMainDocSaveInd();
 }
 
@@ -1909,11 +2181,16 @@ function initMdToolbarDelegation() {
   });
 }
 
-async function selectDocSection(id) {
+async function selectDocSection(id, opts) {
+  opts = opts || {};
+  var seq = opts.seq != null ? opts.seq : ++docSectionViewSeq;
   $('docSectionMsg').textContent = '';
   $('docSectionMsg').className = 'admin-msg';
-  initMainDocQuill();
+  if (window.__mainDocEditMode !== 'markdown') {
+    initMainDocQuill();
+  }
   var d = await api('/api/admin/docs/sections/' + id + adminDocQ());
+  if (seq !== docSectionViewSeq) return null;
   selectedDocId = d.id;
   selectedDocSlug = d.slug;
   setMainDocFromMarkdown(d.content || '');
@@ -1922,18 +2199,23 @@ async function selectDocSection(id) {
   renderDocSectionList($('docSectionFilter') ? $('docSectionFilter').value : '');
   mainDocDirty = false;
   updateMainDocChrome();
+  return d;
 }
 
 async function refreshDocSections(preferredId, opts) {
   opts = opts || {};
+  var seq = opts.seq != null ? opts.seq : ++docSectionViewSeq;
   var preferSlugFirst = !!opts.preferSlugFirst;
   try {
     var d = await api('/api/admin/docs/sections' + adminDocQ());
+    if (seq !== docSectionViewSeq) return null;
     docSectionsCache = d.sections || [];
     if (docSectionsCache.length === 0) {
       selectedDocId = null;
       selectedDocSlug = null;
-      initMainDocQuill();
+      if (window.__mainDocEditMode !== 'markdown') {
+        initMainDocQuill();
+      }
       setMainDocFromMarkdown('');
       var crumb = $('mainDocCrumbChapter');
       if (crumb) crumb.textContent = '—';
@@ -1960,13 +2242,15 @@ async function refreshDocSections(preferredId, opts) {
       });
     }
     if (!pick) pick = docSectionsCache[0];
-    selectedDocId = pick.id;
-    selectedDocSlug = pick.slug;
-    await selectDocSection(pick.id);
+    await selectDocSection(pick.id, { seq: seq });
+    if (seq !== docSectionViewSeq) return null;
     updateMainDocChrome();
   } catch (e) {
+    if (seq !== docSectionViewSeq) return null;
     docSectionsCache = [];
-    initMainDocQuill();
+    if (window.__mainDocEditMode !== 'markdown') {
+      initMainDocQuill();
+    }
     setMainDocFromMarkdown('');
     renderDocSectionList('');
     mainDocDirty = false;
@@ -1977,7 +2261,6 @@ async function refreshDocSections(preferredId, opts) {
 
 function initDocSectionManager() {
   initMdToolbarDelegation();
-  initMainDocQuill();
   var mainToggle = $('btnMainToggleProps');
   var mainPanel = $('mainDocPropsPanel');
   if (mainToggle && mainPanel) {
@@ -2045,7 +2328,7 @@ function initDocSectionManager() {
       });
       $('docSectionMsg').textContent = '已保存';
       $('docSectionMsg').className = 'admin-msg ok';
-      await refreshMdTaFromServer();
+      await maybeRefreshMdTaFromServer();
       await refreshDocSections(selectedDocId);
       mainDocDirty = false;
       updateMainDocSaveInd();
@@ -2071,7 +2354,7 @@ function initDocSectionManager() {
           afterId: selectedDocId,
         }),
       });
-      await refreshMdTaFromServer();
+      await maybeRefreshMdTaFromServer();
       await refreshDocSections(resNew.insertedId != null ? resNew.insertedId : null);
       loadStats();
     } catch (e) {
@@ -2090,7 +2373,7 @@ function initDocSectionManager() {
       await api('/api/admin/docs/sections/' + delId + adminDocQ(), { method: 'DELETE' });
       selectedDocSlug = null;
       selectedDocId = null;
-      await refreshMdTaFromServer();
+      await maybeRefreshMdTaFromServer();
       await refreshDocSections(selectedDocId);
       loadStats();
     } catch (e) {
@@ -2108,7 +2391,7 @@ function initDocSectionManager() {
       body: JSON.stringify({ id: selectedDocId, delta: delta }),
     })
       .then(async function () {
-        await refreshMdTaFromServer();
+        await maybeRefreshMdTaFromServer();
         await refreshDocSections(null, { preferSlugFirst: true });
         loadStats();
       })
@@ -2157,7 +2440,7 @@ function initDocSectionManager() {
       $('docSectionMsg').textContent = '';
       $('docSectionMsg').className = 'admin-msg';
       try {
-        await refreshMdTaFromServer();
+        await maybeRefreshMdTaFromServer();
         await refreshDocSections();
         loadStats();
       } catch (e) {
@@ -2200,15 +2483,6 @@ function initDocSectionManager() {
             .then(function () {
               return refreshMainDocsModalTable();
             })
-            .then(function () {
-              return refreshMdTaFromServer();
-            })
-            .then(function () {
-              return refreshDocSections();
-            })
-            .then(function () {
-              loadStats();
-            })
             .catch(function (err) {
               alert(err.message || String(err));
             });
@@ -2238,13 +2512,14 @@ function initDocSectionManager() {
           if (!window.confirm('确定删除主文档「' + slug + '」？其下章节将一并删除。')) return;
           api('/api/admin/docs/main-docs/' + encodeURIComponent(slug), { method: 'DELETE' })
             .then(function () {
+              markMainDocFullMarkdownLoaded(slug, false);
               return initAdminMainDocSlug();
             })
             .then(function () {
               return refreshMainDocsModalTable();
             })
             .then(function () {
-              return refreshMdTaFromServer();
+              return maybeRefreshMdTaFromServer();
             })
             .then(function () {
               return refreshDocSections();
@@ -2282,7 +2557,7 @@ function initDocSectionManager() {
         if (nt) nt.value = '';
         await initAdminMainDocSlug();
         await refreshMainDocsModalTable();
-        await refreshMdTaFromServer();
+        await maybeRefreshMdTaFromServer();
         await refreshDocSections();
         loadStats();
       } catch (e) {
@@ -2290,8 +2565,6 @@ function initDocSectionManager() {
       }
     });
   }
-
-  applyMainDocEditMode();
 }
 
 window.__roleProfilesCache = null;
@@ -2522,89 +2795,206 @@ async function loadRoleProfilesPanel() {
   }
 }
 
-async function loadFiles() {
-  var caps0 = window.__adminCapabilities || { siteSettings: false, seo: false, audit: false };
-  var dv = window.__adminDataViews || defaultDataViews();
+function populateSiteSettingsForm(ss) {
+  const en = $('site_maint_enabled');
+  const msg = $('site_maint_message');
+  if (en) en.checked = !!(ss.maintenance && ss.maintenance.enabled);
+  const fs = $('site_maint_full_site');
+  if (fs) fs.checked = !!(ss.maintenance && ss.maintenance.fullSite);
+  if (msg) msg.value = (ss.maintenance && ss.maintenance.message) || '';
+  const regSel = $('site_registration_mode');
+  if (regSel) {
+    var mode = (ss.registration && ss.registration.mode) || 'invitation';
+    if (mode !== 'open' && mode !== 'invitation') mode = 'invitation';
+    regSel.value = mode;
+    regSel.disabled = !(window.__adminUser && window.__adminUser.role === 'admin');
+  }
+  var embCard = $('siteEmbedAiCard');
+  if (embCard) {
+    embCard.classList.toggle(
+      'admin-hidden',
+      !(window.__adminUser && window.__adminUser.role === 'admin')
+    );
+  }
+  var embTa = $('site_embed_ai_chat');
+  if (embTa && window.__adminUser && window.__adminUser.role === 'admin') {
+    embTa.value = (ss.embed && ss.embed.aiChatHtml) || '';
+  }
+}
 
-  if (dv.mainDoc) {
-    try {
+async function ensureDocPanelLoaded(opts) {
+  opts = opts || {};
+  return runAdminPanelLoader(
+    'panel:md',
+    async function () {
+      var dv = window.__adminDataViews || defaultDataViews();
+      if (!dv.mainDoc) {
+        docSectionsCache = [];
+        selectedDocId = null;
+        selectedDocSlug = null;
+        markMainDocFullMarkdownLoaded(currentAdminDocCacheKey(), false);
+        setMainDocFromMarkdown('');
+        setMainDocFullMarkdownValue('');
+        mainDocDirty = false;
+        renderDocSectionList('');
+        updateMainDocChrome();
+        updateMdTaChrome();
+        syncDocSubNavForDataView();
+        return;
+      }
+      setAdminLoaderMsg('docSectionMsg', '正在加载文档与章节…');
       await initAdminMainDocSlug();
-    } catch (e) {
-      console.warn(e);
-    }
-    const md = await api('/api/admin/files/markdown' + adminDocQ());
-    setMainDocFullMarkdownValue(md.content || '');
-    try {
       await refreshDocSections();
-    } catch (e) {
-      console.warn(e);
-    }
-  } else if ($('mdTa')) {
-    setMainDocFullMarkdownValue('');
-  }
+      applyMainDocEditMode();
+      syncDocSubNavForDataView();
+      setAdminLoaderMsg('docSectionMsg', '');
+    },
+    opts
+  ).catch(function (err) {
+    setAdminLoaderMsg('docSectionMsg', err.message || String(err), 'err');
+    throw err;
+  });
+}
 
-  if (dv.landing) {
-    const lj = await api('/api/admin/files/landing-json');
-    if (lj.content) {
-      try {
-        populateLandingFromJson(JSON.parse(lj.content));
-      } catch (e) {
-        alert('门户配置解析失败：' + e.message);
+async function ensureLandingPanelLoaded(opts) {
+  opts = opts || {};
+  return runAdminPanelLoader(
+    'panel:landing',
+    async function () {
+      var dv = window.__adminDataViews || defaultDataViews();
+      if (!dv.landing) return;
+      setAdminLoaderMsg('landingMsg', '正在加载门户配置…');
+      const lj = await api('/api/admin/files/landing-json');
+      if (lj.content) {
+        try {
+          populateLandingFromJson(JSON.parse(lj.content));
+        } catch (e) {
+          throw new Error('门户配置解析失败：' + e.message);
+        }
       }
-    }
-  }
+      setAdminLoaderMsg('landingMsg', '');
+    },
+    opts
+  ).catch(function (err) {
+    setAdminLoaderMsg('landingMsg', err.message || String(err), 'err');
+    throw err;
+  });
+}
 
-  if (caps0.seo) {
-    const sj = await api('/api/admin/files/seo-json');
-    if (sj.content) {
-      try {
-        populateSeoFromJson(JSON.parse(sj.content));
-      } catch (e) {
-        alert('SEO 配置解析失败：' + e.message);
+async function ensureSeoPanelLoaded(opts) {
+  opts = opts || {};
+  return runAdminPanelLoader(
+    'panel:seo',
+    async function () {
+      var caps0 = window.__adminCapabilities || { siteSettings: false, seo: false, audit: false };
+      if (!caps0.seo) return;
+      setAdminLoaderMsg('seoMsg', '正在加载 SEO 配置…');
+      const sj = await api('/api/admin/files/seo-json');
+      if (sj.content) {
+        try {
+          populateSeoFromJson(JSON.parse(sj.content));
+        } catch (e) {
+          throw new Error('SEO 配置解析失败：' + e.message);
+        }
       }
-    }
-  }
+      setAdminLoaderMsg('seoMsg', '');
+    },
+    opts
+  ).catch(function (err) {
+    setAdminLoaderMsg('seoMsg', err.message || String(err), 'err');
+    throw err;
+  });
+}
 
-  if (dv.tools) {
-    try {
+async function ensureToolsPanelLoaded(opts) {
+  opts = opts || {};
+  return runAdminPanelLoader(
+    'panel:tools',
+    async function () {
+      var dv = window.__adminDataViews || defaultDataViews();
+      if (!dv.tools) return;
+      setAdminLoaderMsg('toolsSiteMsg', '正在加载工具导航…');
       const tn = await api('/api/admin/tools-nav');
       populateToolsSite(tn.site || {});
       if (typeof window.refreshToolsNavEditorFromData === 'function') {
         window.refreshToolsNavEditorFromData(tn);
       }
-    } catch (e) {}
-  }
+      setAdminLoaderMsg('toolsSiteMsg', '');
+    },
+    opts
+  ).catch(function (err) {
+    setAdminLoaderMsg('toolsSiteMsg', err.message || String(err), 'err');
+    throw err;
+  });
+}
 
-  if (caps0.siteSettings) {
-    try {
+async function ensureSiteSettingsLoaded(opts) {
+  opts = opts || {};
+  return runAdminPanelLoader(
+    'panel:site-settings',
+    async function () {
+      var caps0 = window.__adminCapabilities || { siteSettings: false, seo: false, audit: false };
+      if (!caps0.siteSettings) return;
+      setAdminLoaderMsg('siteSettingsMsg', '正在加载站点设置…');
       const ss = await api('/api/admin/site-settings');
-      const en = $('site_maint_enabled');
-      const msg = $('site_maint_message');
-      if (en) en.checked = !!(ss.maintenance && ss.maintenance.enabled);
-      const fs = $('site_maint_full_site');
-      if (fs) fs.checked = !!(ss.maintenance && ss.maintenance.fullSite);
-      if (msg) msg.value = (ss.maintenance && ss.maintenance.message) || '';
-      const regSel = $('site_registration_mode');
-      if (regSel) {
-        let m = (ss.registration && ss.registration.mode) || 'invitation';
-        if (m !== 'open' && m !== 'invitation') m = 'invitation';
-        regSel.value = m;
-        regSel.disabled = !(window.__adminUser && window.__adminUser.role === 'admin');
-      }
-      var embCard = $('siteEmbedAiCard');
-      if (embCard) {
-        embCard.classList.toggle(
-          'admin-hidden',
-          !(window.__adminUser && window.__adminUser.role === 'admin')
-        );
-      }
-      var embTa = $('site_embed_ai_chat');
-      if (embTa && window.__adminUser && window.__adminUser.role === 'admin') {
-        embTa.value = (ss.embed && ss.embed.aiChatHtml) || '';
-      }
-    } catch (e) {}
+      populateSiteSettingsForm(ss || {});
+      setAdminLoaderMsg('siteSettingsMsg', '');
+    },
+    opts
+  ).catch(function (err) {
+    setAdminLoaderMsg('siteSettingsMsg', err.message || String(err), 'err');
+    throw err;
+  });
+}
+
+async function hydrateAdminTab(name) {
+  if (name === 'dash') {
+    await loadDashboard();
+    return;
   }
-  syncDocSubNavForDataView();
+  if (name === 'md') {
+    await ensureDocPanelLoaded();
+    return;
+  }
+  if (name === 'tools') {
+    await ensureToolsPanelLoaded();
+    return;
+  }
+  if (name === 'landing') {
+    await ensureLandingPanelLoaded();
+    return;
+  }
+  if (name === 'site') {
+    await Promise.all([loadStats(), ensureSiteSettingsLoaded()]);
+    return;
+  }
+  if (name === 'seo') {
+    await ensureSeoPanelLoaded();
+    return;
+  }
+  if (name === 'audit') {
+    await loadAuditLog();
+    return;
+  }
+  if (name === 'users') {
+    loadAdminUsers();
+    return;
+  }
+  if (name === 'roles') {
+    loadRoleProfilesPanel();
+    return;
+  }
+  if (name === 'menu') {
+    renderMenuOrderPanel();
+    return;
+  }
+  if (name === 'redis') {
+    loadRedisPanel();
+    return;
+  }
+  if (name === 'upgrade') {
+    if (typeof window.loadUpgradePanel === 'function') window.loadUpgradePanel();
+  }
 }
 
 function redisMaskUrlForDisplay(u) {
@@ -2796,6 +3186,7 @@ async function initAdminPanel() {
         body: JSON.stringify({ content: $('mdTa').value }),
       });
       mainDocFullMdSavedValue = $('mdTa').value || '';
+      markMainDocFullMarkdownLoaded(currentAdminDocCacheKey(), true);
       $('mdMsg').textContent = '已保存「' + getCurrentAdminDocDisplayName() + '」，当前 ' + d.sectionCount + ' 个章节';
       $('mdMsg').className = 'admin-msg ok';
       selectedDocSlug = null;
@@ -3283,21 +3674,6 @@ async function initAdminPanel() {
     }
   });
 
-  var tabTitles = {
-    dash: '数据看板',
-    md: '文档管理',
-    tools: '工具导航',
-    landing: '门户首页',
-    site: '站点设置',
-    seo: 'SEO 设置',
-    audit: '操作日志',
-    users: '用户管理',
-    roles: '角色管理',
-    redis: 'Redis',
-    upgrade: '系统升级',
-    menu: '菜单显示',
-  };
-
   function docCrumbTitle() {
     if (window.__docSub === 'extra') return '文档管理 · 扩展页面';
     return '文档管理';
@@ -3315,6 +3691,8 @@ async function initAdminPanel() {
         });
         $('docSubMain').classList.toggle('admin-hidden', sub !== 'main');
         $('docSubExtra').classList.toggle('admin-hidden', sub !== 'extra');
+        var rail = $('deEditorMetaRail');
+        if (rail) rail.classList.toggle('admin-hidden', sub !== 'main');
         var crumb = $('ryCrumbTitle');
         if (crumb) crumb.textContent = docCrumbTitle();
         if (sub === 'extra' && typeof window.loadExtraPagesList === 'function') {
@@ -3323,6 +3701,24 @@ async function initAdminPanel() {
         if (sub === 'main' && typeof window.refreshAdminImageList === 'function') {
           window.refreshAdminImageList();
         }
+      });
+    });
+  }
+
+  function initPropsPanelTabs() {
+    var tabs = document.querySelectorAll('#mainDocPropsPanel .dm-props-tab[data-props-panel]');
+    var mainPg = $('dePropsPageMain');
+    var orderPg = $('dePropsPageOrder');
+    if (!tabs.length || !mainPg || !orderPg) return;
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        var panel = tab.getAttribute('data-props-panel');
+        tabs.forEach(function (t) {
+          t.classList.toggle('active', t.getAttribute('data-props-panel') === panel);
+        });
+        var showOrder = panel === 'order';
+        mainPg.classList.toggle('is-active', !showOrder);
+        orderPg.classList.toggle('is-active', !!showOrder);
       });
     });
   }
@@ -3854,7 +4250,8 @@ async function initAdminPanel() {
     });
   }
 
-  function switchAdminTab(name) {
+  function switchAdminTab(name, opts) {
+    opts = opts || {};
     document.querySelectorAll('.admin-hub .tab[data-hub-tab]').forEach(function (b) {
       var hub = b.getAttribute('data-hub-tab');
       var on = hub === name;
@@ -3879,35 +4276,17 @@ async function initAdminPanel() {
     var pu = $('panelUpgrade');
     if (pu) pu.classList.toggle('active', name === 'upgrade');
     $('panelMenu').classList.toggle('active', name === 'menu');
-    if (name === 'dash') {
-      loadDashboard();
-    }
-    if (name === 'audit') {
-      loadAuditLog();
-    }
-    if (name === 'site') {
-      loadStats();
-    }
-    if (name === 'users') {
-      loadAdminUsers();
-    }
-    if (name === 'roles') {
-      loadRoleProfilesPanel();
-    }
-    if (name === 'menu') {
-      renderMenuOrderPanel();
-    }
-    if (name === 'redis') {
-      loadRedisPanel();
-    }
-    if (name === 'upgrade') {
-      if (typeof window.loadUpgradePanel === 'function') window.loadUpgradePanel();
+    if (!opts.skipLoad) {
+      Promise.resolve(hydrateAdminTab(name)).catch(function (err) {
+        console.warn('hydrateAdminTab failed for', name, err);
+      });
     }
     var crumb = $('ryCrumbTitle');
     if (crumb) {
-      crumb.textContent = name === 'md' ? docCrumbTitle() : tabTitles[name] || name;
+      crumb.textContent = name === 'md' ? docCrumbTitle() : ADMIN_TAB_TITLES[name] || name;
     }
   }
+  window.__ebu4SwitchAdminTab = switchAdminTab;
 
   var asideSidebar = document.querySelector('.ry-sidebar');
   if (asideSidebar) {
@@ -4103,6 +4482,7 @@ async function initAdminPanel() {
 
   initDocSectionManager();
   initDocSubNav();
+  initPropsPanelTabs();
 
   var ADMIN_ASSET_LS_KEY = 'ebu4-admin-asset-v';
   function refreshAdminAssets() {
@@ -4122,24 +4502,39 @@ async function initAdminPanel() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const ok = await checkSession();
-  if (!ok) {
-    const ret = encodeURIComponent((location.pathname + location.search) || '/admin');
-    location.replace('/admin/login?return=' + ret);
+  var retryBtn = $('btnAdminBootRetry');
+  if (retryBtn && !retryBtn._bootRetryBound) {
+    retryBtn._bootRetryBound = true;
+    retryBtn.addEventListener('click', function () {
+      window.location.reload();
+    });
+  }
+
+  setAdminBootState('正在验证登录状态…');
+  const session = await checkSession({ timeoutMs: ADMIN_SESSION_TIMEOUT_MS });
+  if (!session.ok) {
+    if (session.unauthorized) {
+      const ret = encodeURIComponent((location.pathname + location.search) || '/admin');
+      location.replace('/admin/login?return=' + ret);
+      return;
+    }
+    setAdminBootState(session.message || '后台初始化失败，请稍后重试。', { error: true });
     return;
   }
-  document.body.classList.remove('admin-booting');
-  initThemePicker();
-  initBgCanvas();
-  showDash();
-  await initAdminPanel();
-  loadStats();
-  loadFiles()
-    .catch(function (e) {
-      alert(e.message);
-    })
-    .then(function () {
-      ensureVisibleAdminTab();
-      loadDashboard();
-    });
+
+  try {
+    setAdminBootState('正在初始化后台界面…');
+    initThemePicker();
+    showDash();
+    await initAdminPanel();
+    var initialTab = resolveVisibleAdminTabName() || 'dash';
+    if (typeof window.__ebu4SwitchAdminTab === 'function') {
+      window.__ebu4SwitchAdminTab(initialTab, { skipLoad: true });
+    }
+    setAdminBootState('正在加载' + (ADMIN_TAB_TITLES[initialTab] || '后台数据') + '…');
+    await hydrateAdminTab(initialTab);
+    document.body.classList.remove('admin-booting');
+  } catch (e) {
+    setAdminBootState(e.message || String(e), { error: true });
+  }
 });

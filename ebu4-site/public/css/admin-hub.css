@@ -4,37 +4,38 @@
  */
 
 .admin-hub {
-  --bg: #0f0f12;
-  --surface: #18181f;
-  --surface2: #1e1e28;
-  --surface3: #252530;
-  --border: #2a2a38;
-  --border2: #363648;
-  --text: #e4e4ef;
-  --text2: #9898aa;
-  --text3: #66667a;
-  --accent: #e8b931;
-  --accent2: #f0c848;
-  --accent-dim: rgba(232, 185, 49, 0.08);
-  --red: #ef4444;
-  --red-dim: rgba(239, 68, 68, 0.08);
-  --green: #34d399;
-  --green-dim: rgba(52, 211, 153, 0.08);
-  --blue: #60a5fa;
-  --blue-dim: rgba(96, 165, 250, 0.08);
-  --purple: #a78bfa;
-  --orange: #fb923c;
+  --bg: var(--ebu4-bg, #f5f7fa);
+  --surface: var(--ebu4-surface, #ffffff);
+  --surface2: var(--ebu4-surface2, #f8fafc);
+  --surface3: var(--ebu4-surface3, #eef3f8);
+  --border: var(--ebu4-border, #dcdfe6);
+  --border2: var(--ebu4-border2, #cfd7e3);
+  --text: var(--ebu4-text, #303133);
+  --text2: var(--ebu4-text2, #606266);
+  --text3: var(--ebu4-text3, #909399);
+  --accent: var(--ebu4-accent, #409eff);
+  --accent2: var(--ebu4-accent2, #66b1ff);
+  --accent-dim: var(--ebu4-accent-dim, rgba(64, 158, 255, 0.12));
+  --red: #f56c6c;
+  --red-dim: rgba(245, 108, 108, 0.12);
+  --green: #67c23a;
+  --green-dim: rgba(103, 194, 58, 0.12);
+  --blue: #409eff;
+  --blue-dim: rgba(64, 158, 255, 0.12);
+  --purple: #909399;
+  --orange: #e6a23c;
   --sans: 'Plus Jakarta Sans', system-ui, sans-serif;
   --mono: 'JetBrains Mono', 'Fira Code', monospace;
   --r: 8px;
   --r2: 12px;
   --r3: 16px;
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
-  --shadow2: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  --shadow2: 0 8px 24px rgba(0, 21, 41, 0.08);
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
 
-  max-width: 1100px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   font-family: var(--sans);
   color: var(--text);
 }

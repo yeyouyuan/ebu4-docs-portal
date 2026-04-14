@@ -28,8 +28,8 @@
   <script>
   (function () {
     /* 变更 KEY 可强制全量刷新后台 CSS（避免仅改 DEFAULT_V 仍读旧 localStorage） */
-    var KEY = 'ebu4-admin-asset-v20260414';
-    var DEFAULT_V = '20260414a';
+    var KEY = 'ebu4-admin-asset-v20260416j';
+    var DEFAULT_V = '20260416j';
     var v = DEFAULT_V;
     try {
       var s = localStorage.getItem(KEY);
@@ -47,13 +47,23 @@
     addCss('/css/admin-hub.css');
     addCss('/css/admin-dashboard.css');
     addCss('/css/doc-management.css');
+    addCss('/lib/quill.snow.css');
   })();
   </script>
-  <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
 </head>
-<body class="admin-booting">
+<body class="admin-no-radius admin-booting">
 
   <canvas id="bgCanvas" aria-hidden="true"></canvas>
+  <div id="adminBootOverlay" class="admin-boot-overlay" role="status" aria-live="polite">
+    <div class="admin-boot-card">
+      <div class="admin-boot-spinner" aria-hidden="true"></div>
+      <div class="admin-boot-copy">
+        <div class="admin-boot-title">后台正在初始化</div>
+        <p id="adminBootStatus" class="admin-boot-status">正在验证登录状态…</p>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm admin-hidden" id="btnAdminBootRetry">重新尝试</button>
+    </div>
+  </div>
 
   <header class="navbar">
     <div class="navbar-left">
@@ -207,18 +217,25 @@
 
       <div class="admin-panel" id="panelMd">
         <div class="doc-editor-hub dm-hub doc-mgmt-studio">
-          <div class="admin-docs-subnav dm-tabs" role="tablist" aria-label="文档子模块">
-            <button type="button" class="admin-docs-subnav-btn active" data-doc-sub="main" id="docSubBtnMain">主文档</button>
-            <button type="button" class="admin-docs-subnav-btn" data-doc-sub="extra" id="docSubBtnExtra">扩展页面</button>
+          <div class="admin-card doc-editor-card dm-card de-doc-editor-card">
+          <div class="de-doc-card-head" id="deDocCardHead">
+            <div class="de-editor-tabs-row">
+              <div class="admin-docs-subnav dm-tabs" role="tablist" aria-label="文档子模块">
+                <button type="button" class="admin-docs-subnav-btn active" data-doc-sub="main" id="docSubBtnMain">主文档</button>
+                <button type="button" class="admin-docs-subnav-btn" data-doc-sub="extra" id="docSubBtnExtra">扩展页面</button>
+              </div>
+            </div>
           </div>
-          <div class="admin-card doc-editor-card dm-card">
           <div id="docSubMain" class="doc-sub-panel">
             <div class="de-workspace de-workspace-main dm-workspace" id="mainDocWorkspace">
               <div class="de-workspace-inner">
-                <aside class="de-list-aside de-main-list dm-sidebar" aria-label="章节列表">
+                <aside class="de-list-aside de-main-list dm-sidebar doc-tree-skin" aria-label="章节列表">
                   <div class="de-main-doc-bar">
                     <div class="de-main-doc-bar-head">
-                      <label class="de-main-doc-bar-label" for="mainDocPicker">当前文档</label>
+                      <div class="de-main-doc-bar-copy">
+                        <label class="de-main-doc-bar-label" for="mainDocPicker">当前文档</label>
+                        <p class="de-main-doc-bar-note" id="mainDocPickerHint">切换文档后，左侧章节列表和中间编辑区都会同步切到该文档。</p>
+                      </div>
                       <div class="de-main-doc-bar-meta" id="mainDocPickerMeta" title="当前主文档 slug 与章节总数">
                         <span class="de-main-doc-meta-k">Slug</span>
                         <code class="de-main-doc-meta-slug" id="mainDocPickerMetaSlug">—</code>
@@ -228,7 +245,7 @@
                     </div>
                     <div class="de-main-doc-bar-row">
                       <select id="mainDocPicker" class="admin-input de-main-doc-select" aria-label="选择主文档"></select>
-                      <button type="button" class="de-btn de-btn-sm de-btn-ghost" id="btnManageMainDocs" title="新建、默认、重命名、删除文档">管理</button>
+                      <button type="button" class="de-btn de-btn-sm de-btn-ghost" id="btnManageMainDocs" title="新建、默认、重命名、删除文档">管理文档</button>
                     </div>
                   </div>
                   <div class="de-search-wrap de-search-wrap--chapter">
@@ -237,7 +254,7 @@
                   <ul id="docSectionList" class="de-chapter-list" role="listbox" aria-label="章节列表"></ul>
                   <button type="button" class="de-btn de-btn-accent de-btn-block" id="btnNewSection">+ 新建章节</button>
                 </aside>
-                <div class="de-center-col dm-center">
+                <div class="de-center-col dm-center de-editor-shell">
                   <div class="de-main-toolbar-wrap dm-toolbar-wrap">
                     <header class="de-toolbar de-toolbar--main-doc dm-toolbar">
                       <div class="de-toolbar-left">
@@ -254,6 +271,11 @@
                         </div>
                       </div>
                       <div class="de-toolbar-right">
+                        <div class="de-editor-meta-rail" id="deEditorMetaRail" aria-label="当前文档摘要">
+                          <span class="de-meta-chip"><span class="de-meta-chip-k">Slug</span> <code id="mainDocSummarySlug">—</code></span>
+                          <span class="de-meta-chip"><span class="de-meta-chip-k">章节数</span> <strong id="mainDocSummaryCount">0</strong></span>
+                          <span class="de-meta-chip de-meta-chip-wide"><span class="de-meta-chip-k">当前章节</span> <span id="mainDocSummarySection">未选择</span></span>
+                        </div>
                         <span class="dm-save-ind" id="mainDocSaveInd" aria-live="polite">
                           <span class="dm-save-dot" id="mainDocSaveDot"></span>
                           <span id="mainDocSaveTxt">已保存</span>
@@ -273,11 +295,6 @@
                         <span class="dm-doc-summary-pill dm-doc-summary-pill--warn admin-hidden" id="mainDocSummaryDirty">未保存</span>
                       </div>
                       <p class="dm-doc-summary-subline" id="mainDocSummarySubline">请选择章节后开始编辑。</p>
-                      <div class="dm-doc-summary-meta">
-                        <span class="dm-doc-summary-meta-item"><span class="dm-doc-summary-meta-label">Slug</span><code id="mainDocSummarySlug">—</code></span>
-                        <span class="dm-doc-summary-meta-item"><span class="dm-doc-summary-meta-label">章节数</span><strong id="mainDocSummaryCount">0</strong></span>
-                        <span class="dm-doc-summary-meta-item"><span class="dm-doc-summary-meta-label">当前章节</span><span id="mainDocSummarySection">未选择</span></span>
-                      </div>
                     </div>
                     <div class="dm-doc-summary-actions">
                       <button type="button" class="de-btn de-btn-accent" id="btnOpenFullMarkdown">整篇 Markdown</button>
@@ -298,7 +315,12 @@
                   </footer>
                 </div>
                 <aside class="de-props-panel open dm-props" id="mainDocPropsPanel" aria-label="章节属性与图片">
+                  <div class="dm-props-tabs" role="tablist" aria-label="右侧面板">
+                    <button type="button" class="dm-props-tab active" data-props-panel="all" id="dmPropsTabAll">章节与素材</button>
+                    <button type="button" class="dm-props-tab" data-props-panel="order" id="dmPropsTabOrder">顺序</button>
+                  </div>
                   <div class="de-props-inner">
+                    <div class="de-props-page de-props-page--main is-active" id="dePropsPageMain" data-props-page="all">
                     <div class="dm-props-header">
                       <span class="dm-props-h3">章节与素材</span>
                     </div>
@@ -316,6 +338,8 @@
                       <p class="de-panel-hint" id="adminImageCountHint" style="margin-top:6px;font-size:11px;color:var(--text-dim);">共 — 张</p>
                       <button type="button" class="de-btn de-btn-block de-btn-ghost" id="btnRefreshImages">刷新列表</button>
                     </div>
+                    </div>
+                    <div class="de-props-page de-props-page--order" id="dePropsPageOrder" data-props-page="order">
                     <div class="de-panel-section" id="mainDocOrderPanel">
                       <div class="de-panel-title">当前章节顺序</div>
                       <p class="de-panel-hint" id="mainDocOrderHint">请选择章节后调整其在当前文档中的位置。</p>
@@ -334,6 +358,7 @@
                         <button type="button" class="de-btn de-btn-ghost" id="btnMoveSectionDown" title="将当前选中章节下移">↓ 下移</button>
                       </div>
                       <button type="button" class="de-btn de-btn-block de-btn-danger-ghost" id="btnDeleteSection">删除当前章节</button>
+                    </div>
                     </div>
                   </div>
                 </aside>
@@ -1314,17 +1339,17 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/turndown@7.2.0/dist/turndown.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+  <script src="/lib/marked.min.js?v=20260416c"></script>
+  <script src="/lib/purify.min.js?v=20260416c"></script>
+  <script src="/lib/turndown.js?v=20260416c"></script>
+  <script src="/lib/quill.min.js?v=20260416c"></script>
   <script src="/js/admin-config-forms.js"></script>
   <script src="/js/lazy-images.js" defer></script>
   <script src="/js/admin-upload.js" defer></script>
   <script src="/js/admin-pages.js" defer></script>
   <script src="/js/admin-tools-nav.js" defer></script>
   <script src="/js/webauthn-client.js?v=20260324a"></script>
-  <script src="/js/admin.js?v=20260413e" defer></script>
+  <script src="/js/admin.js?v=20260416c" defer></script>
   <script src="/js/admin-upgrade.js?v=20260407c" defer></script>
 </body>
 </html>
