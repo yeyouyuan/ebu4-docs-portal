@@ -14,6 +14,7 @@ function createDocAdminService(opts) {
     docMd,
     siteDatabase,
   } = opts;
+  const MAIN_DOC_HISTORY_KEEP = 100;
 
   function readRawMarkdown(slug) {
     const s = slug || siteDatabase.getDefaultMainDocSlug();
@@ -48,10 +49,27 @@ function createDocAdminService(opts) {
     }
   }
 
-  function persistSections(sections, slug) {
+  function persistSections(sections, slug, historyMeta) {
     const s = slug || siteDatabase.getDefaultMainDocSlug();
+    const beforeRaw =
+      siteDatabase && siteDatabase.isSiteSqlite()
+        ? siteDatabase.getMainMarkdownForSlug(s) || ''
+        : '';
     const md = docMd.sectionsToMarkdown(sections);
     if (siteDatabase && siteDatabase.isSiteSqlite()) {
+      if (beforeRaw !== md && typeof siteDatabase.appendMainDocHistory === 'function') {
+        siteDatabase.appendMainDocHistory({
+          slug: s,
+          content: beforeRaw,
+          source: historyMeta && historyMeta.source ? historyMeta.source : 'docs.sections.persist',
+          actorUserId: historyMeta && historyMeta.actorUserId,
+          actorUsername: historyMeta && historyMeta.actorUsername,
+          summary: historyMeta && historyMeta.summary,
+        });
+        if (typeof siteDatabase.pruneMainDocHistory === 'function') {
+          siteDatabase.pruneMainDocHistory(s, MAIN_DOC_HISTORY_KEEP);
+        }
+      }
       siteDatabase.setMainMarkdownForSlug(s, md);
       reloadDocData();
       return;
@@ -69,9 +87,24 @@ function createDocAdminService(opts) {
     reloadDocData();
   }
 
-  function writeFullMarkdown(content, slug) {
+  function writeFullMarkdown(content, slug, historyMeta) {
     const s = slug || siteDatabase.getDefaultMainDocSlug();
     if (siteDatabase && siteDatabase.isSiteSqlite()) {
+      const body = content != null ? String(content) : '';
+      const beforeRaw = siteDatabase.getMainMarkdownForSlug(s) || '';
+      if (beforeRaw !== body && typeof siteDatabase.appendMainDocHistory === 'function') {
+        siteDatabase.appendMainDocHistory({
+          slug: s,
+          content: beforeRaw,
+          source: historyMeta && historyMeta.source ? historyMeta.source : 'docs.main.full_markdown',
+          actorUserId: historyMeta && historyMeta.actorUserId,
+          actorUsername: historyMeta && historyMeta.actorUsername,
+          summary: historyMeta && historyMeta.summary,
+        });
+        if (typeof siteDatabase.pruneMainDocHistory === 'function') {
+          siteDatabase.pruneMainDocHistory(s, MAIN_DOC_HISTORY_KEEP);
+        }
+      }
       siteDatabase.setMainMarkdownForSlug(s, content);
       reloadDocData();
       return;

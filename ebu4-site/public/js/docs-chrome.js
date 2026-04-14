@@ -228,18 +228,10 @@ async function doSearch(query) {
       const kind = r.kind || (r.id != null ? 'section' : 'page');
       const badge =
         kind === 'page' ? '<span class="search-result-badge" title="扩展页">扩展页</span>' : '';
-      let click;
-      if (kind === 'page' && r.slug) {
-        click = `location.href='/page/${encodeURIComponent(r.slug)}'; document.getElementById('searchResults').classList.remove('active');`;
-      } else if (typeof loadSection === 'function' && r.id != null) {
-        click = `loadSection(${r.id}); document.getElementById('searchResults').classList.remove('active');`;
-      } else if (r.slug) {
-        const href = JSON.stringify(buildDocsHref(r.slug, r.doc));
-        click = `location.href=${href}; document.getElementById('searchResults').classList.remove('active');`;
-      } else {
-        click = `document.getElementById('searchResults').classList.remove('active');`;
-      }
-      return `<div class="search-result-item" role="button" data-search-kind="${kind}" onclick="${click}">
+      const idAttr = r.id != null ? ` data-search-id="${String(r.id)}"` : '';
+      const slugAttr = r.slug != null ? ` data-search-slug="${escapeHtml(String(r.slug))}"` : '';
+      const docAttr = r.doc != null ? ` data-search-doc="${escapeHtml(String(r.doc))}"` : '';
+      return `<div class="search-result-item" role="button" data-search-kind="${kind}"${idAttr}${slugAttr}${docAttr}>
       <div class="title">${badge}${escapeHtml(r.title)}</div>
       <div class="snippet">${snippet}</div>
     </div>`;
@@ -268,6 +260,34 @@ function initSearchUI() {
     if (!e.target.closest('.search-box')) {
       searchResults.classList.remove('active');
     }
+  });
+
+  searchResults.addEventListener('click', (e) => {
+    const item = e.target.closest('.search-result-item');
+    if (!item) return;
+    const kind = item.getAttribute('data-search-kind') || '';
+    const idRaw = item.getAttribute('data-search-id');
+    const slug = item.getAttribute('data-search-slug') || '';
+    const doc = item.getAttribute('data-search-doc') || '';
+    if (kind === 'page' && slug) {
+      location.href = '/page/' + encodeURIComponent(slug);
+      searchResults.classList.remove('active');
+      return;
+    }
+    if (typeof loadSection === 'function' && idRaw != null && idRaw !== '') {
+      const id = parseInt(idRaw, 10);
+      if (!Number.isNaN(id)) {
+        loadSection(id);
+        searchResults.classList.remove('active');
+        return;
+      }
+    }
+    if (slug) {
+      location.href = buildDocsHref(slug, doc);
+      searchResults.classList.remove('active');
+      return;
+    }
+    searchResults.classList.remove('active');
   });
 
   document.addEventListener('keydown', (e) => {

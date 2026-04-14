@@ -46,6 +46,7 @@
     addCss('/css/admin-shell-ebu4.css');
     addCss('/css/admin-hub.css');
     addCss('/css/admin-dashboard.css');
+    addCss('/css/admin-site-settings.css');
     addCss('/css/doc-management.css');
     addCss('/lib/quill.snow.css');
   })();
@@ -111,10 +112,10 @@
       <div class="ry-layout">
         <aside class="ry-sidebar">
           <div class="ry-sidebar-logo">
-            <span class="ry-logo-mark">E9</span>
+            <span class="ry-logo-mark" id="adminSidebarLogoMark">E9</span>
             <div class="ry-logo-text">
-              <span class="ry-logo-title">EBU4 文档站</span>
-              <span class="ry-logo-sub">内容管理</span>
+              <span class="ry-logo-title" id="adminSidebarLogoTitle">EBU4 文档站</span>
+              <span class="ry-logo-sub" id="adminSidebarLogoSub">内容管理</span>
             </div>
           </div>
           <nav class="ry-menu" id="ryMenuNav" aria-label="侧边菜单">
@@ -281,6 +282,7 @@
                           <span id="mainDocSaveTxt">已保存</span>
                         </span>
                         <span class="admin-msg de-toolbar-msg" id="docSectionMsg"></span>
+                        <button type="button" class="de-btn de-btn-ghost de-btn-history" id="btnMainDocHistory" onclick="window.openMainDocHistoryModal && window.openMainDocHistoryModal()">编辑历史</button>
                         <button type="button" class="de-btn de-btn-ghost" id="btnMainToggleProps">属性 <kbd class="de-kbd">⌘J</kbd></button>
                         <button type="button" class="de-btn de-btn-accent" id="btnSaveSection">保存</button>
                       </div>
@@ -304,6 +306,37 @@
                   <div class="de-editor-scroll">
                     <div class="de-editor-content de-editor-content--main">
                       <div id="mainDocQuillWrap" class="main-doc-quill-wrap admin-page-quill-wrap de-quill-wrap">
+                        <div id="mainDocQuillToolbar" class="ql-toolbar ql-snow" aria-label="富文本工具栏">
+                          <span class="ql-formats">
+                            <select class="ql-header">
+                              <option selected></option>
+                              <option value="1"></option>
+                              <option value="2"></option>
+                              <option value="3"></option>
+                            </select>
+                          </span>
+                          <span class="ql-formats">
+                            <button type="button" class="ql-bold"></button>
+                            <button type="button" class="ql-italic"></button>
+                            <button type="button" class="ql-underline"></button>
+                            <button type="button" class="ql-strike"></button>
+                          </span>
+                          <span class="ql-formats">
+                            <button type="button" class="ql-list" value="ordered"></button>
+                            <button type="button" class="ql-list" value="bullet"></button>
+                            <button type="button" class="ql-indent" value="-1"></button>
+                            <button type="button" class="ql-indent" value="+1"></button>
+                          </span>
+                          <span class="ql-formats">
+                            <button type="button" class="ql-blockquote"></button>
+                            <button type="button" class="ql-code-block"></button>
+                          </span>
+                          <span class="ql-formats">
+                            <button type="button" class="ql-link"></button>
+                            <button type="button" class="ql-image"></button>
+                            <button type="button" class="ql-clean"></button>
+                          </span>
+                        </div>
                         <div id="mainDocQuill" class="admin-quill-root" aria-label="主文档章节正文"></div>
                       </div>
                       <textarea id="docSectionTa" class="admin-hidden de-main-md-ta admin-textarea" aria-hidden="true" tabindex="-1" spellcheck="false" rows="18"></textarea>
@@ -415,6 +448,7 @@
                     <input type="search" id="extraPageFilter" class="admin-input de-search" placeholder="搜索标题、slug、标签…" autocomplete="off" />
                     <span class="de-count" id="extraPageListCount" aria-live="polite">0 篇</span>
                   </div>
+                  <div id="extraPageTagFilters" class="extra-pages-tag-filters" aria-label="按标签分类"></div>
                   <ul id="extraPageList" class="extra-pages-list de-extra-page-list" role="listbox" aria-label="扩展页面列表"></ul>
                   <button type="button" class="de-btn de-btn-accent de-btn-block" id="btnExtraPageNew">+ 新建页面</button>
                 </aside>
@@ -573,6 +607,15 @@
             <span class="admin-msg" id="toolsSiteMsg"></span>
           </div>
         </div>
+        <div class="admin-card">
+          <span class="admin-label">技术文档投稿审核</span>
+          <p class="admin-tools-hint">前台用户提交的 Markdown 文档会进入审核队列；审核通过后自动发布到主文档或扩展文档。</p>
+          <div class="admin-row" style="gap:8px;flex-wrap:wrap">
+            <button type="button" class="admin-btn-ghost" id="btnRefreshDocSubmissions">刷新列表</button>
+            <span class="admin-msg" id="docSubmissionsMsg"></span>
+          </div>
+          <div id="docSubmissionsList" class="doc-submissions-list"></div>
+        </div>
         <div class="admin-card" id="toolsNavStructuredCard">
           <span class="admin-label">分类与链接（结构化）</span>
           <p class="admin-tools-hint">分类顺序与门户「工具」面板标签一致；链接需含 <code>https://</code>。保存时保留原 JSON 中的 <code>favicon_map</code>（体积大时勿用整文件上传覆盖除非有意）。</p>
@@ -601,7 +644,36 @@
 
       <div class="admin-panel" id="panelLanding">
         <div class="admin-card">
+          <p class="admin-tools-hint"><strong>新手建议：</strong>优先填写「首屏 Slide 1」和「行动 Slide 5」，其余保留默认即可快速上线；改动后可直接打开 <code>/index</code> 预览效果。</p>
           <p class="admin-tools-hint">对应 <code>public/data/landing.json</code>，保存时由表单生成，无需手写 JSON。</p>
+          <div class="admin-row" style="margin-bottom:10px;gap:8px;flex-wrap:wrap">
+            <button type="button" class="admin-btn-primary" id="btnLandingModeBasic">基础模式（推荐）</button>
+            <button type="button" class="admin-btn-ghost" id="btnLandingModeAdvanced">高级模式</button>
+            <select id="landingTemplatePreset" class="admin-input" style="min-width:220px;max-width:320px">
+              <option value="">选择模板…</option>
+              <option value="tech-docs">技术文档型</option>
+              <option value="product-launch">产品发布型</option>
+              <option value="enterprise-portal">企业门户型</option>
+            </select>
+            <button type="button" class="admin-btn-ghost" id="btnApplyLandingTemplate">套用模板</button>
+          </div>
+          <div id="landingBasicEditor" class="admin-form-grid" style="margin-bottom:10px">
+            <label class="admin-field"><span class="admin-field-label">页面标题</span><input type="text" id="land_basic_pageTitle" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">品牌主标题</span><input type="text" id="land_basic_brandTitle" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">首屏主标题</span><input type="text" id="land_basic_s1_title" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">首屏副标题</span><input type="text" id="land_basic_s1_tagline" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field admin-field-full"><span class="admin-field-label">首屏简介</span><textarea id="land_basic_s1_desc" class="admin-input" rows="2" spellcheck="true"></textarea></label>
+            <label class="admin-field"><span class="admin-field-label">主按钮文案</span><input type="text" id="land_basic_btn_primary" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">次按钮跳转链接</span><input type="text" id="land_basic_btn_secondary_url" class="admin-input" autocomplete="off" placeholder="https://..." /></label>
+            <label class="admin-field"><span class="admin-field-label">亮点1 数字</span><input type="text" id="land_basic_stat0_num" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">亮点1 标题</span><input type="text" id="land_basic_stat0_label" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">亮点2 数字</span><input type="text" id="land_basic_stat1_num" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">亮点2 标题</span><input type="text" id="land_basic_stat1_label" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">行动区标题</span><input type="text" id="land_basic_cta_title" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">行动区文案</span><input type="text" id="land_basic_cta_desc" class="admin-input" autocomplete="off" /></label>
+            <label class="admin-field"><span class="admin-field-label">行动区按钮文案</span><input type="text" id="land_basic_cta_btn" class="admin-input" autocomplete="off" /></label>
+          </div>
+          <div id="landingAdvancedFields" class="admin-hidden">
           <details class="admin-details" open><summary>全站与导航</summary>
           <div class="admin-form-grid">
           <label class="admin-field"><span class="admin-field-label">浏览器标题 meta.pageTitle</span><input type="text" id="land_meta_pageTitle" class="admin-input" autocomplete="off" placeholder="" /></label>
@@ -713,6 +785,7 @@
           <label class="admin-field"><span class="admin-field-label">特性3 标题</span><input type="text" id="land_s5_feat2_title" class="admin-input" autocomplete="off" placeholder="" /></label>
           <label class="admin-field"><span class="admin-field-label">特性3 描述</span><input type="text" id="land_s5_feat2_desc" class="admin-input" autocomplete="off" placeholder="" /></label>
           </div></details>
+          </div>
           <div class="admin-row">
             <button type="button" class="admin-btn-primary" id="btnSaveLanding">保存门户配置</button>
             <span class="admin-msg" id="landingMsg"></span>
@@ -883,38 +956,7 @@
       </div>
 
       <div class="admin-panel" id="panelSite">
-        <div class="admin-card admin-stats ry-stats-card" id="statsBox">
-          <span class="admin-label">站点数据概览</span>
-          <div id="statsInner">加载中…</div>
-        </div>
-        <div class="admin-card">
-          <p class="admin-tools-hint">默认仅关闭门户首页（<code>/</code>、<code>/index</code>），文档站仍可访问；勾选「全站维护」后 <code>/docs</code> 与公开接口也会 503。<code>/api/health</code>、<code>/admin</code>、<code>/api/admin</code> 始终可用。配置存于 <code>site_kv.site_settings</code> 或 <code>public/data/site-settings.json</code>。</p>
-          <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="site_maint_enabled" /> <span class="admin-field-label" style="display:inline">启用维护模式</span></label>
-          <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="site_maint_full_site" /> <span class="admin-field-label" style="display:inline">全站维护（含 <code>/docs</code> 文档站与公开接口；不勾选则仅关闭门户首页 <code>/</code>、<code>/index</code>）</span></label>
-          <label class="admin-field admin-field-full"><span class="admin-field-label">维护提示文案</span><textarea id="site_maint_message" class="admin-input" rows="3" spellcheck="true" placeholder="站点维护中，请稍后再试。"></textarea></label>
-          <label class="admin-field admin-field-full">
-            <span class="admin-field-label">注册形式</span>
-            <select id="site_registration_mode" class="admin-input">
-              <option value="invitation">邀请制（须有效邀请码）</option>
-              <option value="open">自主注册（可不填邀请码；若填写则仍消耗邀请码并采用码上默认角色）</option>
-            </select>
-          </label>
-          <p class="admin-tools-hint" style="margin-top: -4px">作用于公开页 <code>/register</code> 与 <code>POST /api/register</code>。全站维护开启时注册接口仍可能受限，请按需配置。</p>
-        </div>
-        <div class="admin-card admin-hidden" id="siteEmbedAiCard">
-          <span class="admin-label">站点设计 · 前台嵌入（右下角 AI 等）</span>
-          <p class="admin-tools-hint">以下内容会插入<strong>门户首页</strong>（<code>/index</code>）、<strong>文档站</strong>（<code>/docs</code>）、<strong>扩展页</strong>等前台 HTML 的 <code>&lt;/body&gt;</code> 前；若模板中含占位符 <code>&lt;!-- EBU4_EMBED_AI_SLOT --&gt;</code> 则插入该处。仅<strong>管理员</strong>可编辑；请只使用可信来源的脚本。</p>
-          <label class="admin-field admin-field-full">
-            <span class="admin-field-label">嵌入代码（HTML / script）</span>
-            <textarea id="site_embed_ai_chat" class="admin-input mono" rows="8" spellcheck="false" placeholder="例如：&#10;&lt;script async defer src=&quot;https://example.com/chat/embed.js&quot;&gt;&lt;/script&gt;"></textarea>
-          </label>
-        </div>
-        <div class="admin-card">
-          <div class="admin-row">
-            <button type="button" class="admin-btn-primary" id="btnSaveSiteSettings">保存站点设置</button>
-            <span class="admin-msg" id="siteSettingsMsg"></span>
-          </div>
-        </div>
+        <div id="siteSettingsPanelMount"></div>
       </div>
 
       <div class="admin-panel admin-hidden" id="panelUpgrade">
@@ -1100,38 +1142,54 @@
       </div>
 
       <div class="admin-panel" id="panelSeo">
-        <div class="admin-card">
-          <p class="admin-tools-hint">对应 <code>public/data/seo.json</code>（SQLite 时为 <code>site_kv.seo</code>），控制文档站与门户的标题、描述、Open Graph 及 <code>/robots.txt</code>、<code>/sitemap.xml</code>。<strong>sitemap</strong> 默认由服务端按主文档章节自动生成，可在此追加路径或关闭自动生成。</p>
-          <span class="admin-label">站点与规范 URL</span>
-          <div class="admin-form-grid">
-            <label class="admin-field admin-field-full"><span class="admin-field-label">canonicalBase（生产环境填 https://域名）</span><input type="text" id="seo_canonicalBase" class="admin-input" autocomplete="off" /></label>
+        <div class="admin-card seo-panel-card">
+          <div class="seo-panel-head">
+            <span class="admin-label">SEO 配置中心</span>
+            <p class="admin-tools-hint">对应 <code>public/data/seo.json</code>（SQLite 时为 <code>site_kv.seo</code>），统一维护文档站与门户的标题、描述、OG 信息，以及 <code>/robots.txt</code> 与 <code>/sitemap.xml</code>。</p>
           </div>
-          <details class="admin-details" open><summary>文档站 /docs</summary>
-          <div class="admin-form-grid">
-            <label class="admin-field admin-field-full"><span class="admin-field-label">页面标题</span><input type="text" id="seo_docs_title" class="admin-input" autocomplete="off" /></label>
-            <label class="admin-field admin-field-full"><span class="admin-field-label">描述 description</span><textarea id="seo_docs_description" class="admin-input" rows="3" spellcheck="true"></textarea></label>
-            <label class="admin-field admin-field-full"><span class="admin-field-label">关键词 keywords（逗号分隔）</span><input type="text" id="seo_docs_keywords" class="admin-input" autocomplete="off" /></label>
-            <label class="admin-field"><span class="admin-field-label">分享图 og:image</span><input type="text" id="seo_docs_ogImage" class="admin-input" autocomplete="off" /></label>
-            <label class="admin-field"><span class="admin-field-label">Twitter 卡片类型</span><input type="text" id="seo_docs_twitterCard" class="admin-input" autocomplete="off" /></label>
-            <label class="admin-field"><span class="admin-field-label">meta robots</span><input type="text" id="seo_docs_robots" class="admin-input" autocomplete="off" /></label>
-          </div></details>
-          <details class="admin-details" open><summary>门户 /index</summary>
-          <div class="admin-form-grid">
-            <label class="admin-field admin-field-full"><span class="admin-field-label">页面标题</span><input type="text" id="seo_landing_title" class="admin-input" autocomplete="off" /></label>
-            <label class="admin-field admin-field-full"><span class="admin-field-label">描述 description</span><textarea id="seo_landing_description" class="admin-input" rows="3" spellcheck="true"></textarea></label>
-            <label class="admin-field admin-field-full"><span class="admin-field-label">关键词 keywords</span><input type="text" id="seo_landing_keywords" class="admin-input" autocomplete="off" /></label>
-            <label class="admin-field"><span class="admin-field-label">分享图 og:image</span><input type="text" id="seo_landing_ogImage" class="admin-input" autocomplete="off" /></label>
-            <label class="admin-field"><span class="admin-field-label">Twitter 卡片类型</span><input type="text" id="seo_landing_twitterCard" class="admin-input" autocomplete="off" /></label>
-            <label class="admin-field"><span class="admin-field-label">meta robots</span><input type="text" id="seo_landing_robots" class="admin-input" autocomplete="off" /></label>
-          </div></details>
-          <details class="admin-details" open><summary>robots.txt 与 sitemap</summary>
-          <div class="admin-form-grid">
-            <label class="admin-field admin-field-full"><span class="admin-field-label">robots.txt 全文</span><textarea id="seo_robotsTxt" class="admin-input" rows="6" spellcheck="false"></textarea></label>
-            <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="seo_sitemapAuto" checked /> <span class="admin-field-label" style="display:inline"><strong>sitemap 自动生成</strong>（<code>sitemapAuto</code>）：包含 <code>/</code>、<code>/index</code>、各主文档章节 <code>/docs#…</code> / <code>/docs?doc=…#…</code>，并与下方<strong>额外路径</strong>、扩展页合并去重</span></label>
-            <label class="admin-field admin-field-full"><span class="admin-field-label">sitemap 额外路径（每行一条，可选）</span><textarea id="seo_sitemapPaths" class="admin-input" rows="4" spellcheck="false" placeholder="例如：/register 或自定义落地页"></textarea></label>
-            <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="seo_includeExtraPagesInSearch" checked /> <span class="admin-field-label" style="display:inline">文档站搜索包含已发布扩展页（<code>includeExtraPagesInSearch</code>）</span></label>
-            <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="seo_includeExtraPagesInSitemap" checked /> <span class="admin-field-label" style="display:inline">sitemap 自动包含扩展页 URL（<code>/page/slug</code>，<code>includeExtraPagesInSitemap</code>）</span></label>
-          </div></details>
+          <section class="seo-block seo-block-canonical">
+            <span class="seo-block-title">站点规范地址</span>
+            <div class="admin-form-grid">
+              <label class="admin-field admin-field-full"><span class="admin-field-label">canonicalBase（生产环境填 https://域名）</span><input type="text" id="seo_canonicalBase" class="admin-input" autocomplete="off" placeholder="例如：https://docs.example.com" /></label>
+            </div>
+          </section>
+          <div class="seo-grid-two">
+            <section class="seo-block">
+              <span class="seo-block-title">文档站 /docs</span>
+              <div class="admin-form-grid">
+                <label class="admin-field admin-field-full"><span class="admin-field-label">页面标题</span><input type="text" id="seo_docs_title" class="admin-input" autocomplete="off" /></label>
+                <label class="admin-field admin-field-full"><span class="admin-field-label">描述 description</span><textarea id="seo_docs_description" class="admin-input" rows="3" spellcheck="true"></textarea></label>
+                <label class="admin-field admin-field-full"><span class="admin-field-label">关键词 keywords（逗号分隔）</span><input type="text" id="seo_docs_keywords" class="admin-input" autocomplete="off" /></label>
+                <label class="admin-field"><span class="admin-field-label">分享图 og:image</span><input type="text" id="seo_docs_ogImage" class="admin-input" autocomplete="off" /></label>
+                <label class="admin-field"><span class="admin-field-label">Twitter 卡片类型</span><input type="text" id="seo_docs_twitterCard" class="admin-input" autocomplete="off" /></label>
+                <label class="admin-field"><span class="admin-field-label">meta robots</span><input type="text" id="seo_docs_robots" class="admin-input" autocomplete="off" /></label>
+              </div>
+            </section>
+            <section class="seo-block">
+              <span class="seo-block-title">门户 /index</span>
+              <div class="admin-form-grid">
+                <label class="admin-field admin-field-full"><span class="admin-field-label">页面标题</span><input type="text" id="seo_landing_title" class="admin-input" autocomplete="off" /></label>
+                <label class="admin-field admin-field-full"><span class="admin-field-label">描述 description</span><textarea id="seo_landing_description" class="admin-input" rows="3" spellcheck="true"></textarea></label>
+                <label class="admin-field admin-field-full"><span class="admin-field-label">关键词 keywords</span><input type="text" id="seo_landing_keywords" class="admin-input" autocomplete="off" /></label>
+                <label class="admin-field"><span class="admin-field-label">分享图 og:image</span><input type="text" id="seo_landing_ogImage" class="admin-input" autocomplete="off" /></label>
+                <label class="admin-field"><span class="admin-field-label">Twitter 卡片类型</span><input type="text" id="seo_landing_twitterCard" class="admin-input" autocomplete="off" /></label>
+                <label class="admin-field"><span class="admin-field-label">meta robots</span><input type="text" id="seo_landing_robots" class="admin-input" autocomplete="off" /></label>
+              </div>
+            </section>
+          </div>
+          <section class="seo-block seo-block-robots">
+            <span class="seo-block-title">robots.txt 与 sitemap</span>
+            <div class="admin-row" style="margin-top:0;margin-bottom:8px">
+              <button type="button" class="admin-btn-ghost" id="btnSeoAutoGenerate">自动生成 robots / sitemap</button>
+            </div>
+            <div class="admin-form-grid">
+              <label class="admin-field admin-field-full"><span class="admin-field-label">robots.txt 全文</span><textarea id="seo_robotsTxt" class="admin-input" rows="6" spellcheck="false"></textarea></label>
+              <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="seo_sitemapAuto" checked /> <span class="admin-field-label" style="display:inline"><strong>sitemap 自动生成</strong>（<code>sitemapAuto</code>）：包含 <code>/</code>、<code>/index</code>、各主文档章节 <code>/docs#…</code> / <code>/docs?doc=…#…</code>，并与下方<strong>额外路径</strong>、扩展页合并去重</span></label>
+              <label class="admin-field admin-field-full"><span class="admin-field-label">sitemap 额外路径（每行一条，可选）</span><textarea id="seo_sitemapPaths" class="admin-input" rows="4" spellcheck="false" placeholder="例如：/register 或自定义落地页"></textarea></label>
+              <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="seo_includeExtraPagesInSearch" checked /> <span class="admin-field-label" style="display:inline">文档站搜索包含已发布扩展页（<code>includeExtraPagesInSearch</code>）</span></label>
+              <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="seo_includeExtraPagesInSitemap" checked /> <span class="admin-field-label" style="display:inline">sitemap 自动包含扩展页 URL（<code>/page/slug</code>，<code>includeExtraPagesInSitemap</code>）</span></label>
+            </div>
+          </section>
           <div class="admin-row">
             <button type="button" class="admin-btn-primary" id="btnSaveSeo">保存 SEO</button>
             <span class="admin-msg" id="seoMsg"></span>
@@ -1154,6 +1212,17 @@
         <button type="button" class="de-btn de-btn-ghost de-btn-sm" id="btnImageGalleryClose" aria-label="关闭">关闭</button>
       </div>
       <p class="admin-docs-hint de-gallery-modal-lead">点击缩略图在右侧查看大图、地址与大小；可复制 Markdown 链接或删除文件。</p>
+      <div class="de-gallery-toolbar" role="group" aria-label="图库筛选与排序">
+        <input type="search" id="imageGallerySearch" class="admin-input de-gallery-search" placeholder="搜索文件名..." autocomplete="off" />
+        <select id="imageGallerySort" class="admin-input de-gallery-sort" aria-label="排序方式">
+          <option value="newest">最近上传</option>
+          <option value="nameAsc">文件名 A-Z</option>
+          <option value="sizeDesc">大小从大到小</option>
+          <option value="sizeAsc">大小从小到大</option>
+        </select>
+        <span id="imageGalleryCountInModal" class="de-gallery-count">共 — 张</span>
+        <button type="button" class="de-btn de-btn-ghost de-btn-sm" id="btnImageGalleryRefresh">刷新</button>
+      </div>
       <div class="de-gallery-modal-layout">
         <div class="de-gallery-grid-wrap">
           <div id="imageGalleryGridHost" class="de-gallery-grid-host"></div>
@@ -1170,6 +1239,7 @@
               <dt>URL</dt><dd><code id="imageGalleryDetailUrl" class="de-gallery-detail-url"></code></dd>
             </dl>
             <div class="de-gallery-detail-actions">
+              <button type="button" class="de-btn de-btn-ghost" id="btnImageGalleryOpen">查看原图</button>
               <button type="button" class="de-btn de-btn-accent" id="btnImageGalleryCopyMd">复制 Markdown</button>
               <button type="button" class="de-btn de-btn-danger-ghost" id="btnImageGalleryDelete">删除</button>
             </div>
@@ -1199,6 +1269,59 @@
       </div>
       <div class="form-actions" style="margin-top:16px;justify-content:flex-end;gap:10px;display:flex;flex-wrap:wrap;align-items:center">
         <button type="button" class="btn btn-ghost" id="btnMainDocsModalClose">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mainDocHistoryModal" class="modal-bg" hidden>
+    <div class="modal admin-hub modal--lg main-doc-history-modal" role="dialog" aria-modal="true" aria-labelledby="mainDocHistoryModalTitle">
+      <h3 id="mainDocHistoryModalTitle">主文档编辑历史</h3>
+      <p class="admin-docs-hint" id="mainDocHistoryModalHint" style="margin:8px 0 12px">当前文档：—</p>
+      <div class="admin-row" style="margin-top:0;margin-bottom:10px">
+        <button type="button" class="de-btn de-btn-ghost de-btn-sm" id="btnMainDocHistoryRefresh">刷新历史</button>
+      </div>
+      <div class="admin-form-grid" style="grid-template-columns:minmax(320px, 1fr) minmax(340px, 1.2fr);align-items:start;">
+        <div class="admin-table-wrap main-doc-history-list-wrap">
+          <table class="admin-table main-doc-history-table">
+            <thead>
+              <tr><th>时间</th><th>来源</th><th>操作者</th><th>大小</th></tr>
+            </thead>
+            <tbody id="mainDocHistoryTableBody"></tbody>
+          </table>
+        </div>
+        <div class="main-doc-history-preview-wrap">
+          <div class="admin-sub" id="mainDocHistoryPreviewMeta" style="margin-bottom:8px">请选择左侧版本查看内容</div>
+          <textarea id="mainDocHistoryPreview" class="admin-input admin-textarea main-doc-history-preview" rows="16" spellcheck="false" readonly></textarea>
+          <div class="admin-row" style="margin-top:10px">
+            <button type="button" class="de-btn de-btn-accent" id="btnMainDocHistoryRollback" disabled>回滚到此版本</button>
+            <span class="admin-msg" id="mainDocHistoryMsg"></span>
+          </div>
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:16px;justify-content:flex-end;gap:10px;display:flex;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn btn-ghost" id="btnMainDocHistoryClose">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminConfirmModal" class="modal-bg" hidden>
+    <div class="modal admin-hub modal--md admin-mini-modal" role="dialog" aria-modal="true" aria-labelledby="adminConfirmTitle">
+      <h3 id="adminConfirmTitle">操作确认</h3>
+      <p id="adminConfirmMessage" class="admin-docs-hint" style="margin:8px 0 14px;white-space:pre-line;"></p>
+      <div class="form-actions" style="margin-top:8px;justify-content:flex-end;gap:10px;display:flex;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn btn-ghost" id="btnAdminConfirmAlt" hidden></button>
+        <button type="button" class="btn btn-ghost" id="btnAdminConfirmCancel">取消</button>
+        <button type="button" class="btn btn-primary" id="btnAdminConfirmOk">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminAlertModal" class="modal-bg" hidden>
+    <div class="modal admin-hub modal--md admin-mini-modal" role="dialog" aria-modal="true" aria-labelledby="adminAlertTitle">
+      <h3 id="adminAlertTitle">提示</h3>
+      <p id="adminAlertMessage" class="admin-docs-hint" style="margin:8px 0 14px;white-space:pre-line;"></p>
+      <div class="form-actions" style="margin-top:8px;justify-content:flex-end;gap:10px;display:flex;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn btn-primary" id="btnAdminAlertOk">我知道了</button>
       </div>
     </div>
   </div>
@@ -1348,6 +1471,7 @@
   <script src="/js/admin-upload.js" defer></script>
   <script src="/js/admin-pages.js" defer></script>
   <script src="/js/admin-tools-nav.js" defer></script>
+  <script src="/js/admin-site-settings.js" defer></script>
   <script src="/js/webauthn-client.js?v=20260324a"></script>
   <script src="/js/admin.js?v=20260416c" defer></script>
   <script src="/js/admin-upgrade.js?v=20260407c" defer></script>

@@ -47,6 +47,10 @@
       </div>
     </div>
     <div class="navbar-right">
+      <button type="button" class="nav-pill nav-pill-action" id="btnOpenDocSubmit">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        提交技术文档
+      </button>
       <a class="nav-pill" href="https://e-cloudstore.com/e9/index2.html" target="_blank">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L13 4V10Q13 13 7 14Q1 13 1 10V4L7 1Z" stroke="currentColor" stroke-width="1.2"/></svg>
         E9 技术站
@@ -78,6 +82,7 @@
       <div class="sidebar-header">
         <span class="sidebar-label">文档导航</span>
         <select id="publicDocPicker" class="public-doc-picker" hidden aria-label="选择主文档"></select>
+        <div id="publicDocPublishMeta" class="sidebar-doc-meta" hidden></div>
       </div>
       <div class="sidebar-content" id="sidebarNav">
         <div class="sidebar-loading" aria-live="polite">
@@ -132,6 +137,41 @@
     <div class="status-sep"></div>
     <div class="status-item right">
       <span class="site-footer-brand">Ecology E9 Platform</span>
+    </div>
+  </div>
+
+  <div class="public-modal" id="docSubmitModal" hidden>
+    <div class="public-modal-dialog">
+      <div class="public-modal-head">
+        <strong>提交技术文档</strong>
+        <button type="button" class="public-modal-close" id="btnCloseDocSubmit" aria-label="关闭">×</button>
+      </div>
+      <div class="public-modal-body">
+        <label class="public-field"><span>标题</span><input id="docSubmitTitle" class="public-input" type="text" maxlength="120" placeholder="例如：E9 流程引擎二开指南" /></label>
+        <label class="public-field"><span>投稿类型</span>
+          <select id="docSubmitTargetType" class="public-input">
+            <option value="main">主文档</option>
+            <option value="extra">扩展文档</option>
+          </select>
+        </label>
+        <label class="public-field" id="docSubmitMainWrap"><span>目标主文档</span>
+          <select id="docSubmitMainDoc" class="public-input"></select>
+        </label>
+        <label class="public-field"><span>标签（逗号分隔）</span><input id="docSubmitTags" class="public-input" type="text" placeholder="E9, 二开, 流程" /></label>
+        <div class="public-field">
+          <span>Markdown 文件（.md）</span>
+          <input id="docSubmitFile" class="public-input" type="file" accept=".md,text/markdown" />
+        </div>
+        <div class="public-grid2">
+          <label class="public-field"><span>提交人</span><input id="docSubmitName" class="public-input" type="text" maxlength="40" placeholder="可选" /></label>
+          <label class="public-field"><span>联系方式</span><input id="docSubmitContact" class="public-input" type="text" maxlength="80" placeholder="邮箱/微信（可选）" /></label>
+        </div>
+        <div class="public-submit-msg" id="docSubmitMsg" aria-live="polite"></div>
+      </div>
+      <div class="public-modal-foot">
+        <button type="button" class="home-btn ghost" id="btnCancelDocSubmit">取消</button>
+        <button type="button" class="home-btn primary" id="btnDoDocSubmit">提交审核</button>
+      </div>
     </div>
   </div>
 

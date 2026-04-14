@@ -256,6 +256,16 @@ function registerAdminRoutes(app, ctx) {
     return docAdmin.readSectionsFromDisk(s).length;
   }
 
+  function historyActorMeta(req, source, summary) {
+    const u = req && req.adminUser ? req.adminUser : null;
+    return {
+      source: String(source || 'manual'),
+      summary: summary != null ? String(summary) : '',
+      actorUserId: u && Number.isFinite(Number(u.userId)) ? Number(u.userId) : null,
+      actorUsername: u && u.username ? String(u.username) : '',
+    };
+  }
+
   const MIME_TO_EXT = {
     'image/jpeg': '.jpg',
     'image/png': '.png',
@@ -528,16 +538,65 @@ function registerAdminRoutes(app, ctx) {
 
   /** 站点设置与审计：单独 Router 且靠前注册，避免在部分环境下落到 SPA 兜底 */
   const siteMetaRouter = express.Router();
+  function readCurrentSiteSettingsRaw() {
+    let raw = null;
+    if (siteDatabase.isSiteSqlite()) {
+      const kv = siteDatabase.getKv('site_settings');
+      if (kv) raw = JSON.parse(kv);
+    } else if (fs.existsSync(SITE_SETTINGS_PATH)) {
+      raw = JSON.parse(fs.readFileSync(SITE_SETTINGS_PATH, 'utf-8'));
+    }
+    return raw;
+  }
+  function writeCurrentSiteSettingsNormalized(normalized) {
+    const out = JSON.stringify(normalized);
+    if (siteDatabase.isSiteSqlite()) {
+      siteDatabase.setKv('site_settings', out);
+      return;
+    }
+    const dir = path.dirname(SITE_SETTINGS_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(SITE_SETTINGS_PATH, out, 'utf-8');
+  }
+  function siteSettingsRiskFlags(prev, next) {
+    const flags = [];
+    const p = prev && typeof prev === 'object' ? prev : {};
+    const n = next && typeof next === 'object' ? next : {};
+    if (!!(p.homepage && p.homepage.enabled) !== !!(n.homepage && n.homepage.enabled)) {
+      flags.push('homepage.enabled');
+    }
+    if (
+      !!(p.maintenance && p.maintenance.enabled) !==
+      !!(n.maintenance && n.maintenance.enabled)
+    ) {
+      flags.push('maintenance.enabled');
+    }
+    if (
+      !!(p.maintenance && p.maintenance.fullSite) !==
+      !!(n.maintenance && n.maintenance.fullSite)
+    ) {
+      flags.push('maintenance.fullSite');
+    }
+    if (((p.embed && p.embed.aiChatHtml) || '') !== ((n.embed && n.embed.aiChatHtml) || '')) {
+      flags.push('embed.aiChatHtml');
+    }
+    return flags;
+  }
+  function siteSettingsWarnings(next) {
+    const out = [];
+    if (next && next.maintenance && next.maintenance.enabled && next.maintenance.fullSite) {
+      out.push('全站维护已开启：/docs 与公开 API 将返回 503。');
+    }
+    if (next && next.homepage && next.homepage.enabled === false) {
+      out.push('门户首页已关闭：访问 / 与 /index 将重定向到 /docs。');
+    }
+    return out;
+  }
   /** 站点设置：管理员或（编辑且配置开启 siteSettings） */
   siteMetaRouter.get('/site-settings', requireAdmin, requireAdminOrEditorCapability('siteSettings'), (req, res) => {
     try {
       let raw = null;
-      if (siteDatabase.isSiteSqlite()) {
-        const kv = siteDatabase.getKv('site_settings');
-        if (kv) raw = JSON.parse(kv);
-      } else if (fs.existsSync(SITE_SETTINGS_PATH)) {
-        raw = JSON.parse(fs.readFileSync(SITE_SETTINGS_PATH, 'utf-8'));
-      }
+      raw = readCurrentSiteSettingsRaw();
       const normalized = normalizeSiteSettings(raw);
       const isAdmin = req.adminUser && req.adminUser.role === 'admin';
       if (!isAdmin) {
@@ -566,12 +625,7 @@ function registerAdminRoutes(app, ctx) {
         }
         let prev = {};
         try {
-          if (siteDatabase.isSiteSqlite()) {
-            const raw = siteDatabase.getKv('site_settings');
-            if (raw) prev = JSON.parse(raw);
-          } else if (fs.existsSync(SITE_SETTINGS_PATH)) {
-            prev = JSON.parse(fs.readFileSync(SITE_SETTINGS_PATH, 'utf-8'));
-          }
+          prev = readCurrentSiteSettingsRaw() || {};
         } catch (_) {}
         const merged = Object.assign({}, prev, body);
         if (body.maintenance && typeof body.maintenance === 'object') {
@@ -598,14 +652,7 @@ function registerAdminRoutes(app, ctx) {
           merged.embed = Object.assign({}, prev.embed || {}, body.embed);
         }
         const normalized = normalizeSiteSettings(merged);
-        const out = JSON.stringify(normalized);
-        if (siteDatabase.isSiteSqlite()) {
-          siteDatabase.setKv('site_settings', out);
-        } else {
-          const dir = path.dirname(SITE_SETTINGS_PATH);
-          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(SITE_SETTINGS_PATH, out, 'utf-8');
-        }
+        writeCurrentSiteSettingsNormalized(normalized);
         await presenceStore.applySiteSettingsAndReconnect(normalized.redis);
         audit(req, 'site_settings.write', 'ok', {});
         res.json({ ok: true });
@@ -617,6 +664,229 @@ function registerAdminRoutes(app, ctx) {
       }
     }
   );
+  siteMetaRouter.get('/site-settings/draft', requireAdmin, requireAdminOrEditorCapability('siteSettings'), (req, res) => {
+    try {
+      const current = normalizeSiteSettings(readCurrentSiteSettingsRaw());
+      if (!siteDatabase.isSiteSqlite()) {
+        return res.json({ scope: 'default', content: current, fromDraft: false });
+      }
+      const d = siteDatabase.getSiteSettingsDraft('default');
+      if (!d || !d.content_json) {
+        return res.json({ scope: 'default', content: current, fromDraft: false });
+      }
+      const parsed = normalizeSiteSettings(JSON.parse(d.content_json));
+      return res.json({
+        scope: d.scope || 'default',
+        content: parsed,
+        fromDraft: true,
+        updatedAt: d.updated_at || null,
+        updatedByUserId: d.updated_by_user_id || null,
+        updatedByUsername: d.updated_by_username || '',
+      });
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+  siteMetaRouter.put('/site-settings/draft', requireAdmin, requireAdminOrEditorCapability('siteSettings'), (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) {
+        return res.status(400).json({ error: '当前存储模式不支持草稿，请切换 SQLite 单库存储。' });
+      }
+      const isAdminUser = req.adminUser && req.adminUser.role === 'admin';
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const content = body.content && typeof body.content === 'object' ? body.content : null;
+      if (!content) return res.status(400).json({ error: '需要 JSON 字段 content（对象）' });
+      if (!isAdminUser) {
+        if (!content.maintenance || typeof content.maintenance !== 'object') {
+          return res.status(400).json({ error: '编辑角色仅可编辑 maintenance 草稿' });
+        }
+        const cur = normalizeSiteSettings(readCurrentSiteSettingsRaw());
+        content.homepage = cur.homepage;
+        content.registration = cur.registration;
+        content.embed = cur.embed;
+        content.redis = cur.redis;
+        content.upgrade = cur.upgrade;
+      }
+      const normalized = normalizeSiteSettings(content);
+      const draft = siteDatabase.upsertSiteSettingsDraft({
+        scope: 'default',
+        contentJson: JSON.stringify(normalized),
+        updatedByUserId: req.adminUser && req.adminUser.userId,
+        updatedByUsername: req.adminUser && req.adminUser.username,
+      });
+      audit(req, 'site_settings.draft.write', 'ok', {});
+      res.json({
+        ok: true,
+        scope: 'default',
+        content: normalized,
+        updatedAt: draft && draft.updated_at ? draft.updated_at : null,
+      });
+    } catch (e) {
+      audit(req, 'site_settings.draft.write', 'error', {
+        message: String(e.message || e).slice(0, 200),
+      });
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+  siteMetaRouter.post('/site-settings/validate', requireAdmin, requireAdminOrEditorCapability('siteSettings'), (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const content = body.content && typeof body.content === 'object' ? body.content : null;
+      if (!content) return res.status(400).json({ error: '需要 JSON 字段 content（对象）' });
+      const prev = normalizeSiteSettings(readCurrentSiteSettingsRaw());
+      const next = normalizeSiteSettings(content);
+      const riskFlags = siteSettingsRiskFlags(prev, next);
+      const warnings = siteSettingsWarnings(next);
+      res.json({ ok: true, normalized: next, riskFlags, warnings });
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+  siteMetaRouter.post('/site-settings/publish', requireAdmin, requireRole('admin'), async (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) {
+        return res.status(400).json({ error: '当前存储模式不支持发布版本，请切换 SQLite 单库存储。' });
+      }
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const draft = siteDatabase.getSiteSettingsDraft('default');
+      if (!draft || !draft.content_json) {
+        return res.status(400).json({ error: '暂无草稿可发布' });
+      }
+      const next = normalizeSiteSettings(JSON.parse(draft.content_json));
+      const prev = normalizeSiteSettings(readCurrentSiteSettingsRaw());
+      const riskFlags = siteSettingsRiskFlags(prev, next);
+      if (riskFlags.length && body.confirmRisk !== true) {
+        return res.status(409).json({
+          error: '存在高风险变更，请确认后发布',
+          riskFlags,
+          warnings: siteSettingsWarnings(next),
+        });
+      }
+      const released = siteDatabase.createSiteSettingsRelease({
+        scope: 'default',
+        contentJson: JSON.stringify(next),
+        summary: body.summary || '',
+        riskFlagsJson: JSON.stringify(riskFlags),
+        createdByUserId: req.adminUser && req.adminUser.userId,
+        createdByUsername: req.adminUser && req.adminUser.username,
+      });
+      writeCurrentSiteSettingsNormalized(next);
+      await presenceStore.applySiteSettingsAndReconnect(next.redis);
+      audit(req, 'site_settings.publish', 'ok', {
+        releaseId: released && released.id ? released.id : null,
+        versionNo: released && released.version_no ? released.version_no : null,
+        riskFlags,
+      });
+      res.json({
+        ok: true,
+        riskFlags,
+        warnings: siteSettingsWarnings(next),
+        release: released,
+      });
+    } catch (e) {
+      audit(req, 'site_settings.publish', 'error', {
+        message: String(e.message || e).slice(0, 200),
+      });
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+  siteMetaRouter.get('/site-settings/releases', requireAdmin, requireAdminOrEditorCapability('siteSettings'), (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) return res.json({ releases: [], nextCursor: null });
+      const releases = siteDatabase.listSiteSettingsReleases('default', {
+        limit: req.query && req.query.limit,
+        cursor: req.query && req.query.cursor,
+      });
+      const list = releases.map((r) => ({
+        id: r.id,
+        scope: r.scope,
+        versionNo: r.version_no,
+        summary: r.summary || '',
+        riskFlags: (() => {
+          try {
+            return JSON.parse(r.risk_flags_json || '[]');
+          } catch (_) {
+            return [];
+          }
+        })(),
+        createdByUserId: r.created_by_user_id || null,
+        createdByUsername: r.created_by_username || '',
+        createdAt: r.created_at || null,
+      }));
+      const nextCursor =
+        list.length && list.length >= Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20))
+          ? list[list.length - 1].id
+          : null;
+      res.json({ releases: list, nextCursor });
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+  siteMetaRouter.get('/site-settings/releases/:id', requireAdmin, requireAdminOrEditorCapability('siteSettings'), (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) return res.status(404).json({ error: '版本记录不可用' });
+      const row = siteDatabase.getSiteSettingsReleaseById(req.params.id);
+      if (!row) return res.status(404).json({ error: '版本不存在' });
+      const content = normalizeSiteSettings(JSON.parse(row.content_json || '{}'));
+      res.json({
+        id: row.id,
+        scope: row.scope,
+        versionNo: row.version_no,
+        content,
+        summary: row.summary || '',
+        riskFlags: (() => {
+          try {
+            return JSON.parse(row.risk_flags_json || '[]');
+          } catch (_) {
+            return [];
+          }
+        })(),
+        createdByUserId: row.created_by_user_id || null,
+        createdByUsername: row.created_by_username || '',
+        createdAt: row.created_at || null,
+      });
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+  siteMetaRouter.post('/site-settings/releases/:id/rollback', requireAdmin, requireRole('admin'), async (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) return res.status(400).json({ error: '版本回滚不可用' });
+      const row = siteDatabase.getSiteSettingsReleaseById(req.params.id);
+      if (!row) return res.status(404).json({ error: '版本不存在' });
+      const next = normalizeSiteSettings(JSON.parse(row.content_json || '{}'));
+      const prev = normalizeSiteSettings(readCurrentSiteSettingsRaw());
+      const riskFlags = siteSettingsRiskFlags(prev, next);
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      if (riskFlags.length && body.confirmRisk !== true) {
+        return res.status(409).json({
+          error: '存在高风险变更，请确认后回滚',
+          riskFlags,
+          warnings: siteSettingsWarnings(next),
+        });
+      }
+      const released = siteDatabase.createSiteSettingsRelease({
+        scope: 'default',
+        contentJson: JSON.stringify(next),
+        summary: body.summary || `rollback from release#${row.id} (v${row.version_no})`,
+        riskFlagsJson: JSON.stringify(riskFlags),
+        createdByUserId: req.adminUser && req.adminUser.userId,
+        createdByUsername: req.adminUser && req.adminUser.username,
+      });
+      writeCurrentSiteSettingsNormalized(next);
+      await presenceStore.applySiteSettingsAndReconnect(next.redis);
+      audit(req, 'site_settings.rollback', 'ok', {
+        fromReleaseId: row.id,
+        toReleaseId: released && released.id ? released.id : null,
+      });
+      res.json({ ok: true, release: released, riskFlags, warnings: siteSettingsWarnings(next) });
+    } catch (e) {
+      audit(req, 'site_settings.rollback', 'error', {
+        message: String(e.message || e).slice(0, 200),
+      });
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
   siteMetaRouter.get('/menu-order', requireAdmin, (req, res) => {
     try {
       const full = readAdminMenuOrderFull();
@@ -1661,7 +1931,11 @@ function registerAdminRoutes(app, ctx) {
       return res.status(400).json({ error: '缺少 content 字段' });
     }
     try {
-      docAdmin.writeFullMarkdown(content, slug);
+      docAdmin.writeFullMarkdown(
+        content,
+        slug,
+        historyActorMeta(req, 'docs.main.full_markdown', '整篇 Markdown 保存')
+      );
       const sectionCount = getSectionCountForDoc(slug);
       audit(req, 'file.markdown.write', 'ok', {
         doc: slug,
@@ -1745,6 +2019,101 @@ function registerAdminRoutes(app, ctx) {
     }
   );
 
+  app.get(
+    '/api/admin/docs/main-docs/:slug/history',
+    requireAdmin,
+    requireEditorDataView('mainDoc'),
+    (req, res) => {
+      const slug = siteDatabase.normalizeMainDocSlug(req.params.slug);
+      if (!slug) return res.status(400).json({ error: '无效 slug' });
+      const limit = req.query && req.query.limit != null ? parseInt(req.query.limit, 10) : 30;
+      const cursor = req.query && req.query.cursor != null ? parseInt(req.query.cursor, 10) : null;
+      try {
+        const rows = siteDatabase.listMainDocHistory(slug, { limit, cursor });
+        const list = rows.map((r) => ({
+          id: r.id,
+          slug: r.slug,
+          title: r.title,
+          source: r.source,
+          actorUserId: r.actor_user_id,
+          actorUsername: r.actor_username,
+          summary: r.summary,
+          contentBytes: r.content_bytes,
+          createdAt: r.created_at,
+        }));
+        const nextCursor = list.length ? list[list.length - 1].id : null;
+        res.json({ slug, versions: list, nextCursor });
+      } catch (e) {
+        res.status(500).json({ error: String(e.message || e) });
+      }
+    }
+  );
+
+  app.get(
+    '/api/admin/docs/main-docs/:slug/history/:versionId',
+    requireAdmin,
+    requireEditorDataView('mainDoc'),
+    (req, res) => {
+      const slug = siteDatabase.normalizeMainDocSlug(req.params.slug);
+      if (!slug) return res.status(400).json({ error: '无效 slug' });
+      const versionId = parseInt(req.params.versionId, 10);
+      if (!Number.isFinite(versionId)) return res.status(400).json({ error: '无效版本号' });
+      try {
+        const row = siteDatabase.getMainDocHistoryVersion(slug, versionId);
+        if (!row) return res.status(404).json({ error: '历史版本不存在' });
+        res.json({
+          version: {
+            id: row.id,
+            slug: row.slug,
+            title: row.title,
+            source: row.source,
+            actorUserId: row.actor_user_id,
+            actorUsername: row.actor_username,
+            summary: row.summary,
+            contentBytes: row.content_bytes,
+            createdAt: row.created_at,
+          },
+          content: row.content != null ? String(row.content) : '',
+        });
+      } catch (e) {
+        res.status(500).json({ error: String(e.message || e) });
+      }
+    }
+  );
+
+  app.post(
+    '/api/admin/docs/main-docs/:slug/history/:versionId/rollback',
+    requireAdmin,
+    requireEditorDataView('mainDoc'),
+    (req, res) => {
+      const slug = siteDatabase.normalizeMainDocSlug(req.params.slug);
+      if (!slug) return res.status(400).json({ error: '无效 slug' });
+      const versionId = parseInt(req.params.versionId, 10);
+      if (!Number.isFinite(versionId)) return res.status(400).json({ error: '无效版本号' });
+      try {
+        const row = siteDatabase.getMainDocHistoryVersion(slug, versionId);
+        if (!row) return res.status(404).json({ error: '历史版本不存在' });
+        const body = row.content != null ? String(row.content) : '';
+        docAdmin.writeFullMarkdown(
+          body,
+          slug,
+          historyActorMeta(req, 'docs.main.rollback', `回滚到版本 #${versionId}`)
+        );
+        redisCache.bumpEpoch();
+        const sectionCount = getSectionCountForDoc(slug);
+        audit(req, 'docs.main.rollback', 'ok', { slug, versionId, sectionCount });
+        res.json({ ok: true, doc: slug, sectionCount, versionId });
+      } catch (e) {
+        audit(req, 'docs.main.rollback', 'error', {
+          slug,
+          versionId,
+          message: String(e.message || e).slice(0, 200),
+        });
+        res.status(500).json({ error: String(e.message || e) });
+      }
+    }
+  );
+
   app.get('/api/admin/docs/sections', requireAdmin, requireEditorDataView('mainDoc'), (req, res) => {
     const slug = requireExistingMainDocSlug(req, res);
     if (slug == null) return;
@@ -1757,6 +2126,8 @@ function registerAdminRoutes(app, ctx) {
           title: s.title,
           slug: s.slug,
           chars: (s.content && s.content.length) || 0,
+          hiddenInPublic: s.id === 0 || s.id === 1,
+          hiddenReason: s.id === 0 || s.id === 1 ? '前台 /docs 默认隐藏（标题/目录保留段）' : '',
         })),
       });
     } catch (e) {
@@ -1801,7 +2172,11 @@ function registerAdminRoutes(app, ctx) {
     try {
       const sections = docAdmin.readSectionsFromDisk(slug);
       const next = docMd.replaceSection(sections, id, content);
-      docAdmin.persistSections(next, slug);
+      docAdmin.persistSections(
+        next,
+        slug,
+        historyActorMeta(req, 'docs.section.update', `更新章节 #${id}`)
+      );
       const sectionCount = getSectionCountForDoc(slug);
       audit(req, 'docs.section.update', 'ok', {
         doc: slug,
@@ -1835,7 +2210,11 @@ function registerAdminRoutes(app, ctx) {
     try {
       const sections = docAdmin.readSectionsFromDisk(slug);
       const { sections: next, insertedId } = docMd.insertSection(sections, afterId, content);
-      docAdmin.persistSections(next, slug);
+      docAdmin.persistSections(
+        next,
+        slug,
+        historyActorMeta(req, 'docs.section.create', `新增章节 #${insertedId}`)
+      );
       const sectionCount = getSectionCountForDoc(slug);
       audit(req, 'docs.section.create', 'ok', {
         doc: slug,
@@ -1870,7 +2249,11 @@ function registerAdminRoutes(app, ctx) {
     try {
       const sections = docAdmin.readSectionsFromDisk(slug);
       const next = docMd.deleteSection(sections, id);
-      docAdmin.persistSections(next, slug);
+      docAdmin.persistSections(
+        next,
+        slug,
+        historyActorMeta(req, 'docs.section.delete', `删除章节 #${id}`)
+      );
       const sectionCount = getSectionCountForDoc(slug);
       audit(req, 'docs.section.delete', 'ok', { sectionId: id, doc: slug });
       res.json({ ok: true, sectionCount, doc: slug });
@@ -1897,7 +2280,11 @@ function registerAdminRoutes(app, ctx) {
     try {
       const sections = docAdmin.readSectionsFromDisk(slug);
       const next = docMd.moveSection(sections, id, delta);
-      docAdmin.persistSections(next, slug);
+      docAdmin.persistSections(
+        next,
+        slug,
+        historyActorMeta(req, 'docs.section.move', `移动章节 #${id}`)
+      );
       const sectionCount = getSectionCountForDoc(slug);
       audit(req, 'docs.section.move', 'ok', { sectionId: id, delta, doc: slug });
       res.json({ ok: true, sectionCount, doc: slug });
@@ -1922,7 +2309,11 @@ function registerAdminRoutes(app, ctx) {
     try {
       const sections = docAdmin.readSectionsFromDisk(slug);
       const next = docMd.reorderSections(sections, order);
-      docAdmin.persistSections(next, slug);
+      docAdmin.persistSections(
+        next,
+        slug,
+        historyActorMeta(req, 'docs.section.reorder', `重排章节（${order.length}项）`)
+      );
       const sectionCount = getSectionCountForDoc(slug);
       audit(req, 'docs.section.reorder', 'ok', { orderLen: order.length, doc: slug });
       res.json({ ok: true, sectionCount, doc: slug });
@@ -2282,6 +2673,233 @@ function registerAdminRoutes(app, ctx) {
       audit(req, 'file.seo_json.write', 'error', {
         message: String(e.message || e).slice(0, 200),
       });
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+
+  app.all('/api/admin/seo/generate-sitemap-file', requireAdmin, requireAdminOrEditorCapability('seo'), async (req, res) => {
+    function escapeXml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+    function normalizeSeoInput() {
+      const bodySeo = req.body && typeof req.body.seo === 'object' ? req.body.seo : null;
+      if (bodySeo) return bodySeo;
+      if (siteDatabase.isSiteSqlite()) {
+        const raw = siteDatabase.getKv('seo');
+        if (raw) {
+          try {
+            return JSON.parse(raw);
+          } catch (_) {}
+        }
+      } else if (fs.existsSync(SEO_JSON_PATH)) {
+        try {
+          return JSON.parse(fs.readFileSync(SEO_JSON_PATH, 'utf-8'));
+        } catch (_) {}
+      }
+      return {};
+    }
+
+    try {
+      const seo = normalizeSeoInput();
+      const canonicalBase =
+        seo && seo.canonicalBase != null ? String(seo.canonicalBase).trim().replace(/\/+$/, '') : '';
+      const origin = canonicalBase || `${req.protocol}://${req.get('host')}`;
+      const useAuto = !seo || seo.sitemapAuto !== false;
+
+      const paths = [];
+      const seen = new Set();
+      const addPath = (p) => {
+        if (typeof p !== 'string' || !p.trim()) return;
+        let x = p.trim();
+        if (!x.startsWith('/')) x = '/' + x;
+        if (seen.has(x)) return;
+        seen.add(x);
+        paths.push(x);
+      };
+
+      if (useAuto) {
+        addPath('/');
+        addPath('/index');
+        const docs = siteDatabase.listMainDocuments();
+        const def = siteDatabase.getDefaultMainDocSlug();
+        for (const doc of docs) {
+          const slug = String((doc && doc.slug) || '').trim();
+          if (!slug) continue;
+          const isDef = slug === def;
+          const base = isDef ? '/docs' : `/docs?doc=${encodeURIComponent(slug)}`;
+          addPath(`${base}#home`);
+          let secs = [];
+          try {
+            secs = docAdmin.readSectionsFromDisk(slug) || [];
+          } catch (_) {}
+          for (let i = 2; i < secs.length; i++) {
+            const sec = secs[i];
+            const secSlug = sec && sec.slug != null ? String(sec.slug).trim() : '';
+            if (!secSlug) continue;
+            addPath(`${base}#${encodeURIComponent(secSlug)}`);
+          }
+        }
+      }
+
+      const extraManual = seo && Array.isArray(seo.sitemapPaths) ? seo.sitemapPaths : [];
+      if (useAuto) {
+        extraManual.forEach(addPath);
+      } else if (extraManual.length) {
+        extraManual.forEach(addPath);
+      } else {
+        ['/index', '/docs'].forEach(addPath);
+      }
+
+      const includeExtra =
+        seo == null ||
+        seo.includeExtraPagesInSitemap === undefined ||
+        seo.includeExtraPagesInSitemap === true;
+      if (includeExtra) {
+        const store = await extraPagesRepo.readStore();
+        for (const p of store.pages || []) {
+          if (!extraPagesStore.isPublishedForPublic(p)) continue;
+          const slug = String((p && p.slug) || '').trim();
+          if (!slug) continue;
+          addPath(`/page/${encodeURIComponent(slug)}`);
+        }
+      }
+
+      const urls = paths
+        .map((p) => {
+          const loc = origin + (p.startsWith('/') ? p : '/' + p);
+          return `  <url><loc>${escapeXml(loc)}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>`;
+        })
+        .join('\n');
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`;
+
+      const outPath = path.join(siteRoot, 'public', 'data', 'sitemap.generated.xml');
+      const outDir = path.dirname(outPath);
+      if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(outPath, xml, 'utf-8');
+      audit(req, 'seo.sitemap.generate_file', 'ok', { count: paths.length, file: outPath });
+      res.json({ ok: true, count: paths.length, url: '/data/sitemap.generated.xml' });
+    } catch (e) {
+      audit(req, 'seo.sitemap.generate_file', 'error', {
+        message: String(e.message || e).slice(0, 200),
+      });
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+
+  function makeSubmissionSlug(title) {
+    const base = String(title || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\u4e00-\u9fff]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 48);
+    const fallback = base || 'submitted-doc';
+    return fallback + '-' + Date.now().toString(36).slice(-6);
+  }
+
+  app.get('/api/admin/doc-submissions', requireAdmin, requireRole('admin'), (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) return res.json({ list: [] });
+      const status = req.query && req.query.status ? String(req.query.status) : '';
+      const list = siteDatabase.listDocSubmissions({ status, limit: 200 });
+      res.json({ list });
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+
+  app.post('/api/admin/doc-submissions/:id/review', requireAdmin, requireRole('admin'), async (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) {
+        return res.status(400).json({ error: '当前存储模式不支持审核投稿' });
+      }
+      const id = parseInt(req.params.id, 10);
+      if (!Number.isFinite(id)) return res.status(400).json({ error: '无效投稿 id' });
+      const action = String((req.body && req.body.action) || '').trim();
+      if (action !== 'approve' && action !== 'reject') {
+        return res.status(400).json({ error: '无效审核动作' });
+      }
+      const note = String((req.body && req.body.note) || '').trim();
+      const row = siteDatabase.getDocSubmissionById(id);
+      if (!row) return res.status(404).json({ error: '投稿不存在' });
+      if (row.status !== 'pending') {
+        return res.status(400).json({ error: '该投稿已审核，请勿重复处理' });
+      }
+      let publishMeta = null;
+      if (action === 'approve') {
+        const publishAuthor = row.submitterName
+          ? String(row.submitterName).trim()
+          : '技术共享上传';
+        if (row.targetType === 'main') {
+          const slug = siteDatabase.normalizeMainDocSlug(row.targetDocSlug || '');
+          const docs = siteDatabase.listMainDocuments();
+          if (!slug || !docs.some((d) => d.slug === slug)) {
+            return res.status(400).json({ error: '目标主文档不存在' });
+          }
+          const oldRaw = siteDatabase.getMainMarkdownForSlug(slug) || '';
+          const block =
+            '\n\n---\n\n## ' +
+            String(row.title || '投稿文档').trim() +
+            '\n\n' +
+            String(row.markdownContent || '').trim() +
+            '\n';
+          const nextRaw = String(oldRaw || '') + block;
+          siteDatabase.setMainMarkdownForSlug(slug, nextRaw);
+          siteDatabase.appendMainDocHistory(
+            {
+              slug,
+              content: nextRaw,
+              source: 'doc.submission.approve.main',
+              summary: `审核通过投稿 #${id}`,
+              actorUserId: null,
+              actorUsername: publishAuthor,
+            }
+          );
+          try {
+            reloadDocData();
+          } catch (_) {}
+          redisCache.bumpEpoch();
+          publishMeta = { type: 'main', doc: slug };
+        } else {
+          const store = await extraPagesRepo.readStore();
+          const payload = {
+            title: row.title || '投稿文档',
+            slug: makeSubmissionSlug(row.title),
+            format: 'markdown',
+            body: row.markdownContent || '',
+            excerpt: '',
+            tags: Array.isArray(row.tags) ? row.tags.join(', ') : '',
+            author: publishAuthor,
+            status: 'published',
+            publishedAt: new Date().toISOString(),
+          };
+          const { page } = extraPagesAdmin.createPage(payload, store);
+          await extraPagesRepo.insertPage(page);
+          redisCache.bumpEpoch();
+          publishMeta = { type: 'extra', slug: page.slug, id: page.id };
+        }
+      }
+      const reviewed = siteDatabase.reviewDocSubmission({
+        id,
+        nextStatus: action === 'approve' ? 'approved' : 'rejected',
+        reviewNote: note,
+        reviewedByUserId: req.adminUser && req.adminUser.userId,
+        reviewedByUsername: req.adminUser && req.adminUser.username,
+      });
+      if (!reviewed) return res.status(400).json({ error: '审核失败，状态可能已变更' });
+      audit(req, 'doc.submission.review', 'ok', {
+        id,
+        action,
+        targetType: row.targetType,
+        targetDocSlug: row.targetDocSlug,
+      });
+      res.json({ ok: true, submission: reviewed, publish: publishMeta });
+    } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
     }
   });

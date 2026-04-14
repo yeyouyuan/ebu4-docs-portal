@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>http://localhost:3000/</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:3000/index</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:3000/docs#home</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:3000/docs#%E5%9F%BA%E7%A1%80%E4%BB%8B%E7%BB%8D</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:3000/docs#%E5%BC%80%E5%8F%91%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:3000/docs#%E6%95%B0%E6%8D%AE%E5%BA%93%E6%93%8D%E4%BD%9C</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:3000/docs#api-%E6%8E%A5%E5%8F%A3%E5%BC%80%E5%8F%91</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:3000/docs#%E5%BB%BA%E8%AE%AE%E7%9A%84%E5%BC%80%E5%8F%91%E8%A7%84%E8%8C%83</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:3000/docs#action-%E5%BC%80%E5%8F%91%E5%92%8C%E5%AE%9A%E6%97%B6%E4%BB%BB%E5%8A%A1%E5%BC%80%E5%8F%91</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:3000/docs#e9-%E6%B5%81%E7%A8%8B%E8%A1%A8%E5%8D%95%E5%89%8D%E7%AB%AF%E6%8E%A5%E5%8F%A3</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:3000/docs#%E5%BB%BA%E6%A8%A1%E8%A1%A8%E5%8D%95%E5%89%8D%E7%AB%AF-api</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:3000/docs#ecode-%E5%BC%80%E5%8F%91%E6%96%87%E6%A1%A3</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:3000/docs#%E6%B5%8B%E8%AF%95</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:3000/docs?doc=dev#home</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>http://localhost:3000/page/page</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+</urlset>

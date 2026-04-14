@@ -170,9 +170,11 @@ function populateLandingFromJson(j) {
     acfSet('land_s5_feat' + fi5 + '_title', x.title || '');
     acfSet('land_s5_feat' + fi5 + '_desc', x.desc || '');
   }
+  syncLandingBasicFromAdvanced();
 }
 
 function collectLandingToObject() {
+  syncLandingAdvancedFromBasic();
   var links = [];
   for (var i = 0; i < 5; i++) links.push(acfGet('land_nav_link' + i));
   var dots = [];
@@ -263,9 +265,168 @@ function collectLandingToObject() {
   };
 }
 
+function syncLandingBasicFromAdvanced() {
+  acfSet('land_basic_pageTitle', acfGet('land_meta_pageTitle'));
+  acfSet('land_basic_brandTitle', acfGet('land_nav_brandTitle'));
+  acfSet('land_basic_s1_title', acfGet('land_s1_titleLine'));
+  acfSet('land_basic_s1_tagline', acfGet('land_s1_tagline'));
+  acfSet('land_basic_s1_desc', acfGet('land_s1_desc'));
+  acfSet('land_basic_btn_primary', acfGet('land_s1_btnPrimary'));
+  acfSet('land_basic_btn_secondary_url', acfGet('land_s1_btnSecondaryUrl'));
+  acfSet('land_basic_stat0_num', acfGet('land_s2_stat0_num'));
+  acfSet('land_basic_stat0_label', acfGet('land_s2_stat0_label'));
+  acfSet('land_basic_stat1_num', acfGet('land_s2_stat1_num'));
+  acfSet('land_basic_stat1_label', acfGet('land_s2_stat1_label'));
+  acfSet('land_basic_cta_title', acfGet('land_s5_titleLine1'));
+  acfSet('land_basic_cta_desc', acfGet('land_s5_desc'));
+  acfSet('land_basic_cta_btn', acfGet('land_s5_btnPrimary'));
+}
+
+function syncLandingAdvancedFromBasic() {
+  if (!document.getElementById('land_basic_pageTitle')) return;
+  acfSet('land_meta_pageTitle', acfGet('land_basic_pageTitle'));
+  acfSet('land_nav_brandTitle', acfGet('land_basic_brandTitle'));
+  acfSet('land_s1_titleLine', acfGet('land_basic_s1_title'));
+  acfSet('land_s1_tagline', acfGet('land_basic_s1_tagline'));
+  acfSet('land_s1_desc', acfGet('land_basic_s1_desc'));
+  acfSet('land_s1_btnPrimary', acfGet('land_basic_btn_primary'));
+  acfSet('land_s1_btnSecondaryUrl', acfGet('land_basic_btn_secondary_url'));
+  acfSet('land_s2_stat0_num', acfGet('land_basic_stat0_num'));
+  acfSet('land_s2_stat0_label', acfGet('land_basic_stat0_label'));
+  acfSet('land_s2_stat1_num', acfGet('land_basic_stat1_num'));
+  acfSet('land_s2_stat1_label', acfGet('land_basic_stat1_label'));
+  acfSet('land_s5_titleLine1', acfGet('land_basic_cta_title'));
+  acfSet('land_s5_desc', acfGet('land_basic_cta_desc'));
+  acfSet('land_s5_btnPrimary', acfGet('land_basic_cta_btn'));
+}
+
+function setLandingEditorMode(mode) {
+  var m = mode === 'advanced' ? 'advanced' : 'basic';
+  var adv = document.getElementById('landingAdvancedFields');
+  var btnBasic = document.getElementById('btnLandingModeBasic');
+  var btnAdv = document.getElementById('btnLandingModeAdvanced');
+  if (adv) adv.classList.toggle('admin-hidden', m !== 'advanced');
+  if (btnBasic) btnBasic.className = m === 'basic' ? 'admin-btn-primary' : 'admin-btn-ghost';
+  if (btnAdv) btnAdv.className = m === 'advanced' ? 'admin-btn-primary' : 'admin-btn-ghost';
+  try {
+    localStorage.setItem('ebu4_landing_editor_mode', m);
+  } catch (_) {}
+}
+
+function applyLandingTemplatePreset(preset) {
+  var map = {
+    'tech-docs': {
+      pageTitle: '技术文档门户',
+      brandTitle: '技术文档中心',
+      s1Title: '构建高效技术知识库',
+      s1Tagline: '面向团队协作的文档门户，支持检索与版本演进。',
+      s1Desc: '聚合规范、接口和实践经验，帮助团队快速共享知识。',
+      btnPrimary: '进入文档',
+      btnSecondaryUrl: 'https://example.com/docs',
+      stat0Num: '1200+',
+      stat0Label: '文档条目',
+      stat1Num: '24/7',
+      stat1Label: '随时访问',
+      ctaTitle: '开始沉淀团队知识',
+      ctaDesc: '从今天开始，把核心经验沉淀为可复用文档。',
+      ctaBtn: '立即开始',
+    },
+    'product-launch': {
+      pageTitle: '产品发布门户',
+      brandTitle: '产品发布中心',
+      s1Title: '把产品能力讲清楚',
+      s1Tagline: '一页式展示产品价值、能力亮点与上手路径。',
+      s1Desc: '帮助用户快速理解产品，并完成从了解到试用的转化。',
+      btnPrimary: '立即体验',
+      btnSecondaryUrl: 'https://example.com/product',
+      stat0Num: '30%',
+      stat0Label: '转化提升',
+      stat1Num: '10x',
+      stat1Label: '部署效率',
+      ctaTitle: '准备好开始体验了吗？',
+      ctaDesc: '从现在开始，快速完成部署并进入真实业务场景。',
+      ctaBtn: '开始试用',
+    },
+    'enterprise-portal': {
+      pageTitle: '企业数字化门户',
+      brandTitle: '企业数字化服务门户',
+      s1Title: '统一入口，协同提效',
+      s1Tagline: '覆盖流程、数据、应用的一站式企业门户。',
+      s1Desc: '通过统一门户承载业务系统，提升组织协同效率和治理能力。',
+      btnPrimary: '进入门户',
+      btnSecondaryUrl: 'https://example.com/portal',
+      stat0Num: '50+',
+      stat0Label: '业务场景',
+      stat1Num: '99.9%',
+      stat1Label: '可用性',
+      ctaTitle: '让组织协同更简单',
+      ctaDesc: '基于统一门户，打造高效稳定的企业数字化底座。',
+      ctaBtn: '查看方案',
+    },
+  };
+  var p = map[preset];
+  if (!p) return false;
+  acfSet('land_basic_pageTitle', p.pageTitle);
+  acfSet('land_basic_brandTitle', p.brandTitle);
+  acfSet('land_basic_s1_title', p.s1Title);
+  acfSet('land_basic_s1_tagline', p.s1Tagline);
+  acfSet('land_basic_s1_desc', p.s1Desc);
+  acfSet('land_basic_btn_primary', p.btnPrimary);
+  acfSet('land_basic_btn_secondary_url', p.btnSecondaryUrl);
+  acfSet('land_basic_stat0_num', p.stat0Num);
+  acfSet('land_basic_stat0_label', p.stat0Label);
+  acfSet('land_basic_stat1_num', p.stat1Num);
+  acfSet('land_basic_stat1_label', p.stat1Label);
+  acfSet('land_basic_cta_title', p.ctaTitle);
+  acfSet('land_basic_cta_desc', p.ctaDesc);
+  acfSet('land_basic_cta_btn', p.ctaBtn);
+  syncLandingAdvancedFromBasic();
+  return true;
+}
+
+function initLandingEditorEnhancements() {
+  var btnBasic = document.getElementById('btnLandingModeBasic');
+  var btnAdv = document.getElementById('btnLandingModeAdvanced');
+  var btnTpl = document.getElementById('btnApplyLandingTemplate');
+  var selTpl = document.getElementById('landingTemplatePreset');
+  if (btnBasic && !btnBasic.dataset.bound) {
+    btnBasic.dataset.bound = '1';
+    btnBasic.addEventListener('click', function () {
+      setLandingEditorMode('basic');
+    });
+  }
+  if (btnAdv && !btnAdv.dataset.bound) {
+    btnAdv.dataset.bound = '1';
+    btnAdv.addEventListener('click', function () {
+      setLandingEditorMode('advanced');
+    });
+  }
+  if (btnTpl && selTpl && !btnTpl.dataset.bound) {
+    btnTpl.dataset.bound = '1';
+    btnTpl.addEventListener('click', function () {
+      var ok = applyLandingTemplatePreset(selTpl.value || '');
+      var msg = document.getElementById('landingMsg');
+      if (!msg) return;
+      if (!ok) {
+        msg.textContent = '请先选择模板';
+        msg.className = 'admin-msg err';
+        return;
+      }
+      msg.textContent = '模板已套用，请确认后保存';
+      msg.className = 'admin-msg ok';
+    });
+  }
+  var mode = 'basic';
+  try {
+    mode = localStorage.getItem('ebu4_landing_editor_mode') || 'basic';
+  } catch (_) {}
+  setLandingEditorMode(mode);
+}
+
 if (typeof window !== 'undefined') {
   window.populateSeoFromJson = populateSeoFromJson;
   window.collectSeoToObject = collectSeoToObject;
   window.populateLandingFromJson = populateLandingFromJson;
   window.collectLandingToObject = collectLandingToObject;
+  window.initLandingEditorEnhancements = initLandingEditorEnhancements;
 }

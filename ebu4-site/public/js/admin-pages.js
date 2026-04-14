@@ -8,6 +8,7 @@
   var lastFormat = 'markdown';
   var selectedPageId = null;
   var pagesCache = [];
+  var selectedTagFilter = '';
 
   function $(id) {
     return document.getElementById(id);
@@ -300,9 +301,30 @@
     var cnt = $('extraPageListCount');
     var term = (filterText || '').toLowerCase().trim();
     ul.innerHTML = '';
+    function pageTags(page) {
+      if (!page) return [];
+      var arr = Array.isArray(page.tags) ? page.tags : [];
+      return arr
+        .map(function (x) {
+          return String(x || '').trim();
+        })
+        .filter(Boolean);
+    }
+    function primaryTag(page) {
+      var tags = pageTags(page);
+      return tags.length ? tags[0] : '未分类';
+    }
     var rows = pagesCache.filter(function (p) {
+      if (selectedTagFilter) {
+        var tags = pageTags(p);
+        if (selectedTagFilter === '__untagged__') {
+          if (tags.length) return false;
+        } else if (tags.indexOf(selectedTagFilter) < 0) {
+          return false;
+        }
+      }
       if (!term) return true;
-      var tagStr = Array.isArray(p.tags) ? p.tags.join(' ') : '';
+      var tagStr = pageTags(p).join(' ');
       return (
         String(p.title).toLowerCase().indexOf(term) !== -1 ||
         String(p.slug).toLowerCase().indexOf(term) !== -1 ||
@@ -323,29 +345,109 @@
       ul.appendChild(li0);
       return;
     }
+    var grouped = {};
     rows.forEach(function (p) {
-      var li = document.createElement('li');
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'extra-pages-li-btn';
-      btn.dataset.id = p.id;
-      if (selectedPageId === p.id) btn.classList.add('active');
-      btn.innerHTML =
-        '<span class="extra-pages-li-title">' +
-        escapeHtml(p.title || '(无标题)') +
-        (p.linkUrl ? '<span class="extra-pages-li-link" title="跳转页">↗</span>' : '') +
-        '</span><span class="extra-pages-li-slug">/' +
-        escapeHtml(p.slug || '') +
-        '</span><span class="extra-pages-li-meta"><span class="extra-pages-pill ' +
-        (p.status === 'draft' ? 'is-draft' : 'is-live') +
-        '">' +
-        (p.status === 'draft' ? '草稿' : '已发布') +
-        '</span></span>';
-      btn.addEventListener('click', function () {
-        selectExtraPage(p.id);
+      var k = primaryTag(p);
+      if (!grouped[k]) grouped[k] = [];
+      grouped[k].push(p);
+    });
+    Object.keys(grouped)
+      .sort(function (a, b) {
+        if (a === '未分类') return 1;
+        if (b === '未分类') return -1;
+        return a.localeCompare(b, 'zh-CN');
+      })
+      .forEach(function (k) {
+        var groupLi = document.createElement('li');
+        groupLi.className = 'extra-pages-group-title';
+        groupLi.textContent = k + ' · ' + grouped[k].length;
+        ul.appendChild(groupLi);
+        grouped[k].forEach(function (p) {
+          var li = document.createElement('li');
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'extra-pages-li-btn';
+          btn.dataset.id = p.id;
+          if (selectedPageId === p.id) btn.classList.add('active');
+          btn.innerHTML =
+            '<span class="extra-pages-li-title">' +
+            escapeHtml(p.title || '(无标题)') +
+            (p.linkUrl ? '<span class="extra-pages-li-link" title="跳转页">↗</span>' : '') +
+            '</span><span class="extra-pages-li-slug">/' +
+            escapeHtml(p.slug || '') +
+            '</span><span class="extra-pages-li-meta"><span class="extra-pages-pill ' +
+            (p.status === 'draft' ? 'is-draft' : 'is-live') +
+            '">' +
+            (p.status === 'draft' ? '草稿' : '已发布') +
+            '</span></span>';
+          btn.addEventListener('click', function () {
+            selectExtraPage(p.id);
+          });
+          li.appendChild(btn);
+          ul.appendChild(li);
+        });
       });
-      li.appendChild(btn);
-      ul.appendChild(li);
+  }
+
+  function renderExtraTagFilters() {
+    var host = $('extraPageTagFilters');
+    if (!host) return;
+    var stats = {};
+    var untagged = 0;
+    pagesCache.forEach(function (p) {
+      var tags = Array.isArray(p.tags) ? p.tags : [];
+      tags = tags
+        .map(function (x) {
+          return String(x || '').trim();
+        })
+        .filter(Boolean);
+      if (!tags.length) {
+        untagged += 1;
+        return;
+      }
+      tags.forEach(function (t) {
+        stats[t] = (stats[t] || 0) + 1;
+      });
+    });
+    var html = '';
+    var total = pagesCache.length;
+    html +=
+      '<button type="button" class="extra-pages-tag-chip' +
+      (!selectedTagFilter ? ' active' : '') +
+      '" data-tag="">全部 ' +
+      total +
+      '</button>';
+    Object.keys(stats)
+      .sort(function (a, b) {
+        return a.localeCompare(b, 'zh-CN');
+      })
+      .forEach(function (tag) {
+        html +=
+          '<button type="button" class="extra-pages-tag-chip' +
+          (selectedTagFilter === tag ? ' active' : '') +
+          '" data-tag="' +
+          escapeHtml(tag) +
+          '">' +
+          escapeHtml(tag) +
+          ' ' +
+          stats[tag] +
+          '</button>';
+      });
+    if (untagged > 0) {
+      html +=
+        '<button type="button" class="extra-pages-tag-chip' +
+        (selectedTagFilter === '__untagged__' ? ' active' : '') +
+        '" data-tag="__untagged__">未分类 ' +
+        untagged +
+        '</button>';
+    }
+    host.innerHTML = html;
+    host.querySelectorAll('.extra-pages-tag-chip').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        selectedTagFilter = btn.getAttribute('data-tag') || '';
+        renderExtraTagFilters();
+        renderExtraPageList($('extraPageFilter') ? $('extraPageFilter').value : '');
+      });
     });
   }
 
@@ -398,7 +500,21 @@
     try {
       var d = await api('/api/admin/pages');
       pagesCache = d.pages || [];
+      if (selectedTagFilter) {
+        var stillExists = pagesCache.some(function (p) {
+          var tags = Array.isArray(p.tags) ? p.tags : [];
+          tags = tags
+            .map(function (x) {
+              return String(x || '').trim();
+            })
+            .filter(Boolean);
+          if (selectedTagFilter === '__untagged__') return !tags.length;
+          return tags.indexOf(selectedTagFilter) >= 0;
+        });
+        if (!stillExists) selectedTagFilter = '';
+      }
       if (!pagesCache.length) {
+        selectedTagFilter = '';
         selectedPageId = null;
         $('extraPageTitle').value = '';
         $('extraPageSlug').value = '';
@@ -419,6 +535,7 @@
         updateCoverThumbPreview();
         syncExtraStatusUi();
         updateExtraEditorStatus();
+        renderExtraTagFilters();
         renderExtraPageList($('extraPageFilter') ? $('extraPageFilter').value : '');
         return;
       }
@@ -426,9 +543,12 @@
         return p.id === selectedPageId;
       });
       if (!pick) pick = pagesCache[0];
+      renderExtraTagFilters();
       await selectExtraPage(pick.id);
     } catch (e) {
       pagesCache = [];
+      selectedTagFilter = '';
+      renderExtraTagFilters();
       renderExtraPageList('');
       console.warn(e);
     }

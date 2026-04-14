@@ -37,6 +37,78 @@
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  async function renderExtraPageSidebar(currentSlug) {
+    var host = document.getElementById('sidebarNav');
+    if (!host) return;
+    var staticHtml =
+      '<a class="sidebar-link" href="/docs#home">' +
+      '<span class="link-num">§</span>' +
+      '<span>文档首页</span>' +
+      '</a>' +
+      '<a class="sidebar-link" href="/index">' +
+      '<span class="link-num">⌂</span>' +
+      '<span>门户首页</span>' +
+      '</a>';
+    try {
+      var resp = await fetch('/api/pages', { credentials: 'same-origin', cache: 'no-store' });
+      var data = await resp.json().catch(function () {
+        return {};
+      });
+      if (!resp.ok) throw new Error(data.error || '加载失败');
+      var pages = Array.isArray(data.pages) ? data.pages : [];
+      if (!pages.length) {
+        host.innerHTML = staticHtml;
+        return;
+      }
+      var grouped = {};
+      pages.forEach(function (p) {
+        var tags = Array.isArray(p.tags) ? p.tags : [];
+        tags = tags
+          .map(function (x) {
+            return String(x || '').trim();
+          })
+          .filter(Boolean);
+        var key = tags.length ? tags[0] : '未分类';
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(p);
+      });
+      var names = Object.keys(grouped).sort(function (a, b) {
+        if (a === '未分类') return 1;
+        if (b === '未分类') return -1;
+        return a.localeCompare(b, 'zh-CN');
+      });
+      var html = staticHtml + '<div class="extra-side-groups">';
+      names.forEach(function (name, idx) {
+        html +=
+          '<details class="extra-side-group" ' + (idx === 0 ? 'open' : '') + '>' +
+          '<summary class="extra-side-group-title">' +
+          escapeHtml(name) +
+          '<span class="extra-side-group-count">' +
+          grouped[name].length +
+          '</span></summary>';
+        grouped[name].forEach(function (p) {
+          var active = p.slug === currentSlug ? ' active' : '';
+          html +=
+            '<a class="sidebar-link extra-side-link' +
+            active +
+            '" href="/page/' +
+            encodeURIComponent(p.slug) +
+            '">' +
+            '<span class="link-num">#</span>' +
+            '<span>' +
+            escapeHtml(p.title || p.slug) +
+            '</span>' +
+            '</a>';
+        });
+        html += '</details>';
+      });
+      html += '</div>';
+      host.innerHTML = html;
+    } catch (_) {
+      host.innerHTML = staticHtml;
+    }
+  }
+
   function renderTocFromDom() {
     var container = document.getElementById('tocList');
     if (!container) return;
@@ -89,6 +161,7 @@
     }
 
     try {
+      await renderExtraPageSidebar(slug);
       var r = await fetch('/api/pages/' + encodeURIComponent(slug), { credentials: 'same-origin' });
       var data = await r.json().catch(function () {
         return {};
@@ -158,9 +231,9 @@
         excerptHtml +
         tagsHtml +
         '</header>' +
-        '<div class="md-content">' +
+        '<section class="extra-doc-body"><div class="md-content">' +
         bodyHtml +
-        '</div>' +
+        '</div></section>' +
         '</article>';
 
       if (contentArea) contentArea.innerHTML = articleHtml;

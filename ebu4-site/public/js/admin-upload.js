@@ -6,6 +6,8 @@
   /** @type {Array<{name:string,url:string,size:number}>} */
   var lastImages = [];
   var gallerySelectedName = null;
+  var gallerySearchKeyword = '';
+  var gallerySortMode = 'newest';
 
   function $(id) {
     return document.getElementById(id);
@@ -180,6 +182,34 @@
   function updateCountHint(text) {
     var el = $('adminImageCountHint');
     if (el) el.textContent = text;
+    var inModal = $('imageGalleryCountInModal');
+    if (inModal) inModal.textContent = text;
+  }
+
+  function getFilteredSortedImages() {
+    var list = (lastImages || []).slice();
+    if (gallerySearchKeyword) {
+      var kw = gallerySearchKeyword.toLowerCase();
+      list = list.filter(function (it) {
+        return String(it && it.name ? it.name : '')
+          .toLowerCase()
+          .includes(kw);
+      });
+    }
+    if (gallerySortMode === 'nameAsc') {
+      list.sort(function (a, b) {
+        return String(a.name || '').localeCompare(String(b.name || ''));
+      });
+    } else if (gallerySortMode === 'sizeDesc') {
+      list.sort(function (a, b) {
+        return (b.size || 0) - (a.size || 0);
+      });
+    } else if (gallerySortMode === 'sizeAsc') {
+      list.sort(function (a, b) {
+        return (a.size || 0) - (b.size || 0);
+      });
+    }
+    return list;
   }
 
   function clearDetailPanel() {
@@ -209,6 +239,7 @@
     nm.textContent = im.name;
     sz.textContent = formatBytes(im.size || 0);
     urlEl.textContent = im.url;
+    urlEl.title = im.url;
 
     document.querySelectorAll('.de-gallery-tile').forEach(function (t) {
       t.classList.toggle('is-selected', t.getAttribute('data-name') === im.name);
@@ -218,6 +249,15 @@
   function bindDetailActions() {
     var btnCopy = $('btnImageGalleryCopyMd');
     var btnDel = $('btnImageGalleryDelete');
+    var btnOpen = $('btnImageGalleryOpen');
+    if (btnOpen && !btnOpen.dataset.bound) {
+      btnOpen.dataset.bound = '1';
+      btnOpen.addEventListener('click', function () {
+        var im = gallerySelectedName ? findImageByName(gallerySelectedName) : null;
+        if (!im || !im.url) return;
+        window.open(im.url, '_blank', 'noopener');
+      });
+    }
     if (btnCopy && !btnCopy.dataset.bound) {
       btnCopy.dataset.bound = '1';
       btnCopy.addEventListener('click', function () {
@@ -262,8 +302,9 @@
     var grid = $('imageGalleryGridHost');
     if (!grid) return;
     if (!images.length) {
-      grid.innerHTML =
-        '<p class="de-gallery-grid-empty">暂无图片。关闭后在侧栏上传，或使用编辑区 <strong>Ctrl+V</strong> 粘贴。</p>';
+      grid.innerHTML = lastImages.length
+        ? '<p class="de-gallery-grid-empty">没有匹配结果，试试其他关键词或排序。</p>'
+        : '<p class="de-gallery-grid-empty">暂无图片。关闭后在侧栏上传，或使用编辑区 <strong>Ctrl+V</strong> 粘贴。</p>';
       clearDetailPanel();
       return;
     }
@@ -273,6 +314,7 @@
       var urlAttr = escAttr(im.url);
       h += '<button type="button" class="de-gallery-tile" data-name="' + nameAttr + '" title="' + nameAttr + '">';
       h += '<span class="de-gallery-tile-thumb"><img src="' + urlAttr + '" alt="" loading="lazy"/></span>';
+      h += '<span class="de-gallery-tile-name">' + escHtml(im.name) + '</span>';
       h += '<span class="de-gallery-tile-meta">' + escHtml(formatBytes(im.size || 0)) + '</span>';
       h += '</button>';
     });
@@ -288,9 +330,11 @@
     if (gallerySelectedName) {
       var again = findImageByName(gallerySelectedName);
       if (again) showImageDetail(again);
+      else if (images[0]) showImageDetail(images[0]);
       else clearDetailPanel();
     } else {
-      clearDetailPanel();
+      if (images[0]) showImageDetail(images[0]);
+      else clearDetailPanel();
     }
   }
 
@@ -304,8 +348,9 @@
       var d = await api('/api/admin/images');
       var images = d.images || [];
       lastImages = images;
-      updateCountHint('共 ' + images.length + ' 张');
-      renderGalleryGrid(images);
+      var visible = getFilteredSortedImages();
+      updateCountHint('共 ' + visible.length + ' / ' + images.length + ' 张');
+      renderGalleryGrid(visible);
     } catch (e) {
       lastImages = [];
       updateCountHint('共 0 张');
@@ -326,6 +371,10 @@
       }
     }
     bindDetailActions();
+    var search = $('imageGallerySearch');
+    var sort = $('imageGallerySort');
+    if (search) search.value = gallerySearchKeyword;
+    if (sort) sort.value = gallerySortMode;
     refreshImageList();
   }
 
@@ -401,6 +450,32 @@
     if (btn) {
       btn.addEventListener('click', function () {
         refreshImageList();
+      });
+    }
+    var btnModalRefresh = $('btnImageGalleryRefresh');
+    if (btnModalRefresh) {
+      btnModalRefresh.addEventListener('click', function () {
+        refreshImageList();
+      });
+    }
+    var search = $('imageGallerySearch');
+    if (search && !search.dataset.bound) {
+      search.dataset.bound = '1';
+      search.addEventListener('input', function () {
+        gallerySearchKeyword = String(search.value || '').trim();
+        var visible = getFilteredSortedImages();
+        updateCountHint('共 ' + visible.length + ' / ' + lastImages.length + ' 张');
+        renderGalleryGrid(visible);
+      });
+    }
+    var sort = $('imageGallerySort');
+    if (sort && !sort.dataset.bound) {
+      sort.dataset.bound = '1';
+      sort.addEventListener('change', function () {
+        gallerySortMode = sort.value || 'newest';
+        var visible = getFilteredSortedImages();
+        updateCountHint('共 ' + visible.length + ' / ' + lastImages.length + ' 张');
+        renderGalleryGrid(visible);
       });
     }
     bindDetailActions();

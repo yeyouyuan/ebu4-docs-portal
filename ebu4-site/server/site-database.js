@@ -85,6 +85,46 @@ function ensureSchema() {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_main_documents_sort ON main_documents (sort_order, id);
+    CREATE TABLE IF NOT EXISTS main_document_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      main_document_id INTEGER NOT NULL REFERENCES main_documents(id) ON DELETE CASCADE,
+      slug TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
+      content TEXT NOT NULL DEFAULT '',
+      content_bytes INTEGER NOT NULL DEFAULT 0,
+      source TEXT NOT NULL DEFAULT 'manual',
+      actor_user_id INTEGER,
+      actor_username TEXT NOT NULL DEFAULT '',
+      summary TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_main_document_history_doc_id
+      ON main_document_history (main_document_id, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_main_document_history_slug_id
+      ON main_document_history (slug, id DESC);
+    CREATE TABLE IF NOT EXISTS site_settings_drafts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      scope TEXT NOT NULL UNIQUE DEFAULT 'default',
+      content_json TEXT NOT NULL,
+      updated_by_user_id INTEGER,
+      updated_by_username TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS site_settings_releases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      scope TEXT NOT NULL DEFAULT 'default',
+      version_no INTEGER NOT NULL,
+      content_json TEXT NOT NULL,
+      summary TEXT NOT NULL DEFAULT '',
+      risk_flags_json TEXT NOT NULL DEFAULT '[]',
+      created_by_user_id INTEGER,
+      created_by_username TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_site_settings_releases_scope_version
+      ON site_settings_releases (scope, version_no DESC);
+    CREATE INDEX IF NOT EXISTS idx_site_settings_releases_scope_created
+      ON site_settings_releases (scope, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS document_sections (
       main_document_id INTEGER NOT NULL REFERENCES main_documents(id) ON DELETE CASCADE,
@@ -124,6 +164,27 @@ function ensureSchema() {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_admin_passkeys_user ON admin_passkeys (user_id);
+
+    CREATE TABLE IF NOT EXISTS tech_doc_submissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL DEFAULT '',
+      target_type TEXT NOT NULL DEFAULT 'extra',
+      target_doc_slug TEXT NOT NULL DEFAULT '',
+      file_name TEXT NOT NULL DEFAULT '',
+      markdown_content TEXT NOT NULL DEFAULT '',
+      tags_json TEXT NOT NULL DEFAULT '[]',
+      submitter_name TEXT NOT NULL DEFAULT '',
+      submitter_contact TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      review_note TEXT NOT NULL DEFAULT '',
+      reviewed_by_user_id INTEGER,
+      reviewed_by_username TEXT NOT NULL DEFAULT '',
+      reviewed_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_tech_doc_submissions_status_created
+      ON tech_doc_submissions (status, created_at DESC);
   `);
 }
 
@@ -529,6 +590,116 @@ function setMainMarkdownForSlug(slug, content) {
   writeMainDocsRegistryFile(reg);
 }
 
+function appendMainDocHistory({
+  slug,
+  content,
+  source,
+  actorUserId,
+  actorUsername,
+  summary,
+}) {
+  if (!siteSqliteMode || !db) return null;
+  const s = normalizeMainDocSlug(slug) || getDefaultMainDocSlug();
+  const row = db
+    .prepare(`SELECT id, slug, title FROM main_documents WHERE slug = ?`)
+    .get(s);
+  if (!row) throw new Error('主文档不存在');
+  const body = content != null ? String(content) : '';
+  const src = String(source || 'manual').trim() || 'manual';
+  const actorName = actorUsername != null ? String(actorUsername).trim() : '';
+  const actorIdNum = Number.isFinite(Number(actorUserId))
+    ? Number(actorUserId)
+    : null;
+  const note = summary != null ? String(summary).trim() : '';
+  const t = nowIso();
+  const info = db
+    .prepare(
+      `INSERT INTO main_document_history
+       (main_document_id, slug, title, content, content_bytes, source, actor_user_id, actor_username, summary, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      row.id,
+      row.slug,
+      row.title || row.slug,
+      body,
+      Buffer.byteLength(body, 'utf-8'),
+      src,
+      actorIdNum,
+      actorName,
+      note,
+      t
+    );
+  return info.lastInsertRowid;
+}
+
+function pruneMainDocHistory(slug, keep) {
+  if (!siteSqliteMode || !db) return 0;
+  const s = normalizeMainDocSlug(slug) || getDefaultMainDocSlug();
+  const row = db.prepare(`SELECT id FROM main_documents WHERE slug = ?`).get(s);
+  if (!row) return 0;
+  const keepCount = Math.max(1, parseInt(keep, 10) || 100);
+  const info = db
+    .prepare(
+      `DELETE FROM main_document_history
+       WHERE main_document_id = ?
+         AND id IN (
+           SELECT id
+             FROM main_document_history
+            WHERE main_document_id = ?
+            ORDER BY id DESC
+            LIMIT -1 OFFSET ?
+         )`
+    )
+    .run(row.id, row.id, keepCount);
+  return info.changes || 0;
+}
+
+function listMainDocHistory(slug, opts) {
+  if (!siteSqliteMode || !db) return [];
+  const s = normalizeMainDocSlug(slug) || getDefaultMainDocSlug();
+  const row = db.prepare(`SELECT id FROM main_documents WHERE slug = ?`).get(s);
+  if (!row) return [];
+  const limit = Math.min(200, Math.max(1, parseInt(opts && opts.limit, 10) || 30));
+  const cursor = parseInt(opts && opts.cursor, 10);
+  if (Number.isFinite(cursor) && cursor > 0) {
+    return db
+      .prepare(
+        `SELECT id, slug, title, source, actor_user_id, actor_username, summary, content_bytes, created_at
+           FROM main_document_history
+          WHERE main_document_id = ? AND id < ?
+          ORDER BY id DESC
+          LIMIT ?`
+      )
+      .all(row.id, cursor, limit);
+  }
+  return db
+    .prepare(
+      `SELECT id, slug, title, source, actor_user_id, actor_username, summary, content_bytes, created_at
+         FROM main_document_history
+        WHERE main_document_id = ?
+        ORDER BY id DESC
+        LIMIT ?`
+    )
+    .all(row.id, limit);
+}
+
+function getMainDocHistoryVersion(slug, versionId) {
+  if (!siteSqliteMode || !db) return null;
+  const s = normalizeMainDocSlug(slug) || getDefaultMainDocSlug();
+  const row = db.prepare(`SELECT id FROM main_documents WHERE slug = ?`).get(s);
+  if (!row) return null;
+  const id = parseInt(versionId, 10);
+  if (!Number.isFinite(id)) return null;
+  return db
+    .prepare(
+      `SELECT id, slug, title, content, source, actor_user_id, actor_username, summary, content_bytes, created_at
+         FROM main_document_history
+        WHERE main_document_id = ? AND id = ?`
+    )
+    .get(row.id, id);
+}
+
 function createMainDocument({ slug, title }) {
   const s = normalizeMainDocSlug(slug);
   if (!s) throw new Error('slug 须为小写字母、数字、连字符，且 1–63 字符');
@@ -662,11 +833,24 @@ function migrateKvFromFiles(paths) {
 }
 
 function migrateMainDocFromFile(mdPath) {
-  const row = db.prepare('SELECT 1 AS o FROM main_document WHERE id = 1').get();
-  if (row) return;
+  if (!siteSqliteMode || !db) return;
   if (!mdPath || !fs.existsSync(mdPath)) return;
+  const hasNonEmptyMainDoc = db
+    .prepare(
+      `SELECT 1 AS o
+         FROM main_documents
+        WHERE length(trim(content)) > 0
+        LIMIT 1`
+    )
+    .get();
+  if (hasNonEmptyMainDoc) return;
+  const hasAnyMainDoc = db.prepare('SELECT 1 AS o FROM main_documents LIMIT 1').get();
+  if (!hasAnyMainDoc) {
+    migrateMainDocumentsFromLegacySqlite();
+  }
   try {
     const raw = fs.readFileSync(mdPath, 'utf-8');
+    if (!String(raw || '').trim()) return;
     setMainMarkdown(raw);
     console.log('[site-db] 主文档已从 Markdown 文件导入');
   } catch (_) {}
@@ -803,8 +987,8 @@ function init(paths) {
     landingJsonPath: p.landingJsonPath,
     seoJsonPath: p.seoJsonPath,
   });
-  migrateMainDocFromFile(p.mdPath);
   migrateMainDocumentsFromLegacySqlite();
+  migrateMainDocFromFile(p.mdPath);
   rebuildDocumentSections();
   migrateExtraPagesFromJson(p.extraPagesJsonPath);
   console.log('[site-db] SQLite 就绪:', dbPathResolved);
@@ -934,6 +1118,244 @@ function adminUsersCountByRole(role) {
   return row ? row.c : 0;
 }
 
+function getSiteSettingsDraft(scope) {
+  if (!siteSqliteMode || !db) return null;
+  const sc = String(scope || 'default').trim() || 'default';
+  return db
+    .prepare(
+      `SELECT id, scope, content_json, updated_by_user_id, updated_by_username, updated_at
+         FROM site_settings_drafts
+        WHERE scope = ?`
+    )
+    .get(sc);
+}
+
+function upsertSiteSettingsDraft({ scope, contentJson, updatedByUserId, updatedByUsername }) {
+  if (!siteSqliteMode || !db) return null;
+  const sc = String(scope || 'default').trim() || 'default';
+  const body = String(contentJson || '{}');
+  const uid = Number.isFinite(Number(updatedByUserId)) ? Number(updatedByUserId) : null;
+  const uname = updatedByUsername != null ? String(updatedByUsername).trim() : '';
+  const t = nowIso();
+  db.prepare(
+    `INSERT INTO site_settings_drafts (scope, content_json, updated_by_user_id, updated_by_username, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(scope) DO UPDATE SET
+       content_json = excluded.content_json,
+       updated_by_user_id = excluded.updated_by_user_id,
+       updated_by_username = excluded.updated_by_username,
+       updated_at = excluded.updated_at`
+  ).run(sc, body, uid, uname, t);
+  return getSiteSettingsDraft(sc);
+}
+
+function createSiteSettingsRelease({
+  scope,
+  contentJson,
+  summary,
+  riskFlagsJson,
+  createdByUserId,
+  createdByUsername,
+}) {
+  if (!siteSqliteMode || !db) return null;
+  const sc = String(scope || 'default').trim() || 'default';
+  const body = String(contentJson || '{}');
+  const note = summary != null ? String(summary).trim() : '';
+  const risk = riskFlagsJson != null ? String(riskFlagsJson) : '[]';
+  const uid = Number.isFinite(Number(createdByUserId)) ? Number(createdByUserId) : null;
+  const uname = createdByUsername != null ? String(createdByUsername).trim() : '';
+  const t = nowIso();
+  const tx = db.transaction(() => {
+    const row = db
+      .prepare(`SELECT COALESCE(MAX(version_no), 0) AS m FROM site_settings_releases WHERE scope = ?`)
+      .get(sc);
+    const next = (row && row.m ? row.m : 0) + 1;
+    const info = db
+      .prepare(
+        `INSERT INTO site_settings_releases
+         (scope, version_no, content_json, summary, risk_flags_json, created_by_user_id, created_by_username, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(sc, next, body, note, risk, uid, uname, t);
+    return { id: info.lastInsertRowid, versionNo: next };
+  });
+  const out = tx();
+  return getSiteSettingsReleaseById(out.id);
+}
+
+function listSiteSettingsReleases(scope, opts) {
+  if (!siteSqliteMode || !db) return [];
+  const sc = String(scope || 'default').trim() || 'default';
+  const limit = Math.min(100, Math.max(1, parseInt(opts && opts.limit, 10) || 20));
+  const cursor = parseInt(opts && opts.cursor, 10);
+  if (Number.isFinite(cursor) && cursor > 0) {
+    return db
+      .prepare(
+        `SELECT id, scope, version_no, summary, risk_flags_json, created_by_user_id, created_by_username, created_at
+           FROM site_settings_releases
+          WHERE scope = ? AND id < ?
+          ORDER BY id DESC
+          LIMIT ?`
+      )
+      .all(sc, cursor, limit);
+  }
+  return db
+    .prepare(
+      `SELECT id, scope, version_no, summary, risk_flags_json, created_by_user_id, created_by_username, created_at
+         FROM site_settings_releases
+        WHERE scope = ?
+        ORDER BY id DESC
+        LIMIT ?`
+    )
+    .all(sc, limit);
+}
+
+function getSiteSettingsReleaseById(id) {
+  if (!siteSqliteMode || !db) return null;
+  const n = parseInt(id, 10);
+  if (!Number.isFinite(n)) return null;
+  return db
+    .prepare(
+      `SELECT id, scope, version_no, content_json, summary, risk_flags_json, created_by_user_id, created_by_username, created_at
+         FROM site_settings_releases
+        WHERE id = ?`
+    )
+    .get(n);
+}
+
+function createDocSubmission(input) {
+  if (!siteSqliteMode || !db) return null;
+  const t = nowIso();
+  const title = String((input && input.title) || '').trim();
+  const targetType = String((input && input.targetType) || 'extra').trim() === 'main' ? 'main' : 'extra';
+  const targetDocSlug = String((input && input.targetDocSlug) || '').trim();
+  const fileName = String((input && input.fileName) || '').trim();
+  const markdownContent = String((input && input.markdownContent) || '');
+  const submitterName = String((input && input.submitterName) || '').trim();
+  const submitterContact = String((input && input.submitterContact) || '').trim();
+  const tags = Array.isArray(input && input.tags)
+    ? input.tags.map((x) => String(x || '').trim()).filter(Boolean)
+    : [];
+  const info = db
+    .prepare(
+      `INSERT INTO tech_doc_submissions
+       (title, target_type, target_doc_slug, file_name, markdown_content, tags_json, submitter_name, submitter_contact, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+    )
+    .run(
+      title,
+      targetType,
+      targetDocSlug,
+      fileName,
+      markdownContent,
+      JSON.stringify(tags),
+      submitterName,
+      submitterContact,
+      t,
+      t
+    );
+  return getDocSubmissionById(info.lastInsertRowid);
+}
+
+function listDocSubmissions(opts) {
+  if (!siteSqliteMode || !db) return [];
+  const statusRaw = opts && opts.status != null ? String(opts.status).trim() : '';
+  const limit = Math.min(200, Math.max(1, parseInt(opts && opts.limit, 10) || 50));
+  const allowed = new Set(['pending', 'approved', 'rejected']);
+  if (statusRaw && allowed.has(statusRaw)) {
+    return db
+      .prepare(
+        `SELECT * FROM tech_doc_submissions
+         WHERE status = ?
+         ORDER BY id DESC
+         LIMIT ?`
+      )
+      .all(statusRaw, limit)
+      .map(docSubmissionRowToObject);
+  }
+  return db
+    .prepare(
+      `SELECT * FROM tech_doc_submissions
+       ORDER BY id DESC
+       LIMIT ?`
+    )
+    .all(limit)
+    .map(docSubmissionRowToObject);
+}
+
+function getDocSubmissionById(id) {
+  if (!siteSqliteMode || !db) return null;
+  const n = parseInt(id, 10);
+  if (!Number.isFinite(n)) return null;
+  const row = db
+    .prepare(`SELECT * FROM tech_doc_submissions WHERE id = ?`)
+    .get(n);
+  return row ? docSubmissionRowToObject(row) : null;
+}
+
+function reviewDocSubmission({
+  id,
+  nextStatus,
+  reviewNote,
+  reviewedByUserId,
+  reviewedByUsername,
+}) {
+  if (!siteSqliteMode || !db) return null;
+  const n = parseInt(id, 10);
+  if (!Number.isFinite(n)) return null;
+  const status = String(nextStatus || '').trim();
+  if (status !== 'approved' && status !== 'rejected') throw new Error('无效审核状态');
+  const note = String(reviewNote || '').trim();
+  const uid = Number.isFinite(Number(reviewedByUserId)) ? Number(reviewedByUserId) : null;
+  const uname = String(reviewedByUsername || '').trim();
+  const t = nowIso();
+  const info = db
+    .prepare(
+      `UPDATE tech_doc_submissions
+       SET status = ?,
+           review_note = ?,
+           reviewed_by_user_id = ?,
+           reviewed_by_username = ?,
+           reviewed_at = ?,
+           updated_at = ?
+       WHERE id = ? AND status = 'pending'`
+    )
+    .run(status, note, uid, uname, t, t, n);
+  if (!info.changes) return null;
+  return getDocSubmissionById(n);
+}
+
+function docSubmissionRowToObject(row) {
+  var tags = [];
+  if (row && typeof row.tags_json === 'string' && row.tags_json) {
+    try {
+      const parsed = JSON.parse(row.tags_json);
+      if (Array.isArray(parsed)) tags = parsed;
+    } catch (_) {}
+  }
+  return {
+    id: row.id,
+    title: row.title != null ? String(row.title) : '',
+    targetType: row.target_type === 'main' ? 'main' : 'extra',
+    targetDocSlug: row.target_doc_slug != null ? String(row.target_doc_slug) : '',
+    fileName: row.file_name != null ? String(row.file_name) : '',
+    markdownContent: row.markdown_content != null ? String(row.markdown_content) : '',
+    tags: tags.map((x) => String(x || '')).filter(Boolean),
+    submitterName: row.submitter_name != null ? String(row.submitter_name) : '',
+    submitterContact: row.submitter_contact != null ? String(row.submitter_contact) : '',
+    status: row.status || 'pending',
+    reviewNote: row.review_note != null ? String(row.review_note) : '',
+    reviewedByUserId:
+      row.reviewed_by_user_id != null && Number.isFinite(Number(row.reviewed_by_user_id))
+        ? Number(row.reviewed_by_user_id)
+        : null,
+    reviewedByUsername: row.reviewed_by_username != null ? String(row.reviewed_by_username) : '',
+    reviewedAt: row.reviewed_at || null,
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null,
+  };
+}
+
 module.exports = {
   init,
   getDb,
@@ -953,6 +1375,10 @@ module.exports = {
   createMainDocument,
   updateMainDocumentTitle,
   deleteMainDocument,
+  appendMainDocHistory,
+  pruneMainDocHistory,
+  listMainDocHistory,
+  getMainDocHistoryVersion,
   rebuildDocumentSections,
   ping,
   kvMeta,
@@ -969,5 +1395,14 @@ module.exports = {
   adminUserDelete,
   adminUsersAdminCount,
   adminUsersCountByRole,
+  getSiteSettingsDraft,
+  upsertSiteSettingsDraft,
+  createSiteSettingsRelease,
+  listSiteSettingsReleases,
+  getSiteSettingsReleaseById,
+  createDocSubmission,
+  listDocSubmissions,
+  getDocSubmissionById,
+  reviewDocSubmission,
   migrateAdminUsersRoleNoCheckConstraint,
 };

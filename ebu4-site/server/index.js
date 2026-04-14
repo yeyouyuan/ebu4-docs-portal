@@ -155,6 +155,11 @@ function getAiChatEmbedHtml() {
   return e.aiChatHtml != null ? String(e.aiChatHtml) : '';
 }
 
+function isHomepageEnabled() {
+  const st = readSiteSettingsSafe();
+  return !st || !st.homepage || st.homepage.enabled !== false;
+}
+
 function sendPublicHtmlWithEmbed(res, fileName) {
   const fp = path.join(publicDir, fileName);
   let html;
@@ -604,6 +609,53 @@ app.get('/api/pages', async (req, res) => {
   }
 });
 
+/** 公开投稿：提交技术文档（Markdown），待后台审核 */
+app.post('/api/doc-submissions', express.json({ limit: '2mb' }), async (req, res) => {
+  try {
+    if (!siteDatabase.isSiteSqlite()) {
+      return res.status(400).json({ error: '当前存储模式未启用投稿能力' });
+    }
+    const body = req.body || {};
+    const targetType = String(body.targetType || '').trim() === 'main' ? 'main' : 'extra';
+    const targetDocSlug = String(body.targetDocSlug || '').trim();
+    const title = String(body.title || '').trim();
+    const fileName = String(body.fileName || '').trim();
+    const markdownContent = String(body.markdownContent || '');
+    const submitterName = String(body.submitterName || '').trim();
+    const submitterContact = String(body.submitterContact || '').trim();
+    const tags = Array.isArray(body.tags) ? body.tags : String(body.tags || '').split(',');
+    const cleanTags = tags
+      .map((x) => String(x || '').trim())
+      .filter(Boolean)
+      .slice(0, 20);
+    if (!title) return res.status(400).json({ error: '缺少标题' });
+    if (!/\.md$/i.test(fileName)) return res.status(400).json({ error: '仅支持 .md 文件' });
+    if (!markdownContent.trim()) return res.status(400).json({ error: 'Markdown 内容不能为空' });
+    if (Buffer.byteLength(markdownContent, 'utf-8') > 1024 * 1024) {
+      return res.status(400).json({ error: 'Markdown 文件过大（限制 1MB）' });
+    }
+    if (targetType === 'main') {
+      const docs = siteDatabase.listMainDocuments();
+      if (!targetDocSlug || !docs.some((d) => d.slug === targetDocSlug)) {
+        return res.status(400).json({ error: '主文档目标无效' });
+      }
+    }
+    const row = siteDatabase.createDocSubmission({
+      title,
+      targetType,
+      targetDocSlug: targetType === 'main' ? targetDocSlug : '',
+      fileName,
+      markdownContent,
+      submitterName,
+      submitterContact,
+      tags: cleanTags,
+    });
+    res.json({ ok: true, id: row && row.id });
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
 app.get('/api/pages/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
@@ -696,6 +748,24 @@ app.get('/api/health', async (req, res) => {
   res.json(payload);
 });
 
+app.get('/api/site-branding', (req, res) => {
+  try {
+    const st = readSiteSettingsSafe();
+    const b = (st && st.branding) || {};
+    res.json({
+      ok: true,
+      branding: {
+        site: b.site || { title: '', faviconUrl: '/icons/icon.svg' },
+        adminSidebar: b.adminSidebar || {},
+        adminNavbar: b.adminNavbar || {},
+        landingNav: b.landingNav || {},
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e.message || e) });
+  }
+});
+
 // --- API Routes ---
 
 app.get('/api/main-docs', (req, res) => {
@@ -704,8 +774,26 @@ app.get('/api/main-docs', (req, res) => {
       slug: d.slug,
       title: d.title || d.slug,
       isDefault: !!d.isDefault,
+      lastPublishedBy: (function () {
+        try {
+          const rows = siteDatabase.listMainDocHistory(d.slug, { limit: 1 });
+          const r = rows && rows[0] ? rows[0] : null;
+          return r && r.actor_username ? String(r.actor_username) : '';
+        } catch (_) {
+          return '';
+        }
+      })(),
+      lastPublishedAt: (function () {
+        try {
+          const rows = siteDatabase.listMainDocHistory(d.slug, { limit: 1 });
+          const r = rows && rows[0] ? rows[0] : null;
+          return r && r.created_at ? String(r.created_at) : '';
+        } catch (_) {
+          return '';
+        }
+      })(),
     }));
-    res.json({ docs });
+    res.json({ docs, homepageEnabled: isHomepageEnabled() });
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) });
   }
@@ -993,11 +1081,17 @@ app.get(['/admin', '/admin/'], (req, res) => {
 });
 
 // 门户落地页（独立页面，与文档 SPA 分离）
-app.get(['/index', '/index/'], (req, res) => {
+app.get(['/index', '/index/', '/index.html', '/index.html/'], (req, res) => {
+  if (!isHomepageEnabled()) {
+    return res.redirect(302, '/docs');
+  }
   sendPublicHtmlWithEmbed(res, 'landing.html');
 });
 
 app.get('/', (req, res) => {
+  if (!isHomepageEnabled()) {
+    return res.redirect(302, '/docs');
+  }
   res.redirect(302, '/index');
 });
 

@@ -26,6 +26,27 @@ let mainDocsList = [];
 let defaultDocSlug = 'default';
 /** 当前主文档 slug（与 ?doc= 一致；等于 defaultDocSlug 时 URL 可省略 doc） */
 let activeDocSlug = null;
+/** 门户首页是否启用（由 /api/main-docs 返回） */
+let homepageEnabled = true;
+
+function getActiveDocMeta() {
+  return mainDocsList.find((d) => d.slug === activeDocSlug) || null;
+}
+
+function renderPublicDocPublishMeta() {
+  const el = document.getElementById('publicDocPublishMeta');
+  if (!el) return;
+  const doc = getActiveDocMeta();
+  if (!doc) {
+    el.hidden = false;
+    el.textContent = '最近发布：暂无';
+    return;
+  }
+  const who = doc.lastPublishedBy ? String(doc.lastPublishedBy) : '未知';
+  const when = doc.lastPublishedAt ? new Date(doc.lastPublishedAt).toLocaleString('zh-CN') : '未知时间';
+  el.hidden = false;
+  el.textContent = '最近发布：' + who + ' · ' + when;
+}
 
 function publicSectionsApiPath() {
   if (!activeDocSlug || activeDocSlug === defaultDocSlug) return '/api/sections';
@@ -47,12 +68,114 @@ function syncDocsUrl() {
   history.replaceState(null, '', location.pathname + q + h);
 }
 
+function setupDocSubmitModal() {
+  const modal = document.getElementById('docSubmitModal');
+  const btnOpen = document.getElementById('btnOpenDocSubmit');
+  const btnClose = document.getElementById('btnCloseDocSubmit');
+  const btnCancel = document.getElementById('btnCancelDocSubmit');
+  const btnDo = document.getElementById('btnDoDocSubmit');
+  const targetTypeEl = document.getElementById('docSubmitTargetType');
+  const mainWrap = document.getElementById('docSubmitMainWrap');
+  const mainSel = document.getElementById('docSubmitMainDoc');
+  const msgEl = document.getElementById('docSubmitMsg');
+  if (!modal || !btnOpen || !btnClose || !btnCancel || !btnDo || !targetTypeEl || !mainWrap || !mainSel) return;
+
+  function setMsg(text, isErr) {
+    if (!msgEl) return;
+    msgEl.textContent = text || '';
+    msgEl.style.color = isErr ? 'var(--danger, #ef4444)' : 'var(--text-dim)';
+  }
+
+  function syncMainDocOptions() {
+    mainSel.innerHTML = mainDocsList
+      .map((d) => `<option value="${escapeHtml(d.slug)}">${escapeHtml(d.title || d.slug)}</option>`)
+      .join('');
+    if (activeDocSlug) mainSel.value = activeDocSlug;
+    if (!mainSel.value && mainDocsList[0]) mainSel.value = mainDocsList[0].slug;
+  }
+
+  function syncTypeUi() {
+    mainWrap.hidden = targetTypeEl.value !== 'main';
+  }
+
+  function openModal() {
+    setMsg('', false);
+    syncMainDocOptions();
+    syncTypeUi();
+    modal.hidden = false;
+  }
+
+  function closeModal() {
+    modal.hidden = true;
+  }
+
+  async function submitNow() {
+    setMsg('', false);
+    const title = (document.getElementById('docSubmitTitle') && document.getElementById('docSubmitTitle').value.trim()) || '';
+    const tags = (document.getElementById('docSubmitTags') && document.getElementById('docSubmitTags').value.trim()) || '';
+    const submitterName = (document.getElementById('docSubmitName') && document.getElementById('docSubmitName').value.trim()) || '';
+    const submitterContact = (document.getElementById('docSubmitContact') && document.getElementById('docSubmitContact').value.trim()) || '';
+    const targetType = targetTypeEl.value === 'main' ? 'main' : 'extra';
+    const targetDocSlug = targetType === 'main' ? (mainSel.value || '') : '';
+    const fileEl = document.getElementById('docSubmitFile');
+    const f = fileEl && fileEl.files && fileEl.files[0] ? fileEl.files[0] : null;
+    if (!title) return setMsg('请填写标题', true);
+    if (!f) return setMsg('请上传 .md 文件', true);
+    if (!/\.md$/i.test(f.name || '')) return setMsg('仅支持 .md 文件', true);
+    const markdownContent = await f.text();
+    if (!markdownContent.trim()) return setMsg('Markdown 内容不能为空', true);
+    btnDo.disabled = true;
+    try {
+      const r = await fetch('/api/doc-submissions', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          targetType,
+          targetDocSlug,
+          tags,
+          submitterName,
+          submitterContact,
+          fileName: f.name,
+          markdownContent,
+        }),
+      });
+      const t = await r.text();
+      let d = {};
+      try {
+        d = t ? JSON.parse(t) : {};
+      } catch (_) {}
+      if (!r.ok) throw new Error(d.error || '提交失败');
+      setMsg('提交成功，已进入后台审核队列。', false);
+      setTimeout(closeModal, 700);
+    } catch (e) {
+      setMsg(e.message || String(e), true);
+    } finally {
+      btnDo.disabled = false;
+    }
+  }
+
+  btnOpen.addEventListener('click', openModal);
+  btnClose.addEventListener('click', closeModal);
+  btnCancel.addEventListener('click', closeModal);
+  targetTypeEl.addEventListener('change', syncTypeUi);
+  btnDo.addEventListener('click', function () {
+    submitNow().catch(function (e) {
+      setMsg(e.message || String(e), true);
+    });
+  });
+  modal.addEventListener('click', function (e) {
+    if (e.target === modal) closeModal();
+  });
+}
+
 async function reloadDocsForActiveSlug() {
   docSwitchBusy++;
   loadSectionGeneration++;
   try {
     syncDocsUrl();
-    const resp = await fetch(publicSectionsApiPath());
+    const resp = await fetch(publicSectionsApiPath(), { cache: 'no-store' });
     if (!resp.ok) throw new Error('sections');
     sectionsMeta = await resp.json();
     renderSidebar();
@@ -121,10 +244,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (_) {}
 
   try {
-    const mr = await fetch('/api/main-docs');
+    const mr = await fetch('/api/main-docs', { cache: 'no-store' });
     if (mr.ok) {
       const mj = await mr.json();
       mainDocsList = mj.docs || [];
+      homepageEnabled = mj.homepageEnabled !== false;
       const def = mainDocsList.find((d) => d.isDefault);
       if (def) defaultDocSlug = def.slug;
       else if (mainDocsList[0]) defaultDocSlug = mainDocsList[0].slug;
@@ -138,6 +262,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     activeDocSlug = defaultDocSlug;
   }
   syncDocsUrl();
+  renderPublicDocPublishMeta();
 
   const pubPicker = document.getElementById('publicDocPicker');
   if (pubPicker && mainDocsList.length > 1) {
@@ -151,6 +276,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     pubPicker.value = activeDocSlug;
     pubPicker.addEventListener('change', async () => {
       activeDocSlug = pubPicker.value || defaultDocSlug;
+      renderPublicDocPublishMeta();
       try {
         await reloadDocsForActiveSlug();
       } catch (e) {
@@ -158,10 +284,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   }
+  setupDocSubmitModal();
 
   // Load sections metadata
   try {
-    const resp = await fetch(publicSectionsApiPath());
+    const resp = await fetch(publicSectionsApiPath(), { cache: 'no-store' });
     if (!resp.ok) throw new Error('sections');
     sectionsMeta = await resp.json();
   } catch (_) {
@@ -254,19 +381,41 @@ async function showHomeBody() {
     firstId != null ? (sectionsMeta.find((s) => s.id === firstId) || {}).title || '文档' : '文档';
   let extraBlock = '';
   try {
-    const r = await fetch('/api/pages');
+    const r = await fetch('/api/pages', { cache: 'no-store' });
     if (r.ok) {
       const data = await r.json();
       const pages = (data && data.pages) || [];
       if (pages.length) {
+        const groupsMap = {};
+        pages.forEach((p) => {
+          const tags = Array.isArray(p.tags)
+            ? p.tags
+                .map((t) => String(t || '').trim())
+                .filter(Boolean)
+            : [];
+          const groupKey = tags.length ? tags[0] : '未分类';
+          if (!groupsMap[groupKey]) groupsMap[groupKey] = [];
+          groupsMap[groupKey].push(p);
+        });
+        const groupNames = Object.keys(groupsMap).sort((a, b) => {
+          if (a === '未分类') return 1;
+          if (b === '未分类') return -1;
+          return a.localeCompare(b, 'zh-CN');
+        });
         extraBlock = `
       <section class="home-extra" aria-labelledby="home-extra-title">
         <h2 id="home-extra-title" class="home-extra-title">扩展阅读</h2>
-        <p class="home-extra-lead">后台发布的扩展页面，与主文档并列维护。</p>
-        <ul class="home-extra-list">
-          ${pages
-            .map(
-              (p) => `<li class="home-extra-item">
+        <p class="home-extra-lead">按标签分类展示后台已发布的扩展页面。</p>
+        <div class="home-extra-groups">
+          ${groupNames
+            .map((groupName, idx) => {
+              const list = groupsMap[groupName] || [];
+              return `<details class="home-extra-group" ${idx === 0 ? 'open' : ''}>
+              <summary class="home-extra-group-title">${escapeHtml(groupName)} <span class="home-extra-group-count">${list.length}</span></summary>
+              <ul class="home-extra-list">
+              ${list
+                .map(
+                  (p) => `<li class="home-extra-item">
             <a class="home-extra-link" href="/page/${encodeURIComponent(p.slug)}">
               <span class="home-extra-t">${escapeHtml(p.title)}</span>
               ${
@@ -276,9 +425,13 @@ async function showHomeBody() {
               }
             </a>
           </li>`
-            )
+                )
+                .join('')}
+              </ul>
+            </details>`;
+            })
             .join('')}
-        </ul>
+        </div>
       </section>`;
       }
     }
@@ -333,10 +486,12 @@ function renderSidebar() {
     return;
   }
   let html = '';
-  html += `<a class="sidebar-link" href="/index">
-      <span class="link-num">⌂</span>
-      <span>门户首页</span>
-    </a>`;
+  if (homepageEnabled) {
+    html += `<a class="sidebar-link" href="/index">
+        <span class="link-num">⌂</span>
+        <span>门户首页</span>
+      </a>`;
+  }
   let navNum = 0;
   sectionsMeta.forEach((s) => {
     if (s.id === 0 || s.id === 1) return;
@@ -390,7 +545,7 @@ async function loadSection(sectionId) {
 
   let resp;
   try {
-    resp = await fetch(publicSectionOneApiPath(sid));
+    resp = await fetch(publicSectionOneApiPath(sid), { cache: 'no-store' });
   } catch (_) {
     if (gen !== loadSectionGeneration) return;
     document.getElementById('contentArea').innerHTML = `

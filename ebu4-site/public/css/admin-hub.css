@@ -26,9 +26,9 @@
   --orange: #e6a23c;
   --sans: 'Plus Jakarta Sans', system-ui, sans-serif;
   --mono: 'JetBrains Mono', 'Fira Code', monospace;
-  --r: 8px;
-  --r2: 12px;
-  --r3: 16px;
+  --r: 10px;
+  --r2: 14px;
+  --r3: 18px;
   --shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
   --shadow2: 0 8px 24px rgba(0, 21, 41, 0.08);
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
@@ -683,13 +683,19 @@
 #adminNewUserModal.modal-bg[hidden],
 #roleProfileModal.modal-bg[hidden],
 #mainDocsModal.modal-bg[hidden],
-#imageGalleryModal.modal-bg[hidden] {
+#imageGalleryModal.modal-bg[hidden],
+#mainDocHistoryModal.modal-bg[hidden],
+#adminConfirmModal.modal-bg[hidden],
+#adminAlertModal.modal-bg[hidden] {
   display: none !important;
 }
 #adminNewUserModal.modal-bg,
 #roleProfileModal.modal-bg,
 #mainDocsModal.modal-bg,
-#imageGalleryModal.modal-bg {
+#imageGalleryModal.modal-bg,
+#mainDocHistoryModal.modal-bg,
+#adminConfirmModal.modal-bg,
+#adminAlertModal.modal-bg {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
@@ -707,14 +713,20 @@
 #adminNewUserModal.modal-bg.show,
 #roleProfileModal.modal-bg.show,
 #mainDocsModal.modal-bg.show,
-#imageGalleryModal.modal-bg.show {
+#imageGalleryModal.modal-bg.show,
+#mainDocHistoryModal.modal-bg.show,
+#adminConfirmModal.modal-bg.show,
+#adminAlertModal.modal-bg.show {
   opacity: 1;
   pointer-events: auto;
 }
 #adminNewUserModal .modal,
 #roleProfileModal .modal,
 #mainDocsModal .modal,
-#imageGalleryModal .modal {
+#imageGalleryModal .modal,
+#mainDocHistoryModal .modal,
+#adminConfirmModal .modal,
+#adminAlertModal .modal {
   background: var(--surface, #18181f);
   border: 1px solid var(--border, #2a2a38);
   border-radius: var(--r3, 16px);
@@ -729,27 +741,66 @@
 }
 #adminNewUserModal .modal.admin-hub,
 #roleProfileModal .modal.admin-hub,
-#mainDocsModal .modal.admin-hub {
+#mainDocsModal .modal.admin-hub,
+#mainDocHistoryModal .modal.admin-hub,
+#adminConfirmModal .modal.admin-hub,
+#adminAlertModal .modal.admin-hub {
   max-width: 100%;
   margin: 0;
 }
 #adminNewUserModal.modal-bg.show .modal,
 #roleProfileModal.modal-bg.show .modal,
 #mainDocsModal.modal-bg.show .modal,
-#imageGalleryModal.modal-bg.show .modal {
+#imageGalleryModal.modal-bg.show .modal,
+#mainDocHistoryModal.modal-bg.show .modal,
+#adminConfirmModal.modal-bg.show .modal,
+#adminAlertModal.modal-bg.show .modal {
   transform: scale(1);
 }
 #adminNewUserModal .modal.modal--md {
   width: 480px;
 }
+#adminConfirmModal .modal.admin-mini-modal,
+#adminAlertModal .modal.admin-mini-modal {
+  width: min(92vw, 380px);
+  padding: 16px 16px 14px;
+  border-radius: var(--r2, 14px);
+}
+#adminConfirmModal .modal.admin-mini-modal h3,
+#adminAlertModal .modal.admin-mini-modal h3 {
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+#adminConfirmModal .modal.admin-mini-modal .admin-docs-hint,
+#adminAlertModal .modal.admin-mini-modal .admin-docs-hint {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text2, #b8b8cc);
+}
+#adminConfirmModal .modal.admin-mini-modal .form-actions,
+#adminAlertModal .modal.admin-mini-modal .form-actions {
+  margin-top: 10px !important;
+  gap: 8px !important;
+}
+#adminConfirmModal .modal.admin-mini-modal .btn,
+#adminAlertModal .modal.admin-mini-modal .btn {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 12px;
+}
 #roleProfileModal .modal.modal--lg,
-#mainDocsModal .modal.modal--lg {
+#mainDocsModal .modal.modal--lg,
+#mainDocHistoryModal .modal.modal--lg {
   width: 720px;
 }
 #adminNewUserModal .modal h3,
 #roleProfileModal .modal h3,
 #mainDocsModal .modal h3,
-#imageGalleryModal .modal h3 {
+#imageGalleryModal .modal h3,
+#mainDocHistoryModal .modal h3,
+#adminConfirmModal .modal h3,
+#adminAlertModal .modal h3 {
   font-size: 18px;
   font-weight: 700;
   margin-bottom: 12px;

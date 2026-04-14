@@ -21,6 +21,15 @@ function setHtml(id, html) {
   if (el) el.innerHTML = html;
 }
 
+function setFavicon(url) {
+  if (!url) return;
+  var href = String(url).trim();
+  if (!href) return;
+  document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]').forEach(function (el) {
+    el.setAttribute('href', href);
+  });
+}
+
 function renderTerminal(lines) {
   const body = document.querySelector('.term-body');
   if (!body || !Array.isArray(lines)) return;
@@ -158,6 +167,23 @@ function applyLandingConfig(cfg) {
   }
 }
 
+function applySiteBranding(branding) {
+  if (!branding || typeof branding !== 'object') return;
+  var site = branding.site || {};
+  var common = branding.common || {};
+  var nav = branding.landingNav || {};
+  var logoText = common.logoMark || nav.logoText;
+  var brandTitle = common.brandTitle || nav.brandTitle;
+  var brandSub = common.brandSub || nav.brandSub;
+  var versionText = common.versionText || nav.verBadge;
+  if (site.title) document.title = site.title;
+  if (site.faviconUrl) setFavicon(site.faviconUrl);
+  setText('navLogoText', logoText);
+  setText('navBrandTitle', brandTitle);
+  setText('verBadge', versionText);
+  setText('navBrandSub', brandSub);
+}
+
 async function loadLandingConfig() {
   try {
     var r = await fetch('/data/landing.json', { credentials: 'same-origin', cache: 'no-cache' });
@@ -166,5 +192,13 @@ async function loadLandingConfig() {
     applyLandingConfig(cfg);
   } catch (e) {
     console.warn('[landing-config]', e);
+  }
+  try {
+    var rb = await fetch('/api/site-branding', { credentials: 'same-origin', cache: 'no-store' });
+    if (!rb.ok) return;
+    var data = await rb.json();
+    applySiteBranding(data && data.branding ? data.branding : null);
+  } catch (e2) {
+    console.warn('[site-branding]', e2);
   }
 }

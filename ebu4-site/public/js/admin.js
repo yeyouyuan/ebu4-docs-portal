@@ -615,6 +615,7 @@ async function api(path, opt) {
     Object.assign(
       {
         credentials: 'same-origin',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
       },
       opt || {}
@@ -791,6 +792,16 @@ async function checkSession(opts) {
       };
       window.__adminRoleMeta = d.roleMeta || null;
       return { ok: true, unauthorized: false };
+    }
+    // /api/admin/session 在未登录时会返回 200 + {ok:false}
+    // 这里按“会话失效”处理，避免误报“会话校验失败”并卡在启动遮罩。
+    if (d && d.ok === false) {
+      clearAdminSessionState();
+      return {
+        ok: false,
+        unauthorized: true,
+        message: d.error || '登录状态已失效，请重新登录。',
+      };
     }
     clearAdminSessionState();
     if (r.status === 401 || r.status === 403) {
@@ -1582,18 +1593,191 @@ function openMainDocsModal() {
   if (!bg) return;
   openModalBg(bg);
   refreshMainDocsModalTable().catch(function (e) {
-    alert(e.message || String(e));
+    showAdminAlert(e.message || String(e), '加载失败');
   });
 }
 
 function closeMainDocsModal() {
   closeModalBg($('mainDocsModal'));
 }
+var mainDocHistoryList = [];
+var mainDocHistorySelectedId = null;
+var mainDocHistorySelectedContent = '';
+
+function resetMainDocHistoryPanel() {
+  mainDocHistoryList = [];
+  mainDocHistorySelectedId = null;
+  mainDocHistorySelectedContent = '';
+  var body = $('mainDocHistoryTableBody');
+  if (body) {
+    body.innerHTML =
+      '<tr><td colspan="4" style="padding:14px;color:var(--text-dim,#9ca3af);text-align:center">加载中…</td></tr>';
+  }
+  var ta = $('mainDocHistoryPreview');
+  if (ta) ta.value = '';
+  var meta = $('mainDocHistoryPreviewMeta');
+  if (meta) meta.textContent = '请选择左侧版本查看内容';
+  var rb = $('btnMainDocHistoryRollback');
+  if (rb) rb.disabled = true;
+  var msg = $('mainDocHistoryMsg');
+  if (msg) {
+    msg.textContent = '';
+    msg.className = 'admin-msg';
+  }
+}
+
+function fmtHistoryTime(ts) {
+  if (!ts) return '—';
+  try {
+    return new Date(ts).toLocaleString('zh-CN', { hour12: false });
+  } catch (_) {
+    return String(ts);
+  }
+}
+
+function renderMainDocHistoryRows() {
+  var body = $('mainDocHistoryTableBody');
+  if (!body) return;
+  if (!mainDocHistoryList.length) {
+    body.innerHTML =
+      '<tr><td colspan="4" style="padding:14px;color:var(--text-dim,#9ca3af);text-align:center">暂无历史版本</td></tr>';
+    return;
+  }
+  body.innerHTML = mainDocHistoryList
+    .map(function (x) {
+      var active = x.id === mainDocHistorySelectedId ? ' class="is-active"' : '';
+      var actor = (x.actorUsername && String(x.actorUsername).trim()) || '系统';
+      var bytes = Number.isFinite(Number(x.contentBytes)) ? Number(x.contentBytes) : 0;
+      return (
+        '<tr data-id="' +
+        String(x.id) +
+        '"' +
+        active +
+        '><td>' +
+        escapeHtml(fmtHistoryTime(x.createdAt)) +
+        '</td><td>' +
+        escapeHtml(x.source || 'manual') +
+        '</td><td>' +
+        escapeHtml(actor) +
+        '</td><td>' +
+        escapeHtml(String(bytes)) +
+        '</td></tr>'
+      );
+    })
+    .join('');
+}
+
+async function loadMainDocHistoryList() {
+  var slug = adminMainDocSlug || 'default';
+  if (!slug) return;
+  const d = await api('/api/admin/docs/main-docs/' + encodeURIComponent(slug) + '/history?limit=100');
+  mainDocHistoryList = Array.isArray(d.versions) ? d.versions : [];
+  mainDocHistorySelectedId = null;
+  renderMainDocHistoryRows();
+}
+
+async function loadMainDocHistoryVersion(versionId) {
+  var slug = adminMainDocSlug || 'default';
+  if (!slug || !Number.isFinite(Number(versionId))) return;
+  const d = await api(
+    '/api/admin/docs/main-docs/' + encodeURIComponent(slug) + '/history/' + encodeURIComponent(String(versionId))
+  );
+  const v = d && d.version ? d.version : null;
+  if (!v) throw new Error('历史版本不存在');
+  mainDocHistorySelectedId = v.id;
+  mainDocHistorySelectedContent = d.content != null ? String(d.content) : '';
+  renderMainDocHistoryRows();
+  var ta = $('mainDocHistoryPreview');
+  if (ta) ta.value = mainDocHistorySelectedContent;
+  var meta = $('mainDocHistoryPreviewMeta');
+  if (meta) {
+    var actor = (v.actorUsername && String(v.actorUsername).trim()) || '系统';
+    meta.textContent =
+      '版本 #' +
+      String(v.id) +
+      ' · ' +
+      fmtHistoryTime(v.createdAt) +
+      ' · ' +
+      (v.source || 'manual') +
+      ' · ' +
+      actor;
+  }
+  var rb = $('btnMainDocHistoryRollback');
+  if (rb) rb.disabled = false;
+}
+
+function openMainDocHistoryModal() {
+  var m = $('mainDocHistoryModal');
+  if (!m) {
+    var msg = $('docSectionMsg');
+    if (msg) {
+      msg.textContent = '历史面板未加载，请刷新页面后重试';
+      msg.className = 'admin-msg err';
+    }
+    return;
+  }
+  var slug = adminMainDocSlug || 'default';
+  var hint = $('mainDocHistoryModalHint');
+  if (hint) hint.textContent = '当前文档：' + slug + '（保留最近 100 个版本）';
+  resetMainDocHistoryPanel();
+  openModalBg(m);
+  loadMainDocHistoryList().catch(function (e) {
+    var body = $('mainDocHistoryTableBody');
+    if (body) {
+      body.innerHTML =
+        '<tr><td colspan="4" style="padding:14px;color:#f87171;text-align:center">' +
+        escapeHtml(e.message || String(e)) +
+        '</td></tr>';
+    }
+  });
+}
+
+function closeMainDocHistoryModal() {
+  closeModalBg($('mainDocHistoryModal'));
+}
+
+window.openMainDocHistoryModal = openMainDocHistoryModal;
+
+async function rollbackMainDocToHistoryVersion() {
+  var id = parseInt(mainDocHistorySelectedId, 10);
+  if (!Number.isFinite(id)) return;
+  var slug = adminMainDocSlug || 'default';
+  if (
+    !(await showAdminConfirm(
+      '确定回滚当前主文档到版本 #' + id + ' ？此操作会覆盖当前内容。',
+      '回滚确认',
+      '确认回滚',
+      '取消'
+    ))
+  )
+    return;
+  var msg = $('mainDocHistoryMsg');
+  if (msg) {
+    msg.textContent = '';
+    msg.className = 'admin-msg';
+  }
+  const d = await api(
+    '/api/admin/docs/main-docs/' + encodeURIComponent(slug) + '/history/' + encodeURIComponent(String(id)) + '/rollback',
+    { method: 'POST', body: '{}' }
+  );
+  if (msg) {
+    msg.textContent = '回滚成功：' + (d && d.sectionCount != null ? d.sectionCount + ' 章' : '已生效');
+    msg.className = 'admin-msg ok';
+  }
+  mainDocDirty = false;
+  updateMainDocSaveInd();
+  markMainDocFullMarkdownLoaded(currentAdminDocCacheKey(), false);
+  await maybeRefreshMdTaFromServer();
+  await refreshDocSections();
+  loadStats();
+}
+
 var selectedDocSlug = null;
 var mainDocQuill = null;
 var mainDocTurndown = null;
 var mainDocSyncTimer = null;
 var mainDocDirty = false;
+var mainDocSuppressDirtyMark = 0;
 var mainDocFullMdSavedValue = '';
 var mainDocFullMdDrawerTimer = null;
 var mainDocFullMarkdownLoadedByDoc = Object.create(null);
@@ -1696,6 +1880,45 @@ function confirmDiscardMainDocChanges(nextDocLabel) {
       next +
       '」后这些修改会丢失。是否继续？'
   );
+}
+
+async function saveCurrentMainDocChangesBeforeSwitch() {
+  if (mainDocDirty && selectedDocId != null) {
+    await api('/api/admin/docs/sections/' + selectedDocId + adminDocQ(), {
+      method: 'PUT',
+      body: JSON.stringify({ content: getMainDocMarkdown() }),
+    });
+    await maybeRefreshMdTaFromServer();
+    await refreshDocSections(selectedDocId);
+    mainDocDirty = false;
+    updateMainDocSaveInd();
+  }
+  if (hasUnsavedMainDocFullMarkdown()) {
+    await api('/api/admin/files/markdown' + adminDocQ(), {
+      method: 'PUT',
+      body: JSON.stringify({ content: $('mdTa').value }),
+    });
+    mainDocFullMdSavedValue = $('mdTa').value || '';
+  }
+}
+
+async function confirmSaveOrDiscardMainDocChanges(nextDocLabel) {
+  if (!hasUnsavedMainDocChanges()) return true;
+  var cur = getCurrentAdminDocDisplayName();
+  var next = nextDocLabel || '目标文档';
+  var choice = await showAdminChoice(
+    '当前文档「' + cur + '」有未保存修改，切换到「' + next + '」前请选择操作。',
+    '切换文档',
+    '先保存并切换',
+    '不保存并切换',
+    '取消'
+  );
+  if (choice === 'ok') {
+    await saveCurrentMainDocChangesBeforeSwitch();
+    return true;
+  }
+  if (choice === 'alt') return true;
+  return false;
 }
 
 function setMainDocDrawerOpen(open) {
@@ -1857,6 +2080,7 @@ function renderDocSectionList(filterText) {
       String(order) +
       ' 章' +
       (s.slug ? ' · /' + escapeHtml(s.slug) : '') +
+      (s.hiddenInPublic ? ' · 前台隐藏' : '') +
       '</span>';
     btn.dataset.id = String(s.id);
     if (selectedDocId === s.id) btn.classList.add('active');
@@ -2022,25 +2246,31 @@ function setMainDocFromMarkdown(md) {
   if (window.__mainDocEditMode === 'markdown') return;
   if (!mainDocQuill) return;
   if (!raw.trim()) {
+    mainDocSuppressDirtyMark++;
     mainDocQuill.setText('');
+    mainDocSuppressDirtyMark--;
     return;
   }
   if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
+    mainDocSuppressDirtyMark++;
     mainDocQuill.setText(raw);
+    mainDocSuppressDirtyMark--;
     return;
   }
   marked.setOptions({ gfm: true, breaks: true });
   var html = marked.parse(raw);
   var safe = window.DOMPurify ? DOMPurify.sanitize(html) : html;
+  mainDocSuppressDirtyMark++;
   mainDocQuill.setContents([]);
   mainDocQuill.clipboard.dangerouslyPasteHTML(0, safe, 'silent');
+  mainDocSuppressDirtyMark--;
 }
 
 async function mainDocUploadAndInsertImage(file) {
   if (!mainDocQuill || !file) return;
   var up = window.__ebu4AdminUploadImage;
   if (typeof up !== 'function') {
-    window.alert('上传模块未就绪');
+    showAdminAlert('上传模块未就绪', '提示');
     return;
   }
   try {
@@ -2048,7 +2278,7 @@ async function mainDocUploadAndInsertImage(file) {
     var url = await up(file);
     mainDocInsertImageUrl(url);
   } catch (e) {
-    window.alert(e.message || String(e));
+    showAdminAlert(e.message || String(e), '上传失败');
   } finally {
     mainDocQuill.enable(true);
   }
@@ -2105,15 +2335,7 @@ function initMainDocQuill() {
     placeholder: '在左侧选择章节，或新建章节；支持工具栏插图、粘贴与拖入图片',
     modules: {
       toolbar: {
-        container: [
-          [{ header: [1, 2, 3, false] }],
-          ['bold', 'italic', 'underline', 'strike'],
-          [{ list: 'ordered' }, { list: 'bullet' }],
-          [{ indent: '-1' }, { indent: '+1' }],
-          ['blockquote', 'code-block'],
-          ['link', 'image'],
-          ['clean'],
-        ],
+        container: '#mainDocQuillToolbar',
         handlers: {
           image: function () {
             var input = document.createElement('input');
@@ -2130,6 +2352,7 @@ function initMainDocQuill() {
     },
   });
   mainDocQuill.on('text-change', function () {
+    if (mainDocSuppressDirtyMark > 0) return;
     mainDocDirty = true;
     scheduleMainDocHiddenTextareaSync();
     updateMainDocChrome();
@@ -2290,6 +2513,11 @@ function initDocSectionManager() {
     btnOpenFullMd._bound = true;
     btnOpenFullMd.addEventListener('click', openMainDocFullMarkdownDrawer);
   }
+  var btnHistory = $('btnMainDocHistory');
+  if (btnHistory && !btnHistory._bound) {
+    btnHistory._bound = true;
+    btnHistory.addEventListener('click', openMainDocHistoryModal);
+  }
   var btnCloseFullMd = $('btnCloseFullMarkdown');
   if (btnCloseFullMd && !btnCloseFullMd._bound) {
     btnCloseFullMd._bound = true;
@@ -2310,6 +2538,58 @@ function initDocSectionManager() {
       var drawerEl = $('mainDocFullMdDrawer');
       if (e.key !== 'Escape' || !drawerEl || drawerEl.classList.contains('admin-hidden')) return;
       closeMainDocFullMarkdownDrawer();
+    });
+  }
+  var btnHistClose = $('btnMainDocHistoryClose');
+  if (btnHistClose && !btnHistClose._bound) {
+    btnHistClose._bound = true;
+    btnHistClose.addEventListener('click', closeMainDocHistoryModal);
+  }
+  var btnHistRefresh = $('btnMainDocHistoryRefresh');
+  if (btnHistRefresh && !btnHistRefresh._bound) {
+    btnHistRefresh._bound = true;
+    btnHistRefresh.addEventListener('click', function () {
+      loadMainDocHistoryList().catch(function (e) {
+        var msg = $('mainDocHistoryMsg');
+        if (!msg) return;
+        msg.textContent = e.message || String(e);
+        msg.className = 'admin-msg err';
+      });
+    });
+  }
+  var btnHistRollback = $('btnMainDocHistoryRollback');
+  if (btnHistRollback && !btnHistRollback._bound) {
+    btnHistRollback._bound = true;
+    btnHistRollback.addEventListener('click', function () {
+      rollbackMainDocToHistoryVersion().catch(function (e) {
+        var msg = $('mainDocHistoryMsg');
+        if (!msg) return;
+        msg.textContent = e.message || String(e);
+        msg.className = 'admin-msg err';
+      });
+    });
+  }
+  var historyModal = $('mainDocHistoryModal');
+  if (historyModal && !historyModal._bound) {
+    historyModal._bound = true;
+    historyModal.addEventListener('click', function (e) {
+      if (e.target === historyModal) closeMainDocHistoryModal();
+    });
+  }
+  var historyTable = $('mainDocHistoryTableBody');
+  if (historyTable && !historyTable._bound) {
+    historyTable._bound = true;
+    historyTable.addEventListener('click', function (e) {
+      var tr = e.target.closest('tr[data-id]');
+      if (!tr) return;
+      var id = parseInt(tr.getAttribute('data-id'), 10);
+      if (!Number.isFinite(id)) return;
+      loadMainDocHistoryVersion(id).catch(function (err) {
+        var msg = $('mainDocHistoryMsg');
+        if (!msg) return;
+        msg.textContent = err.message || String(err);
+        msg.className = 'admin-msg err';
+      });
     });
   }
 
@@ -2367,7 +2647,15 @@ function initDocSectionManager() {
     $('docSectionMsg').textContent = '';
     $('docSectionMsg').className = 'admin-msg';
     if (selectedDocId == null) return;
-    if (!window.confirm('确定删除当前章节？此操作会写入备份后从文件中移除该章。')) return;
+    if (
+      !(await showAdminConfirm(
+        '确定删除当前章节？此操作会写入备份后从文件中移除该章。',
+        '删除章节',
+        '确认删除',
+        '取消'
+      ))
+    )
+      return;
     try {
       var delId = selectedDocId;
       await api('/api/admin/docs/sections/' + delId + adminDocQ(), { method: 'DELETE' });
@@ -2429,7 +2717,14 @@ function initDocSectionManager() {
         mainPicker.selectedOptions && mainPicker.selectedOptions[0]
           ? String(mainPicker.selectedOptions[0].textContent || '').replace(/\s*（默认）\s*$/, '').trim()
           : nextSlug || '目标文档';
-      if (!confirmDiscardMainDocChanges(nextLabel)) {
+      try {
+        if (!(await confirmSaveOrDiscardMainDocChanges(nextLabel))) {
+          mainPicker.value = adminMainDocSlug || '';
+          return;
+        }
+      } catch (err) {
+        $('docSectionMsg').textContent = err.message || String(err);
+        $('docSectionMsg').className = 'admin-msg err';
         mainPicker.value = adminMainDocSlug || '';
         return;
       }
@@ -2484,7 +2779,7 @@ function initDocSectionManager() {
               return refreshMainDocsModalTable();
             })
             .catch(function (err) {
-              alert(err.message || String(err));
+              showAdminAlert(err.message || String(err), '设置默认文档失败');
             });
         }
         if (b.classList.contains('main-docs-ren')) {
@@ -2505,12 +2800,18 @@ function initDocSectionManager() {
               return refreshMainDocsModalTable();
             })
             .catch(function (err) {
-              alert(err.message || String(err));
+              showAdminAlert(err.message || String(err), '重命名失败');
             });
         }
         if (b.classList.contains('main-docs-del')) {
-          if (!window.confirm('确定删除主文档「' + slug + '」？其下章节将一并删除。')) return;
-          api('/api/admin/docs/main-docs/' + encodeURIComponent(slug), { method: 'DELETE' })
+          showAdminConfirm(
+            '确定删除主文档「' + slug + '」？其下章节将一并删除。',
+            '删除主文档',
+            '确认删除',
+            '取消'
+          ).then(function (ok) {
+            if (!ok) return;
+            return api('/api/admin/docs/main-docs/' + encodeURIComponent(slug), { method: 'DELETE' })
             .then(function () {
               markMainDocFullMarkdownLoaded(slug, false);
               return initAdminMainDocSlug();
@@ -2528,8 +2829,9 @@ function initDocSectionManager() {
               loadStats();
             })
             .catch(function (err) {
-              alert(err.message || String(err));
+              showAdminAlert(err.message || String(err), '删除失败');
             });
+          });
         }
       });
     }
@@ -2542,7 +2844,7 @@ function initDocSectionManager() {
       var slug = ns && ns.value ? String(ns.value).trim() : '';
       var title = nt && nt.value ? String(nt.value).trim() : '';
       if (!slug) {
-        alert('请填写 slug（小写字母、数字、连字符）');
+        showAdminAlert('请填写 slug（小写字母、数字、连字符）', '提示');
         return;
       }
       try {
@@ -2561,10 +2863,63 @@ function initDocSectionManager() {
         await refreshDocSections();
         loadStats();
       } catch (e) {
-        alert(e.message || String(e));
+        showAdminAlert(e.message || String(e), '创建失败');
       }
     });
   }
+}
+
+function bindMainDocHistoryGlobalDelegation() {
+  if (document._mainDocHistoryDelegationBound) return;
+  document._mainDocHistoryDelegationBound = true;
+  document.addEventListener('click', function (e) {
+    var openBtn = e.target.closest('#btnMainDocHistory');
+    if (openBtn) {
+      openMainDocHistoryModal();
+      return;
+    }
+    var closeBtn = e.target.closest('#btnMainDocHistoryClose');
+    if (closeBtn) {
+      closeMainDocHistoryModal();
+      return;
+    }
+    var refreshBtn = e.target.closest('#btnMainDocHistoryRefresh');
+    if (refreshBtn) {
+      loadMainDocHistoryList().catch(function (err) {
+        var msg = $('mainDocHistoryMsg');
+        if (!msg) return;
+        msg.textContent = err.message || String(err);
+        msg.className = 'admin-msg err';
+      });
+      return;
+    }
+    var rollbackBtn = e.target.closest('#btnMainDocHistoryRollback');
+    if (rollbackBtn) {
+      rollbackMainDocToHistoryVersion().catch(function (err) {
+        var msg = $('mainDocHistoryMsg');
+        if (!msg) return;
+        msg.textContent = err.message || String(err);
+        msg.className = 'admin-msg err';
+      });
+      return;
+    }
+    var row = e.target.closest('#mainDocHistoryTableBody tr[data-id]');
+    if (row) {
+      var id = parseInt(row.getAttribute('data-id'), 10);
+      if (!Number.isFinite(id)) return;
+      loadMainDocHistoryVersion(id).catch(function (err) {
+        var msg = $('mainDocHistoryMsg');
+        if (!msg) return;
+        msg.textContent = err.message || String(err);
+        msg.className = 'admin-msg err';
+      });
+      return;
+    }
+    var bg = $('mainDocHistoryModal');
+    if (bg && e.target === bg) {
+      closeMainDocHistoryModal();
+    }
+  });
 }
 
 window.__roleProfilesCache = null;
@@ -2681,6 +3036,126 @@ function closeModalBg(m) {
   }, 200);
 }
 
+function showAdminAlert(message, title) {
+  return new Promise(function (resolve) {
+    var m = $('adminAlertModal');
+    if (!m) {
+      window.alert(message || '');
+      resolve();
+      return;
+    }
+    var t = $('adminAlertTitle');
+    var msg = $('adminAlertMessage');
+    if (t) t.textContent = title || '提示';
+    if (msg) msg.textContent = message || '';
+    openModalBg(m);
+    var ok = $('btnAdminAlertOk');
+    function done() {
+      if (ok) ok.removeEventListener('click', onOk);
+      m.removeEventListener('click', onBg);
+      closeModalBg(m);
+      resolve();
+    }
+    function onOk() {
+      done();
+    }
+    function onBg(e) {
+      if (e.target === m) done();
+    }
+    if (ok) ok.addEventListener('click', onOk);
+    m.addEventListener('click', onBg);
+  });
+}
+
+function showAdminConfirm(message, title, okText, cancelText) {
+  return new Promise(function (resolve) {
+    var m = $('adminConfirmModal');
+    if (!m) {
+      resolve(window.confirm(message || ''));
+      return;
+    }
+    var t = $('adminConfirmTitle');
+    var msg = $('adminConfirmMessage');
+    var ok = $('btnAdminConfirmOk');
+    var cancel = $('btnAdminConfirmCancel');
+    var alt = $('btnAdminConfirmAlt');
+    if (alt) alt.setAttribute('hidden', '');
+    if (t) t.textContent = title || '操作确认';
+    if (msg) msg.textContent = message || '';
+    if (ok) ok.textContent = okText || '确定';
+    if (cancel) cancel.textContent = cancelText || '取消';
+    openModalBg(m);
+    function done(val) {
+      if (ok) ok.removeEventListener('click', onOk);
+      if (cancel) cancel.removeEventListener('click', onCancel);
+      m.removeEventListener('click', onBg);
+      closeModalBg(m);
+      resolve(!!val);
+    }
+    function onOk() {
+      done(true);
+    }
+    function onCancel() {
+      done(false);
+    }
+    function onBg(e) {
+      if (e.target === m) done(false);
+    }
+    if (ok) ok.addEventListener('click', onOk);
+    if (cancel) cancel.addEventListener('click', onCancel);
+    m.addEventListener('click', onBg);
+  });
+}
+
+function showAdminChoice(message, title, okText, altText, cancelText) {
+  return new Promise(function (resolve) {
+    var m = $('adminConfirmModal');
+    if (!m) {
+      resolve(window.confirm(message || '') ? 'ok' : 'cancel');
+      return;
+    }
+    var t = $('adminConfirmTitle');
+    var msg = $('adminConfirmMessage');
+    var ok = $('btnAdminConfirmOk');
+    var alt = $('btnAdminConfirmAlt');
+    var cancel = $('btnAdminConfirmCancel');
+    if (t) t.textContent = title || '操作确认';
+    if (msg) msg.textContent = message || '';
+    if (ok) ok.textContent = okText || '确定';
+    if (alt) {
+      alt.textContent = altText || '其他操作';
+      alt.removeAttribute('hidden');
+    }
+    if (cancel) cancel.textContent = cancelText || '取消';
+    openModalBg(m);
+    function done(val) {
+      if (ok) ok.removeEventListener('click', onOk);
+      if (alt) alt.removeEventListener('click', onAlt);
+      if (cancel) cancel.removeEventListener('click', onCancel);
+      m.removeEventListener('click', onBg);
+      if (alt) alt.setAttribute('hidden', '');
+      closeModalBg(m);
+      resolve(val);
+    }
+    function onOk() {
+      done('ok');
+    }
+    function onAlt() {
+      done('alt');
+    }
+    function onCancel() {
+      done('cancel');
+    }
+    function onBg(e) {
+      if (e.target === m) done('cancel');
+    }
+    if (ok) ok.addEventListener('click', onOk);
+    if (alt) alt.addEventListener('click', onAlt);
+    if (cancel) cancel.addEventListener('click', onCancel);
+    m.addEventListener('click', onBg);
+  });
+}
+
 function openAdminNewUserModal() {
   var m = $('adminNewUserModal');
   if ($('adminUsersMsg')) {
@@ -2795,33 +3270,6 @@ async function loadRoleProfilesPanel() {
   }
 }
 
-function populateSiteSettingsForm(ss) {
-  const en = $('site_maint_enabled');
-  const msg = $('site_maint_message');
-  if (en) en.checked = !!(ss.maintenance && ss.maintenance.enabled);
-  const fs = $('site_maint_full_site');
-  if (fs) fs.checked = !!(ss.maintenance && ss.maintenance.fullSite);
-  if (msg) msg.value = (ss.maintenance && ss.maintenance.message) || '';
-  const regSel = $('site_registration_mode');
-  if (regSel) {
-    var mode = (ss.registration && ss.registration.mode) || 'invitation';
-    if (mode !== 'open' && mode !== 'invitation') mode = 'invitation';
-    regSel.value = mode;
-    regSel.disabled = !(window.__adminUser && window.__adminUser.role === 'admin');
-  }
-  var embCard = $('siteEmbedAiCard');
-  if (embCard) {
-    embCard.classList.toggle(
-      'admin-hidden',
-      !(window.__adminUser && window.__adminUser.role === 'admin')
-    );
-  }
-  var embTa = $('site_embed_ai_chat');
-  if (embTa && window.__adminUser && window.__adminUser.role === 'admin') {
-    embTa.value = (ss.embed && ss.embed.aiChatHtml) || '';
-  }
-}
-
 async function ensureDocPanelLoaded(opts) {
   opts = opts || {};
   return runAdminPanelLoader(
@@ -2919,6 +3367,9 @@ async function ensureToolsPanelLoaded(opts) {
       if (typeof window.refreshToolsNavEditorFromData === 'function') {
         window.refreshToolsNavEditorFromData(tn);
       }
+      if (window.__adminUser && window.__adminUser.role === 'admin') {
+        await loadDocSubmissionsReview();
+      }
       setAdminLoaderMsg('toolsSiteMsg', '');
     },
     opts
@@ -2928,22 +3379,91 @@ async function ensureToolsPanelLoaded(opts) {
   });
 }
 
+function renderDocSubmissionsReview(list) {
+  var host = $('docSubmissionsList');
+  if (!host) return;
+  if (!Array.isArray(list) || !list.length) {
+    host.innerHTML = '<div class="admin-sub">暂无待审核投稿</div>';
+    return;
+  }
+  host.innerHTML = list
+    .map(function (s) {
+      var targetText =
+        s.targetType === 'main'
+          ? '主文档 · ' + (s.targetDocSlug || '-')
+          : '扩展文档';
+      var tags = Array.isArray(s.tags) && s.tags.length ? s.tags.join(', ') : '无标签';
+      var who = s.submitterName || '匿名';
+      var cAt = s.createdAt ? new Date(s.createdAt).toLocaleString('zh-CN') : '-';
+      return (
+        '<div class="doc-submission-item">' +
+        '<div class="doc-submission-head">' +
+        '<div class="doc-submission-title">' +
+        escapeHtml(s.title || '未命名投稿') +
+        '</div>' +
+        '<span class="admin-badge">' +
+        escapeHtml(targetText) +
+        '</span>' +
+        '</div>' +
+        '<div class="doc-submission-meta">提交人：' +
+        escapeHtml(who) +
+        ' ｜ 时间：' +
+        escapeHtml(cAt) +
+        ' ｜ 文件：' +
+        escapeHtml(s.fileName || '-') +
+        '</div>' +
+        '<div class="doc-submission-meta">标签：' +
+        escapeHtml(tags) +
+        '</div>' +
+        '<details style="margin-top:8px"><summary class="admin-sub">预览 Markdown</summary><pre class="mono" style="white-space:pre-wrap;line-height:1.5;max-height:180px;overflow:auto;margin-top:8px">' +
+        escapeHtml(String(s.markdownContent || '').slice(0, 6000)) +
+        '</pre></details>' +
+        '<div class="doc-submission-actions">' +
+        '<button type="button" class="admin-btn-primary" data-doc-sub-act="approve" data-doc-sub-id="' +
+        escapeHtml(String(s.id)) +
+        '">通过并发布</button>' +
+        '<button type="button" class="admin-btn-ghost" data-doc-sub-act="reject" data-doc-sub-id="' +
+        escapeHtml(String(s.id)) +
+        '">驳回</button>' +
+        '</div>' +
+        '</div>'
+      );
+    })
+    .join('');
+}
+
+async function loadDocSubmissionsReview() {
+  var msg = $('docSubmissionsMsg');
+  try {
+    if (msg) {
+      msg.textContent = '加载中…';
+      msg.className = 'admin-msg';
+    }
+    var d = await api('/api/admin/doc-submissions?status=pending');
+    renderDocSubmissionsReview((d && d.list) || []);
+    if (msg) {
+      msg.textContent = '';
+      msg.className = 'admin-msg';
+    }
+  } catch (e) {
+    if (msg) {
+      msg.textContent = e.message || String(e);
+      msg.className = 'admin-msg err';
+    }
+  }
+}
+
 async function ensureSiteSettingsLoaded(opts) {
-  opts = opts || {};
-  return runAdminPanelLoader(
-    'panel:site-settings',
-    async function () {
-      var caps0 = window.__adminCapabilities || { siteSettings: false, seo: false, audit: false };
-      if (!caps0.siteSettings) return;
-      setAdminLoaderMsg('siteSettingsMsg', '正在加载站点设置…');
-      const ss = await api('/api/admin/site-settings');
-      populateSiteSettingsForm(ss || {});
-      setAdminLoaderMsg('siteSettingsMsg', '');
+  if (!window.AdminSiteSettings || typeof window.AdminSiteSettings.ensureLoaded !== 'function') {
+    return Promise.resolve();
+  }
+  return window.AdminSiteSettings.ensureLoaded(opts || {}, {
+    api: api,
+    runAdminPanelLoader: runAdminPanelLoader,
+    setAdminLoaderMsg: setAdminLoaderMsg,
+    getAdminUser: function () {
+      return window.__adminUser || null;
     },
-    opts
-  ).catch(function (err) {
-    setAdminLoaderMsg('siteSettingsMsg', err.message || String(err), 'err');
-    throw err;
   });
 }
 
@@ -3024,6 +3544,7 @@ function updateRedisFormPreview() {
 function applyRedisPanelStatus(d) {
   var rs = (d && d.redis) || {};
   var cache = (d && d.cache) || {};
+  var visual = $('redisConnVisual');
   var badge = $('redisConnBadge');
   var dot = $('redisConnDot');
   var txt = $('redisConnText');
@@ -3039,6 +3560,12 @@ function applyRedisPanelStatus(d) {
     else if (rs.urlConfigured) badge.className += 'sb-disconnected';
     else badge.className += 'sb-idle';
     txt.textContent = rs.connected ? '已连接' : rs.urlConfigured ? '未连通' : '未配置';
+  }
+  if (visual) {
+    visual.classList.remove('state-connected', 'state-disconnected', 'state-idle');
+    if (rs.connected) visual.classList.add('state-connected');
+    else if (rs.urlConfigured) visual.classList.add('state-disconnected');
+    else visual.classList.add('state-idle');
   }
   if (dot) {
     dot.classList.toggle('pulse', !!(rs.connected || (rs.urlConfigured && !rs.connected)));
@@ -3302,6 +3829,48 @@ async function initAdminPanel() {
       $('toolsMsg').className = 'admin-msg err';
     }
   });
+
+  var btnRefreshDocSubs = $('btnRefreshDocSubmissions');
+  if (btnRefreshDocSubs) {
+    btnRefreshDocSubs.addEventListener('click', function () {
+      loadDocSubmissionsReview();
+    });
+  }
+  var docSubsHost = $('docSubmissionsList');
+  if (docSubsHost) {
+    docSubsHost.addEventListener('click', async function (e) {
+      var btn = e.target.closest && e.target.closest('[data-doc-sub-act][data-doc-sub-id]');
+      if (!btn) return;
+      var id = parseInt(btn.getAttribute('data-doc-sub-id') || '', 10);
+      if (!Number.isFinite(id)) return;
+      var act = btn.getAttribute('data-doc-sub-act');
+      var note = window.prompt(act === 'approve' ? '审核备注（可选）' : '驳回原因（可选）', '') || '';
+      var msg = $('docSubmissionsMsg');
+      if (msg) {
+        msg.textContent = '处理中…';
+        msg.className = 'admin-msg';
+      }
+      try {
+        await api('/api/admin/doc-submissions/' + id + '/review', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: act === 'approve' ? 'approve' : 'reject',
+            note: note,
+          }),
+        });
+        if (msg) {
+          msg.textContent = act === 'approve' ? '已通过并发布' : '已驳回';
+          msg.className = 'admin-msg ok';
+        }
+        await loadDocSubmissionsReview();
+      } catch (err) {
+        if (msg) {
+          msg.textContent = err.message || String(err);
+          msg.className = 'admin-msg err';
+        }
+      }
+    });
+  }
 
   $('btnSaveLanding').addEventListener('click', async function () {
     $('landingMsg').textContent = '';
@@ -3607,47 +4176,6 @@ async function initAdminPanel() {
     });
   }
 
-  const btnSite = $('btnSaveSiteSettings');
-  if (btnSite) {
-    btnSite.addEventListener('click', async function () {
-      $('siteSettingsMsg').textContent = '';
-      $('siteSettingsMsg').className = 'admin-msg';
-      try {
-        var sitePayload = {
-          maintenance: {
-            enabled: !!$('site_maint_enabled').checked,
-            fullSite: !!($('site_maint_full_site') && $('site_maint_full_site').checked),
-            message: ($('site_maint_message') && $('site_maint_message').value) || '',
-          },
-          registration: {
-            mode:
-              ($('site_registration_mode') && $('site_registration_mode').value === 'open'
-                ? 'open'
-                : 'invitation'),
-          },
-        };
-        if (window.__adminUser && window.__adminUser.role === 'admin') {
-          sitePayload.embed = {
-            aiChatHtml: ($('site_embed_ai_chat') && $('site_embed_ai_chat').value) || '',
-          };
-        }
-        await api('/api/admin/site-settings', {
-          method: 'PUT',
-          body: JSON.stringify(sitePayload),
-        });
-        $('siteSettingsMsg').textContent = '已保存';
-        $('siteSettingsMsg').className = 'admin-msg ok';
-        loadStats();
-        if ($('site_maint_enabled') && $('site_maint_enabled').checked) {
-          window.location.assign('/maintenance');
-        }
-      } catch (e) {
-        $('siteSettingsMsg').textContent = e.message;
-        $('siteSettingsMsg').className = 'admin-msg err';
-      }
-    });
-  }
-
   const btnRefreshAudit = $('btnRefreshAudit');
   if (btnRefreshAudit) {
     btnRefreshAudit.addEventListener('click', function () {
@@ -3673,6 +4201,95 @@ async function initAdminPanel() {
       $('seoMsg').className = 'admin-msg err';
     }
   });
+
+  var btnSeoAutoGenerate = $('btnSeoAutoGenerate');
+  if (btnSeoAutoGenerate) {
+    btnSeoAutoGenerate.addEventListener('click', async function () {
+      var msgEl = $('seoMsg');
+      if (msgEl) {
+        msgEl.textContent = '';
+        msgEl.className = 'admin-msg';
+      }
+      try {
+        var base = (($('seo_canonicalBase') && $('seo_canonicalBase').value) || '').trim().replace(/\/+$/, '');
+        var docsList = [];
+        var d = await api('/api/admin/docs/main-docs');
+        docsList = (d && Array.isArray(d.docs) ? d.docs : []).filter(function (x) {
+          return x && x.slug;
+        });
+        if (!docsList.length && Array.isArray(adminMainDocsCache) && adminMainDocsCache.length) {
+          docsList = adminMainDocsCache.filter(function (x) {
+            return x && x.slug;
+          });
+        }
+        if (!docsList.length) {
+          throw new Error('未获取到主文档列表，无法生成章节级 sitemap');
+        }
+
+        var defaultDocSlug = 'default';
+        docsList.forEach(function (doc) {
+          if (doc && doc.isDefault) defaultDocSlug = String(doc.slug || 'default').trim() || 'default';
+        });
+
+        var dynamicPaths = [];
+        dynamicPaths.push('/');
+        dynamicPaths.push('/index');
+        var sectionFetchFailed = 0;
+        for (var iDoc = 0; iDoc < docsList.length; iDoc++) {
+          var doc = docsList[iDoc];
+          var slug = String((doc && doc.slug) || '').trim();
+          if (!slug) continue;
+          var isDefaultDoc = slug === defaultDocSlug;
+          var basePath = isDefaultDoc ? '/docs' : '/docs?doc=' + encodeURIComponent(slug);
+          dynamicPaths.push(basePath + '#home');
+          try {
+            var secResp = await api('/api/admin/docs/sections?doc=' + encodeURIComponent(slug));
+            var secs = secResp && Array.isArray(secResp.sections) ? secResp.sections : [];
+            for (var iSec = 2; iSec < secs.length; iSec++) {
+              var sec = secs[iSec];
+              var secSlug = sec && sec.slug != null ? String(sec.slug).trim() : '';
+              if (!secSlug) continue;
+              dynamicPaths.push(basePath + '#' + encodeURIComponent(secSlug));
+            }
+          } catch (_) {
+            sectionFetchFailed += 1;
+          }
+        }
+        dynamicPaths = Array.from(new Set(dynamicPaths));
+
+        var lines = ['User-agent: *', 'Allow: /', 'Disallow: /admin', 'Disallow: /api/admin'];
+        if (base) lines.push('Sitemap: ' + base + '/sitemap.xml');
+        if ($('seo_robotsTxt')) $('seo_robotsTxt').value = lines.join('\n') + '\n';
+        if ($('seo_sitemapAuto')) $('seo_sitemapAuto').checked = true;
+        if ($('seo_includeExtraPagesInSitemap')) $('seo_includeExtraPagesInSitemap').checked = true;
+        if ($('seo_includeExtraPagesInSearch')) $('seo_includeExtraPagesInSearch').checked = true;
+        if ($('seo_sitemapPaths')) $('seo_sitemapPaths').value = dynamicPaths.join('\n');
+
+        var gen = await api('/api/admin/seo/generate-sitemap-file', {
+          method: 'POST',
+          body: JSON.stringify({ seo: collectSeoToObject() }),
+        });
+        var sitemapUrl = (gen && gen.url) || '/data/sitemap.generated.xml';
+
+        if (msgEl) {
+          msgEl.textContent =
+            '已生成 ' +
+            dynamicPaths.length +
+            ' 条 sitemap 路径（章节级）' +
+            (sectionFetchFailed ? '；其中 ' + sectionFetchFailed + ' 个主文档章节读取失败' : '') +
+            '，并已输出文件：' +
+            sitemapUrl +
+            '（可直接访问）；请点击“保存 SEO”生效';
+          msgEl.className = 'admin-msg ok';
+        }
+      } catch (e) {
+        if (msgEl) {
+          msgEl.textContent = e.message || String(e);
+          msgEl.className = 'admin-msg err';
+        }
+      }
+    });
+  }
 
   function docCrumbTitle() {
     if (window.__docSub === 'extra') return '文档管理 · 扩展页面';
@@ -3960,6 +4577,13 @@ async function initAdminPanel() {
         host.innerHTML =
           '<p class="admin-msg err" style="padding:16px 18px">' + escapeHtml(err.message || String(err)) + '</p>';
       });
+  }
+  var __usersLoadLastAt = 0;
+  function ensureUsersPanelFreshLoad() {
+    var now = Date.now();
+    if (now - __usersLoadLastAt < 400) return;
+    __usersLoadLastAt = now;
+    loadAdminUsers();
   }
 
 
@@ -4276,6 +4900,9 @@ async function initAdminPanel() {
     var pu = $('panelUpgrade');
     if (pu) pu.classList.toggle('active', name === 'upgrade');
     $('panelMenu').classList.toggle('active', name === 'menu');
+    if (name === 'users') {
+      ensureUsersPanelFreshLoad();
+    }
     if (!opts.skipLoad) {
       Promise.resolve(hydrateAdminTab(name)).catch(function (err) {
         console.warn('hydrateAdminTab failed for', name, err);
@@ -4520,6 +5147,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     setAdminBootState(session.message || '后台初始化失败，请稍后重试。', { error: true });
     return;
+  }
+  bindMainDocHistoryGlobalDelegation();
+  if (typeof window.initLandingEditorEnhancements === 'function') {
+    window.initLandingEditorEnhancements();
+  }
+  if (window.AdminSiteSettings && typeof window.AdminSiteSettings.init === 'function') {
+    window.AdminSiteSettings.init({
+      api: api,
+      loadStats: loadStats,
+      runAdminPanelLoader: runAdminPanelLoader,
+      setAdminLoaderMsg: setAdminLoaderMsg,
+      getAdminUser: function () {
+        return window.__adminUser || null;
+      },
+    });
   }
 
   try {

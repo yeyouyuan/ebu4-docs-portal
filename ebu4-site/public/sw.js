@@ -3,7 +3,7 @@
  * E9 文档站 PWA — 离线壳层 + 运行时缓存
  * 更新缓存：修改 VERSION 并部署
  */
-const VERSION = 'ebu4-pwa-2026.04.16-1';
+const VERSION = 'ebu4-pwa-2026.04.16-2';
 const PRECACHE = 'precache-' + VERSION;
 const RUNTIME = 'runtime-' + VERSION;
 
@@ -102,8 +102,11 @@ self.addEventListener('fetch', function (event) {
 
   /**
    * /api/、/data/ 不拦截：交给浏览器默认网络请求。
-   * 若用 respondWith(fetch(...)) 且离线，Promise 拒绝会导致 FetchEvent network error。
+   * 管理后台（文档管理等）依赖实时数据，不能走 SW cache-first。
    */
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/data/')) {
+    return;
+  }
 
   /** 后台与登录页必须走网络，禁止 cache-first（否则会长期返回预缓存的登录 HTML） */
   if (url.pathname.startsWith('/admin')) {

@@ -1,7 +1,7 @@
 {
   "product": "ebu4-docs-site",
   "systemVersion": "1.0.0",
-  "docsVersion": "fd451cc2327c0a48c38c0896",
+  "docsVersion": "d3a6d4abbe27284dd5a25f05",
   "changelog": "发布文档更新前：在发布站运行 npm run export-docs-bundle，将脚本打印的 docsVersion 指纹填到本文件 docsVersion；并配置 components.docs。发布系统更新：打 tar.gz 含 server/、public/、package.json（public 含 js/lazy-images.js）。",
   "components": {
     "docs": {
@@ -9,7 +9,7 @@
       "artifacts": [
         {
           "url": "/upgrade/docs-bundle.json",
-          "sha256": "71e7a001d4055367319abbc8fa2f83bb61f6003bfd9b18a61920ed644605791b"
+          "sha256": "9db429efbf0959a36ea5f0d8529b6fc5fb86fa5de1a120ebd36a292e3c216cc1"
         }
       ]
     },
@@ -18,7 +18,7 @@
       "artifacts": [
         {
           "url": "/upgrade/system-artifact.tar.gz",
-          "sha256": "811c695debdde5def0a22f94b21776fbfe7d2ce30fbdf0a6a61692bb3c7a48f3"
+          "sha256": "2f4dd4a4b67922a4e02fa9b6d106d2eeb06d5f2123407785eb07065e77ac552c"
         }
       ]
     }

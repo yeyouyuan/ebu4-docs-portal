@@ -202,7 +202,7 @@ body.admin-dash-mode .ry-body::-webkit-scrollbar {
 }
 body.admin-dash-mode .ry-body::-webkit-scrollbar-thumb {
   background: var(--ebu4-border);
-  border-radius: 3px;
+  border-radius: 8px;
 }
 body.admin-dash-mode .ry-body::-webkit-scrollbar-thumb:hover {
   background: var(--ebu4-border2);
