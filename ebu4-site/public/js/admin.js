@@ -227,7 +227,7 @@ function toastAdminDash(msg) {
 
 /** 侧边菜单顺序：服务端保存；仅管理员可改。本地 key 作离线回退 */
 var ADMIN_MENU_ORDER_KEY = 'ebu4-admin-menu-order';
-var DEFAULT_ADMIN_MENU_TABS = ['dash', 'md', 'tools', 'landing', 'site', 'upgrade', 'seo', 'audit', 'users', 'roles', 'redis'];
+var DEFAULT_ADMIN_MENU_TABS = ['dash', 'md', 'tools', 'landing', 'site', 'blogfetch', 'ai', 'upgrade', 'seo', 'audit', 'users', 'roles', 'redis'];
 /** 主导航 tab id → 名称（「菜单显示」本页不在此列表） */
 var MENU_TAB_LABELS = {
   dash: '数据看板',
@@ -235,6 +235,8 @@ var MENU_TAB_LABELS = {
   tools: '工具导航',
   landing: '门户首页',
   site: '站点设置',
+  blogfetch: '个人周报助手',
+  ai: 'AI 接入',
   seo: 'SEO 设置',
   audit: '操作日志',
   users: '用户管理',
@@ -646,6 +648,8 @@ const ADMIN_TAB_TITLES = {
   tools: '工具导航',
   landing: '门户首页',
   site: '站点设置',
+  blogfetch: '个人周报助手',
+  ai: 'AI 接入',
   seo: 'SEO 设置',
   audit: '操作日志',
   users: '用户管理',
@@ -779,6 +783,8 @@ async function checkSession(opts) {
       window.__adminUser = d.user;
       window.__adminCapabilities = d.capabilities || {
         siteSettings: false,
+        blogFetch: false,
+        aiSettings: false,
         seo: false,
         audit: false,
       };
@@ -844,10 +850,18 @@ function defaultDataViews() {
 
 function updateAdminChrome() {
   const u = window.__adminUser;
-  const caps = window.__adminCapabilities || { siteSettings: false, seo: false, audit: false };
+  const caps = window.__adminCapabilities || {
+    siteSettings: false,
+    blogFetch: false,
+    aiSettings: false,
+    seo: false,
+    audit: false,
+  };
   const isAdm = u && u.role === 'admin';
   const dv = window.__adminDataViews || defaultDataViews();
   const showSite = !!caps.siteSettings;
+  const showBlogFetch = isAdm || !!caps.blogFetch;
+  const showAi = isAdm || !!caps.aiSettings;
   const showSeo = !!caps.seo;
   const showAudit = !!caps.audit;
   const showMd = !!(dv.mainDoc || dv.extraPages);
@@ -883,6 +897,8 @@ function updateAdminChrome() {
     tools: showTools,
     landing: showLanding,
     site: showSite,
+    blogfetch: showBlogFetch,
+    ai: showAi,
     seo: showSeo,
     audit: showAudit,
     users: isAdm,
@@ -900,6 +916,8 @@ function updateAdminChrome() {
     panelTools: showTools,
     panelLanding: showLanding,
     panelSite: showSite,
+    panelBlogFetch: showBlogFetch,
+    panelAi: showAi,
     panelSeo: showSeo,
     panelAudit: showAudit,
     panelUsers: isAdm,
@@ -2937,6 +2955,8 @@ function fillRoleProfileFormFromCache(roleId) {
   if (ta) ta.value = r.securityNote || '';
   var ma = r.moduleAccess || {};
   if ($('cap_editor_site')) $('cap_editor_site').checked = !!ma.siteSettings;
+  if ($('cap_editor_blogfetch')) $('cap_editor_blogfetch').checked = !!ma.blogFetch;
+  if ($('cap_editor_ai')) $('cap_editor_ai').checked = !!ma.aiSettings;
   if ($('cap_editor_seo')) $('cap_editor_seo').checked = !!ma.seo;
   if ($('cap_editor_audit')) $('cap_editor_audit').checked = !!ma.audit;
   if ($('cap_editor_invite')) $('cap_editor_invite').checked = !!ma.inviteRegister;
@@ -3463,8 +3483,676 @@ async function ensureSiteSettingsLoaded(opts) {
     setAdminLoaderMsg: setAdminLoaderMsg,
     getAdminUser: function () {
       return window.__adminUser || null;
-    },
+      },
+    });
+}
+
+async function ensureAiPanelLoaded(opts) {
+  if (!window.AdminAi || typeof window.AdminAi.ensureLoaded !== 'function') {
+    return Promise.resolve();
+  }
+  return window.AdminAi.ensureLoaded(opts || {}, {
+    api: api,
+    runAdminPanelLoader: runAdminPanelLoader,
+    setAdminLoaderMsg: setAdminLoaderMsg,
   });
+}
+
+function downloadBlob(content, fileName, mime) {
+  var blob = content instanceof Blob ? content : new Blob([content], { type: mime || 'application/octet-stream' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function () {
+    URL.revokeObjectURL(url);
+  }, 1200);
+}
+
+function weeklySafeFileName(value, ext) {
+  var base = String(value || 'personal-weekly-report')
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, '-')
+    .slice(0, 80);
+  return (base || 'personal-weekly-report') + ext;
+}
+
+var weeklyReportState = {
+  blogs: [],
+  result: null,
+  generatedReport: null,
+  history: [],
+  historySelection: Object.create(null),
+  bridgeReady: false,
+  bridgePending: Object.create(null),
+};
+
+var BLOG_FETCH_BRIDGE_CHANNEL = 'ebu4-blogfetch-bridge';
+
+function setWeeklyMsg(id, text, cls) {
+  var el = $(id);
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = text ? 'admin-msg' + (cls ? ' ' + cls : '') : 'admin-msg';
+}
+
+function setWeeklyStatus(text) {
+  var el = $('blogFetchStatus');
+  if (!el) return;
+  el.textContent = text || '未执行';
+}
+
+function setWeeklyBridgeStatus(text, cls) {
+  var el = $('blogFetchBridgeStatus');
+  if (!el) return;
+  el.textContent = text || '未检测';
+  el.className = 'weekly-status' + (cls ? ' ' + cls : '');
+}
+
+function setWeeklyBridgeMsg(text, cls) {
+  var el = $('blogFetchBridgeMsg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = cls ? cls : '';
+}
+
+function postBlogFetchBridge(payload) {
+  window.postMessage(
+    Object.assign(
+      {
+        channel: BLOG_FETCH_BRIDGE_CHANNEL,
+        source: 'ebu4-admin',
+        target: 'ecom-token-extractor',
+      },
+      payload || {}
+    ),
+    '*'
+  );
+}
+
+function nextBridgeRequestId() {
+  return 'req_' + Date.now() + '_' + Math.random().toString(16).slice(2, 8);
+}
+
+function requestBlogFetchBridge(type) {
+  return new Promise(function (resolve, reject) {
+    var requestId = nextBridgeRequestId();
+    var timer = setTimeout(function () {
+      delete weeklyReportState.bridgePending[requestId];
+      reject(new Error('未检测到插件响应，请确认已安装并启用 ecom-token-extractor 扩展'));
+    }, 2500);
+    weeklyReportState.bridgePending[requestId] = {
+      resolve: resolve,
+      reject: reject,
+      timer: timer,
+      type: type,
+    };
+    postBlogFetchBridge({ type: type, requestId: requestId });
+  });
+}
+
+function handleBlogFetchBridgeMessage(data) {
+  if (!data || data.channel !== BLOG_FETCH_BRIDGE_CHANNEL) return;
+  if (data.source !== 'ecom-token-extractor' || data.target !== 'ebu4-admin') return;
+  if (data.type === 'bridge-ready') {
+    weeklyReportState.bridgeReady = true;
+    setWeeklyBridgeStatus('已连接');
+    setWeeklyBridgeMsg('插件已就绪，可直接导入浏览器中的 e-cology Cookie。');
+    return;
+  }
+  var requestId = data.requestId || '';
+  var pending = requestId ? weeklyReportState.bridgePending[requestId] : null;
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  delete weeklyReportState.bridgePending[requestId];
+  if (data.type === 'bridge-pong') {
+    weeklyReportState.bridgeReady = true;
+    pending.resolve(data);
+    return;
+  }
+  if (data.type === 'cookie-response') {
+    weeklyReportState.bridgeReady = !!data.ok;
+    if (data.ok) pending.resolve(data);
+    else pending.reject(new Error(data.error || '插件未返回 Cookie'));
+  }
+}
+
+async function pingBlogFetchBridge() {
+  setWeeklyBridgeStatus('检测中');
+  setWeeklyBridgeMsg('正在检测浏览器扩展连接状态…');
+  try {
+    await requestBlogFetchBridge('ping');
+    setWeeklyBridgeStatus('已连接');
+    setWeeklyBridgeMsg('插件连接正常，可直接导入 Cookie。');
+  } catch (err) {
+    weeklyReportState.bridgeReady = false;
+    setWeeklyBridgeStatus('未连接');
+    setWeeklyBridgeMsg(err.message || String(err), 'admin-sub');
+    throw err;
+  }
+}
+
+async function importCookieFromBridge() {
+  setWeeklyBridgeStatus('读取中');
+  setWeeklyBridgeMsg('正在从浏览器扩展读取 Cookie…');
+  var data = await requestBlogFetchBridge('cookie-request');
+  var cookie = String((data && data.cookie) || '').trim();
+  if (!cookie) throw new Error('插件未返回可用 Cookie');
+  if ($('blogFetchCookie')) $('blogFetchCookie').value = cookie;
+  setWeeklyBridgeStatus('已导入');
+  setWeeklyBridgeMsg('Cookie 已自动填入抓取表单。');
+  setWeeklyMsg('blogFetchMsg', 'Cookie 已从插件导入', 'ok');
+  return data;
+}
+
+function getWeeklySelectedIds() {
+  return Object.keys(weeklyReportState.historySelection)
+    .filter(function (id) {
+      return weeklyReportState.historySelection[id];
+    })
+    .map(function (id) {
+      return parseInt(id, 10);
+    })
+    .filter(function (id) {
+      return Number.isFinite(id);
+    });
+}
+
+function syncWeeklySelectionFromDom() {
+  weeklyReportState.historySelection = Object.create(null);
+  document.querySelectorAll('#weeklyHistoryList input[data-weekly-history-select]').forEach(function (input) {
+    var id = parseInt(input.getAttribute('data-weekly-history-select') || '', 10);
+    if (Number.isFinite(id) && input.checked) {
+      weeklyReportState.historySelection[String(id)] = true;
+    }
+  });
+  var checkAll = $('weeklyHistoryCheckAll');
+  if (checkAll) {
+    var total = document.querySelectorAll('#weeklyHistoryList input[data-weekly-history-select]').length;
+    var checked = getWeeklySelectedIds().length;
+    checkAll.checked = total > 0 && checked === total;
+  }
+}
+
+function updateWeeklyFetchSummary(result) {
+  var stats = (result && result.stats) || {};
+  var range = result && result.range ? result.range : {};
+  if ($('blogFetchStatTotal')) $('blogFetchStatTotal').textContent = String(stats.total || 0);
+  if ($('blogFetchStatUsers')) $('blogFetchStatUsers').textContent = String(stats.users || 0);
+  if ($('blogFetchStatDepartments')) $('blogFetchStatDepartments').textContent = String(stats.departments || 0);
+  if ($('blogFetchStatRange')) {
+    $('blogFetchStatRange').textContent =
+      range && (range.from || range.to)
+        ? String(range.from || '—') + ' ~ ' + String(range.to || '—')
+        : '—';
+  }
+}
+
+function renderWeeklyBlogsTable(list) {
+  var host = $('blogFetchTableHost');
+  if (!host) return;
+  var rows = Array.isArray(list) ? list : [];
+  if (!rows.length) {
+    host.innerHTML = '<p class="admin-muted" style="padding:12px 14px">暂无抓取结果</p>';
+    return;
+  }
+  host.innerHTML =
+    '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>日期</th><th>作者</th><th>部门</th><th>内容摘要</th></tr></thead><tbody>' +
+    rows
+      .map(function (row) {
+        return (
+          '<tr><td>' +
+          escapeHtml(row.date || '-') +
+          '</td><td>' +
+          escapeHtml(row.user || '-') +
+          '</td><td>' +
+          escapeHtml(row.department || '-') +
+          '</td><td>' +
+          escapeHtml(String(row.content || '').slice(0, 160) || '-') +
+          '</td></tr>'
+        );
+      })
+      .join('') +
+    '</tbody></table></div>';
+}
+
+function renderWeeklyGeneratedReport(report) {
+  weeklyReportState.generatedReport = report || null;
+  if ($('weeklyReportMarkdown')) $('weeklyReportMarkdown').value = report && report.markdownContent ? report.markdownContent : '';
+  if ($('weeklyReportSummary')) {
+    $('weeklyReportSummary').value = report ? JSON.stringify((report.summary || {}), null, 2) : '';
+  }
+}
+
+function cacheWeeklyDraft(report) {
+  try {
+    if (!report) {
+      sessionStorage.removeItem('ebu4-weekly-report-preview');
+      return;
+    }
+    sessionStorage.setItem('ebu4-weekly-report-preview', JSON.stringify(report));
+  } catch (e) {}
+}
+
+function openWeeklyPreview(report) {
+  if (!report) return;
+  cacheWeeklyDraft(report);
+  var url = report.id
+    ? '/weekly-report-preview.html?id=' + encodeURIComponent(String(report.id))
+    : '/weekly-report-preview.html';
+  window.open(url, '_blank', 'noopener');
+}
+
+function renderWeeklyHistory(list) {
+  var host = $('weeklyHistoryList');
+  if (!host) return;
+  var rows = Array.isArray(list) ? list : [];
+  weeklyReportState.history = rows.slice();
+  if (!rows.length) {
+    host.innerHTML = '<p class="admin-muted" style="padding:12px 6px">暂无历史记录</p>';
+    syncWeeklySelectionFromDom();
+    return;
+  }
+  host.innerHTML = rows
+    .map(function (row) {
+      var checked = weeklyReportState.historySelection[String(row.id)] ? ' checked' : '';
+      var range = row.rangeFrom || row.rangeTo ? [row.rangeFrom || '—', row.rangeTo || '—'].join(' ~ ') : '未定范围';
+      var summary = row.summary && row.summary.ai && row.summary.ai.used ? 'AI 润色' : '规则生成';
+      return (
+        '<article class="weekly-report-history-item" data-weekly-history-id="' +
+        escapeHtml(String(row.id)) +
+        '">' +
+        '<label class="weekly-report-history-select"><input type="checkbox" data-weekly-history-select="' +
+        escapeHtml(String(row.id)) +
+        '"' +
+        checked +
+        ' /><span>选择</span></label>' +
+        '<div class="weekly-report-history-main">' +
+        '<div class="weekly-report-history-title">' +
+        escapeHtml(row.title || '个人周报') +
+        '</div>' +
+        '<div class="weekly-report-history-meta"><span>' +
+        escapeHtml(range) +
+        '</span><span>' +
+        escapeHtml(String(row.sourceCount || 0)) +
+        ' 条日报</span><span>' +
+        escapeHtml(summary) +
+        '</span><span>' +
+        escapeHtml(row.resolvedUserId || row.createdByUsername || '-') +
+        '</span></div>' +
+        '</div>' +
+        '<div class="weekly-report-history-time">' +
+        escapeHtml(row.createdAt || '-') +
+        '</div>' +
+        '<div class="weekly-report-history-actions">' +
+        '<button type="button" class="weekly-report-history-link" data-weekly-act="preview" data-weekly-id="' +
+        escapeHtml(String(row.id)) +
+        '">预览</button>' +
+        '<button type="button" class="weekly-report-history-link" data-weekly-act="docx" data-weekly-id="' +
+        escapeHtml(String(row.id)) +
+        '">DOCX</button>' +
+        '<button type="button" class="weekly-report-history-link" data-weekly-act="md" data-weekly-id="' +
+        escapeHtml(String(row.id)) +
+        '">Markdown</button>' +
+        '<button type="button" class="weekly-report-history-delete" data-weekly-act="delete" data-weekly-id="' +
+        escapeHtml(String(row.id)) +
+        '">删除</button>' +
+        '</div>' +
+        '</article>'
+      );
+    })
+    .join('');
+  syncWeeklySelectionFromDom();
+}
+
+function collectWeeklyFetchPayload() {
+  var range = ($('blogFetchRange') && $('blogFetchRange').value) || 'last-days';
+  return {
+    cookie: ($('blogFetchCookie') && $('blogFetchCookie').value) || '',
+    base: ($('blogFetchBase') && $('blogFetchBase').value) || '',
+    userId: ($('blogFetchUserId') && $('blogFetchUserId').value) || '',
+    pages: ($('blogFetchPages') && $('blogFetchPages').value) || '5',
+    range: range === 'custom' ? '' : range,
+    from: ($('blogFetchFrom') && $('blogFetchFrom').value) || '',
+    to: ($('blogFetchTo') && $('blogFetchTo').value) || '',
+    lastDays: ($('blogFetchLastDays') && $('blogFetchLastDays').value) || '7',
+  };
+}
+
+async function runBlogFetch() {
+  var btn = $('btnBlogFetchRun');
+  if (btn) btn.disabled = true;
+  setWeeklyMsg('blogFetchMsg', '抓取中…');
+  setWeeklyStatus('抓取中');
+  try {
+    var data = await api('/api/admin/blog-fetch/run', {
+      method: 'POST',
+      body: JSON.stringify(collectWeeklyFetchPayload()),
+    });
+    var result = data && data.result ? data.result : {};
+    weeklyReportState.result = result;
+    weeklyReportState.blogs = Array.isArray(result.blogs) ? result.blogs : [];
+    updateWeeklyFetchSummary(result);
+    renderWeeklyBlogsTable(weeklyReportState.blogs);
+    if ($('blogFetchTextOutput')) $('blogFetchTextOutput').value = result.textOutput || '';
+    if ($('blogFetchPreviewHint')) $('blogFetchPreviewHint').textContent = '已抓取 ' + String((result.stats && result.stats.total) || weeklyReportState.blogs.length || 0) + ' 条日报';
+    if ($('weeklyReportResolvedUserId') && !$('weeklyReportResolvedUserId').value) {
+      $('weeklyReportResolvedUserId').value = result.userId || '';
+    }
+    setWeeklyStatus('已抓取');
+    setWeeklyMsg('blogFetchMsg', '日报抓取完成', 'ok');
+  } catch (e) {
+    setWeeklyStatus('抓取失败');
+    setWeeklyMsg('blogFetchMsg', e.message || String(e), 'err');
+    throw e;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function generateWeeklyReport() {
+  if (!weeklyReportState.blogs.length) {
+    throw new Error('请先抓取日报后再生成周报');
+  }
+  var btn = $('btnGenerateWeeklyReport');
+  if (btn) btn.disabled = true;
+  setWeeklyMsg('weeklyReportMsg', '生成中…');
+  try {
+    var payload = {
+      title: ($('weeklyReportTitleInput') && $('weeklyReportTitleInput').value) || '',
+      style: ($('weeklyReportStyle') && $('weeklyReportStyle').value) || 'concise',
+      includeDailyDigest: !!($('weeklyReportIncludeDailyDigest') && $('weeklyReportIncludeDailyDigest').checked),
+      resolvedUserId: ($('weeklyReportResolvedUserId') && $('weeklyReportResolvedUserId').value) || '',
+      save: !!($('weeklyReportSave') && $('weeklyReportSave').checked),
+      blogs: weeklyReportState.blogs,
+    };
+    var data = await api('/api/admin/blog-fetch/weekly-report/generate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    var report = data && data.report ? data.report : null;
+    renderWeeklyGeneratedReport(report);
+    cacheWeeklyDraft(report);
+    setWeeklyMsg('weeklyReportMsg', report && report.id ? '周报已生成并保存' : '周报已生成', 'ok');
+    if ($('weeklyReportTitleInput') && report && report.title) $('weeklyReportTitleInput').value = report.title;
+    if (report && report.id) {
+      await loadWeeklyHistory({ force: true });
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function collectWeeklyHistoryParams() {
+  var params = new URLSearchParams();
+  var keyword = ($('weeklyHistoryKeyword') && $('weeklyHistoryKeyword').value) || '';
+  var resolvedUserId = ($('weeklyHistoryResolvedUserId') && $('weeklyHistoryResolvedUserId').value) || '';
+  var from = ($('weeklyHistoryFrom') && $('weeklyHistoryFrom').value) || '';
+  var to = ($('weeklyHistoryTo') && $('weeklyHistoryTo').value) || '';
+  var sort = ($('weeklyHistorySort') && $('weeklyHistorySort').value) || 'created_desc';
+  if (keyword) params.set('keyword', keyword);
+  if (resolvedUserId) params.set('resolvedUserId', resolvedUserId);
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  if (sort) params.set('sort', sort);
+  params.set('limit', '50');
+  return params.toString();
+}
+
+async function loadWeeklyHistory(opts) {
+  opts = opts || {};
+  return runAdminPanelLoader(
+    'panel:blogfetch-history',
+    async function () {
+      setWeeklyMsg('weeklyHistoryMsg', '加载中…');
+      var query = collectWeeklyHistoryParams();
+      var data = await api('/api/admin/blog-fetch/weekly-reports' + (query ? '?' + query : ''));
+      renderWeeklyHistory((data && data.list) || []);
+      setWeeklyMsg('weeklyHistoryMsg', '');
+    },
+    { force: !!opts.force }
+  ).catch(function (err) {
+    setWeeklyMsg('weeklyHistoryMsg', err.message || String(err), 'err');
+    throw err;
+  });
+}
+
+async function exportWeeklyBatch(format) {
+  var ids = getWeeklySelectedIds();
+  if (!ids.length) throw new Error('请先选择需要导出的周报');
+  var res = await fetch('/api/admin/blog-fetch/weekly-reports/batch-export', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: ids, format: format }),
+  });
+  if (!res.ok) {
+    var data = await res.json().catch(function () {
+      return {};
+    });
+    throw new Error((data && data.error) || '批量导出失败');
+  }
+  var blob = await res.blob();
+  downloadBlob(blob, 'weekly-reports-' + format + '.zip', blob.type);
+}
+
+async function deleteWeeklyReports(ids) {
+  if (!ids.length) throw new Error('请先选择需要删除的周报');
+  var ok = await showAdminConfirm('确定删除选中的 ' + ids.length + ' 条周报记录？', '删除周报', '删除', '取消');
+  if (!ok) return;
+  await api('/api/admin/blog-fetch/weekly-reports/batch-delete', {
+    method: 'POST',
+    body: JSON.stringify({ ids: ids }),
+  });
+  await loadWeeklyHistory({ force: true });
+}
+
+async function downloadWeeklyHistoryFile(id, format) {
+  var row = weeklyReportState.history.find(function (item) {
+    return item && Number(item.id) === Number(id);
+  });
+  if (!row) throw new Error('未找到对应周报记录');
+  if (format === 'docx') {
+    var res = await fetch('/api/admin/blog-fetch/weekly-reports/' + encodeURIComponent(String(id)) + '/docx', {
+      credentials: 'same-origin',
+    });
+    if (!res.ok) {
+      var data = await res.json().catch(function () {
+        return {};
+      });
+      throw new Error((data && data.error) || 'DOCX 导出失败');
+    }
+    var blob = await res.blob();
+    downloadBlob(blob, weeklySafeFileName(row.title, '.docx'), blob.type);
+    return;
+  }
+  if (format === 'md') {
+    downloadBlob(row.markdownContent || '', weeklySafeFileName(row.title, '.md'), 'text/markdown;charset=utf-8');
+    return;
+  }
+}
+
+function bindWeeklyHistoryActions() {
+  var list = $('weeklyHistoryList');
+  if (list && !list._weeklyBound) {
+    list._weeklyBound = true;
+    list.addEventListener('change', function (e) {
+      var input = e.target && e.target.closest && e.target.closest('input[data-weekly-history-select]');
+      if (!input) return;
+      var id = input.getAttribute('data-weekly-history-select');
+      if (!id) return;
+      weeklyReportState.historySelection[id] = !!input.checked;
+      syncWeeklySelectionFromDom();
+    });
+    list.addEventListener('click', function (e) {
+      var btn = e.target.closest && e.target.closest('[data-weekly-act][data-weekly-id]');
+      if (!btn) return;
+      var id = parseInt(btn.getAttribute('data-weekly-id') || '', 10);
+      var act = btn.getAttribute('data-weekly-act');
+      if (!Number.isFinite(id) || !act) return;
+      Promise.resolve()
+        .then(async function () {
+          if (act === 'preview') {
+            openWeeklyPreview(
+              weeklyReportState.history.find(function (row) {
+                return Number(row.id) === id;
+              }) || null
+            );
+            return;
+          }
+          if (act === 'docx' || act === 'md') {
+            await downloadWeeklyHistoryFile(id, act);
+            return;
+          }
+          if (act === 'delete') {
+            await deleteWeeklyReports([id]);
+            return;
+          }
+        })
+        .catch(function (err) {
+          setWeeklyMsg('weeklyHistoryMsg', err.message || String(err), 'err');
+        });
+    });
+  }
+  var checkAll = $('weeklyHistoryCheckAll');
+  if (checkAll && !checkAll._weeklyBound) {
+    checkAll._weeklyBound = true;
+    checkAll.addEventListener('change', function () {
+      document.querySelectorAll('#weeklyHistoryList input[data-weekly-history-select]').forEach(function (input) {
+        input.checked = !!checkAll.checked;
+      });
+      syncWeeklySelectionFromDom();
+    });
+  }
+}
+
+function bindWeeklyPanelActions() {
+  if (!window.__blogFetchBridgeBound) {
+    window.__blogFetchBridgeBound = true;
+    window.addEventListener('message', function (event) {
+      if (event.source !== window) return;
+      handleBlogFetchBridgeMessage(event.data);
+    });
+  }
+  var btnFetch = $('btnBlogFetchRun');
+  if (btnFetch && !btnFetch._weeklyBound) {
+    btnFetch._weeklyBound = true;
+    btnFetch.addEventListener('click', function () {
+      runBlogFetch().catch(function () {});
+    });
+  }
+  var btnGenerate = $('btnGenerateWeeklyReport');
+  if (btnGenerate && !btnGenerate._weeklyBound) {
+    btnGenerate._weeklyBound = true;
+    btnGenerate.addEventListener('click', function () {
+      generateWeeklyReport().catch(function (err) {
+        setWeeklyMsg('weeklyReportMsg', err.message || String(err), 'err');
+      });
+    });
+  }
+  var btnPreview = $('btnOpenWeeklyDraftPreview');
+  if (btnPreview && !btnPreview._weeklyBound) {
+    btnPreview._weeklyBound = true;
+    btnPreview.addEventListener('click', function () {
+      if (!weeklyReportState.generatedReport) {
+        setWeeklyMsg('weeklyReportMsg', '请先生成周报后再打开预览', 'err');
+        return;
+      }
+      openWeeklyPreview(weeklyReportState.generatedReport);
+    });
+  }
+  var btnRefresh = $('btnWeeklyHistoryRefresh');
+  if (btnRefresh && !btnRefresh._weeklyBound) {
+    btnRefresh._weeklyBound = true;
+    btnRefresh.addEventListener('click', function () {
+      loadWeeklyHistory({ force: true }).catch(function () {});
+    });
+  }
+  var btnApply = $('btnWeeklyHistoryApply');
+  if (btnApply && !btnApply._weeklyBound) {
+    btnApply._weeklyBound = true;
+    btnApply.addEventListener('click', function () {
+      loadWeeklyHistory({ force: true }).catch(function () {});
+    });
+  }
+  var btnBridgePing = $('btnBlogFetchBridgePing');
+  if (btnBridgePing && !btnBridgePing._weeklyBound) {
+    btnBridgePing._weeklyBound = true;
+    btnBridgePing.addEventListener('click', function () {
+      pingBlogFetchBridge().catch(function () {});
+    });
+  }
+  var btnImportCookie = $('btnBlogFetchImportCookie');
+  if (btnImportCookie && !btnImportCookie._weeklyBound) {
+    btnImportCookie._weeklyBound = true;
+    btnImportCookie.addEventListener('click', function () {
+      importCookieFromBridge().catch(function (err) {
+        setWeeklyBridgeStatus('读取失败');
+        setWeeklyBridgeMsg(err.message || String(err), 'admin-sub');
+        setWeeklyMsg('blogFetchMsg', err.message || String(err), 'err');
+      });
+    });
+  }
+  [
+    ['btnWeeklyBatchExportDocx', 'docx'],
+    ['btnWeeklyBatchExportMd', 'md'],
+    ['btnWeeklyBatchExportJson', 'json'],
+  ].forEach(function (entry) {
+    var btn = $(entry[0]);
+    if (btn && !btn._weeklyBound) {
+      btn._weeklyBound = true;
+      btn.addEventListener('click', function () {
+        exportWeeklyBatch(entry[1]).catch(function (err) {
+          setWeeklyMsg('weeklyHistoryMsg', err.message || String(err), 'err');
+        });
+      });
+    }
+  });
+  var btnDelete = $('btnWeeklyBatchDelete');
+  if (btnDelete && !btnDelete._weeklyBound) {
+    btnDelete._weeklyBound = true;
+    btnDelete.addEventListener('click', function () {
+      deleteWeeklyReports(getWeeklySelectedIds()).catch(function (err) {
+        setWeeklyMsg('weeklyHistoryMsg', err.message || String(err), 'err');
+      });
+    });
+  }
+  var range = $('blogFetchRange');
+  if (range && !range._weeklyBound) {
+    range._weeklyBound = true;
+    var syncRangeUi = function () {
+      var lastDays = $('blogFetchLastDays');
+      var hint = $('blogFetchRangeHint');
+      if (lastDays) lastDays.disabled = false;
+      if (hint) {
+        if (range.value === 'this-week') {
+          hint.value = '当前按“本周”抓取；如需精确日期，可直接切到“自定义”并填写开始/结束日期。';
+        } else if (range.value === 'last-week') {
+          hint.value = '当前按“上周”抓取；如需精确日期，可直接切到“自定义”并填写开始/结束日期。';
+        } else if (range.value === 'custom') {
+          hint.value = '当前按自定义日期范围抓取，请填写开始日期和结束日期。';
+        } else {
+          hint.value = '当前按“最近 N 天”抓取；也可以直接改为自定义日期范围。';
+        }
+      }
+    };
+    range.addEventListener('change', syncRangeUi);
+    syncRangeUi();
+  }
+  bindWeeklyHistoryActions();
+}
+
+async function ensureBlogFetchPanelLoaded(opts) {
+  bindWeeklyPanelActions();
+  if (!weeklyReportState.bridgeReady) {
+    pingBlogFetchBridge().catch(function () {});
+  }
+  return Promise.all([loadWeeklyHistory(opts || {}), Promise.resolve()]);
 }
 
 async function hydrateAdminTab(name) {
@@ -3486,6 +4174,14 @@ async function hydrateAdminTab(name) {
   }
   if (name === 'site') {
     await Promise.all([loadStats(), ensureSiteSettingsLoaded()]);
+    return;
+  }
+  if (name === 'blogfetch') {
+    await ensureBlogFetchPanelLoaded();
+    return;
+  }
+  if (name === 'ai') {
+    await ensureAiPanelLoaded();
     return;
   }
   if (name === 'seo') {
@@ -3911,6 +4607,8 @@ async function initAdminPanel() {
             securityNote: ($('roleSecurityDocTa') && $('roleSecurityDocTa').value) || '',
             moduleAccess: {
               siteSettings: !!($('cap_editor_site') && $('cap_editor_site').checked),
+              blogFetch: !!($('cap_editor_blogfetch') && $('cap_editor_blogfetch').checked),
+              aiSettings: !!($('cap_editor_ai') && $('cap_editor_ai').checked),
               seo: !!($('cap_editor_seo') && $('cap_editor_seo').checked),
               audit: !!($('cap_editor_audit') && $('cap_editor_audit').checked),
               inviteRegister: !!($('cap_editor_invite') && $('cap_editor_invite').checked),
@@ -4891,6 +5589,10 @@ async function initAdminPanel() {
     $('panelTools').classList.toggle('active', name === 'tools');
     $('panelLanding').classList.toggle('active', name === 'landing');
     $('panelSite').classList.toggle('active', name === 'site');
+    var pbf = $('panelBlogFetch');
+    if (pbf) pbf.classList.toggle('active', name === 'blogfetch');
+    var pai = $('panelAi');
+    if (pai) pai.classList.toggle('active', name === 'ai');
     $('panelSeo').classList.toggle('active', name === 'seo');
     $('panelAudit').classList.toggle('active', name === 'audit');
     $('panelUsers').classList.toggle('active', name === 'users');
@@ -5161,6 +5863,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       getAdminUser: function () {
         return window.__adminUser || null;
       },
+    });
+  }
+  if (window.AdminAi && typeof window.AdminAi.init === 'function') {
+    window.AdminAi.init({
+      api: api,
+      runAdminPanelLoader: runAdminPanelLoader,
+      setAdminLoaderMsg: setAdminLoaderMsg,
     });
   }
 

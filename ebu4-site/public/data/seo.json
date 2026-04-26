@@ -1,6 +1,7 @@
 {
-  "version": 1,
+  "version": 3,
   "canonicalBase": "",
+  "siteName": "EBU4 文档站",
   "docs": {
     "title": "EBU4 技术支持 — Ecology E9 二开文档",
     "description": "Ecology E9 二次开发技术文档：流程引擎、表单设计、数据表结构、REST API 与前端扩展，支持本地全文检索。",
@@ -17,7 +18,41 @@
     "twitterCard": "summary_large_image",
     "robots": "index, follow"
   },
-  "robotsTxt": "User-agent: *\nAllow: /\n",
+  "robotsTxt": "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/admin\n",
   "sitemapAuto": true,
-  "sitemapPaths": []
+  "sitemapPaths": [],
+  "includeExtraPagesInSearch": true,
+  "includeExtraPagesInSitemap": true,
+  "structuredData": {
+    "organizationName": "EBU4 技术支持",
+    "organizationLogo": "/icons/icon.svg",
+    "sameAs": []
+  },
+  "verification": {
+    "googleSiteVerification": "",
+    "googleFileToken": "",
+    "bingSiteVerification": "",
+    "bingXmlContent": "",
+    "baiduSiteVerification": "",
+    "baiduFileName": "",
+    "baiduFileContent": ""
+  },
+  "submission": {
+    "google": {
+      "property": "",
+      "accessToken": "",
+      "submitSitemap": true
+    },
+    "bing": {
+      "siteUrl": "",
+      "apiKey": "",
+      "submitSitemap": true,
+      "submitUrlBatch": true
+    },
+    "baidu": {
+      "site": "",
+      "token": "",
+      "type": ""
+    }
+  }
 }

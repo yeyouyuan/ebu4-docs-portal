@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=380, initial-scale=1">
+  <title>e-Cology Token Extractor</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <div class="logo">
+          <svg width="28" height="28" viewBox="0 0 128 128" fill="none">
+            <defs><linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#8b5cf6"/>
+            </linearGradient></defs>
+            <rect width="128" height="128" rx="28" fill="url(#logoGrad)"/>
+            <g transform="translate(64,58)" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+              <circle cx="-12" cy="-8" r="18"/>
+              <line x1="10" y1="-8" x2="52" y2="-8"/>
+              <line x1="52" y1="-8" x2="52" y2="12"/>
+              <line x1="38" y1="-8" x2="38" y2="12"/>
+            </g>
+          </svg>
+        </div>
+        <div class="header-text">
+          <h1>Token Extractor</h1>
+          <p class="subtitle" id="statusTitle">e-Cology · 一键提取</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="mode-toggle">
+          <label class="switch" title="自动/手动">
+            <input type="checkbox" id="autoMode" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <button class="settings-btn" id="settingsToggle" title="设置">⚙️</button>
+      </div>
+    </header>
+
+    <!-- Status Bar -->
+    <div class="status-bar" id="statusBar">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">就绪</span>
+      <span class="last-scan" id="lastScan"></span>
+    </div>
+
+    <!-- ===== Tab: Tokens ===== -->
+    <div class="tab-page" id="tabTokens">
+      <div class="token-list" id="tokenList">
+        <div class="empty-state">
+          <div class="empty-icon">🔑</div>
+          <p>点击「扫描」获取 Token</p>
+          <p class="empty-hint">或开启自动模式</p>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" id="scanBtn">
+          <span class="btn-icon">🔍</span> 扫描 Token
+        </button>
+        <button class="btn btn-secondary" id="copyAllBtn" disabled>
+          <span class="btn-icon">📋</span> 全部复制
+        </button>
+      </div>
+    </div>
+
+    <!-- ===== Tab: Settings ===== -->
+    <div class="tab-page tab-hidden" id="tabSettings">
+      <div class="settings-list">
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <div class="setting-label">⚡ 自动扫描</div>
+            <div class="setting-desc">打开页面时自动检测 Token</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="autoScan" checked><span class="slider"></span></label>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <div class="setting-icon">🪟</div>
+            <div class="setting-label">页面悬浮窗</div>
+            <div class="setting-desc">在页面右下角显示 Token 面板</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="showPanel" checked><span class="slider"></span></label>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <div class="setting-label">🍪 Cookie 监听</div>
+            <div class="setting-desc">Cookie 变更时自动刷新列表</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="watchCookie" checked><span class="slider"></span></label>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <div class="setting-label">⏰ 过期提醒</div>
+            <div class="setting-desc">Token 即将过期时提醒</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="expireNotify" checked><span class="slider"></span></label>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <div class="setting-label">📋 自动复制</div>
+            <div class="setting-desc">检测到 Token 自动复制首个</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="autoCopy"><span class="slider"></span></label>
+        </div>
+
+        <div class="setting-item setting-input">
+          <div class="setting-info">
+            <div class="setting-label">📝 自定义 Cookie 名</div>
+            <div class="setting-desc">额外监听的 Cookie（逗号分隔）</div>
+          </div>
+          <input type="text" class="text-input" id="customCookies" placeholder="MY_TOKEN, SESSION_KEY">
+        </div>
+
+        <div class="setting-divider"></div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <div class="setting-label">📜 Token 历史</div>
+            <div class="setting-desc" id="historyCount">暂无记录</div>
+          </div>
+          <div class="setting-actions">
+            <button class="btn-tiny" id="exportHistory">📥 导出</button>
+            <button class="btn-tiny btn-danger" id="clearHistory">🗑️ 清空</button>
+          </div>
+        </div>
+
+        <div class="about-section">
+          <div class="about-title">e-Cology Token Extractor</div>
+          <div class="about-meta">v1.1.1 · Manifest V3</div>
+          <div class="about-meta">支持 Chrome / Firefox / Edge / Opera / Brave</div>
+        </div>
+
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" id="backBtn">
+          <span class="btn-icon">←</span> 返回 Token 列表
+        </button>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span class="version">v1.1.1</span>
+    </footer>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

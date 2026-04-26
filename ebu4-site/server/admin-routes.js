@@ -8,7 +8,6 @@ const extraPagesStore = require('./extra-pages-store');
 const auditLog = require('./audit-log');
 const { backupWithPrune } = require('./lib/backup');
 const createDocAdminService = require('./services/doc-admin-service');
-const extraPagesAdmin = require('./services/extra-pages-admin-service');
 const extraPagesRepo = require('./extra-pages-repo');
 const visitStats = require('./visit-stats');
 const roleProfilesStore = require('./role-profiles-store');
@@ -16,12 +15,29 @@ const presenceStore = require('./presence-store');
 const inviteStore = require('./invite-store');
 const siteSession = require('./site-session');
 const { normalizeSiteSettings } = require('./lib/site-settings-normalize');
+const { normalizeAiSettings } = require('./lib/ai-settings-normalize');
+const {
+  readNormalizedAiSettings,
+  writeNormalizedAiSettings,
+} = require('./lib/ai-settings-store');
+const { normalizeSeoConfig } = require('./lib/seo-config-normalize');
+const { buildSeoSitemapRelPaths, normalizeOrigin } = require('./lib/seo-sitemap');
 const {
   sanitizeSiteSettingsForAdminGet,
+  sanitizeAiSettingsForAdminGet,
   sanitizeAuditEntries,
 } = require('./lib/admin-sensitive');
-const upgradeService = require('./lib/upgrade-service');
-const { buildUpgradeArtifacts } = require('./lib/build-upgrade-artifacts');
+const { sendAdminError } = require('./lib/api-response');
+const {
+  validateNormalizedAiSettings,
+  validateAiTestRequest,
+} = require('./lib/ai-settings-validate');
+const { validateSeoConfig, validateSeoPushRequest } = require('./lib/seo-admin-validate');
+const {
+  validateUpgradeConfig,
+  validateUpgradeApplyRequest,
+  validateBuildArtifactsRequest,
+} = require('./lib/upgrade-admin-validate');
 const redisCache = require('./redis-cache');
 const {
   generateRegistrationOptions,
@@ -32,6 +48,68 @@ const {
 const passkeyStore = require('./passkey-store');
 const webauthnChallenges = require('./webauthn-challenges');
 const { webauthnEnabled, getWebAuthnConfig } = require('./webauthn-config');
+
+let cachedUpgradeDeps = null;
+let cachedSeoPushRunner = null;
+let cachedBlogFetchReport = null;
+let cachedExtraPagesAdmin = null;
+let cachedPersonalWeeklyReportGenerator = null;
+let cachedRunAiChat = null;
+let cachedWeeklyDocxExport = null;
+
+function getUpgradeDeps() {
+  if (cachedUpgradeDeps) return cachedUpgradeDeps;
+  const upgradeService = require('./lib/upgrade-service');
+  const {
+    buildUpgradeArtifacts,
+    listSystemPackageScopes,
+    normalizeSystemPackageScopes,
+  } = require('./lib/build-upgrade-artifacts');
+  cachedUpgradeDeps = {
+    upgradeService,
+    buildUpgradeArtifacts,
+    listSystemPackageScopes,
+    normalizeSystemPackageScopes,
+  };
+  return cachedUpgradeDeps;
+}
+
+function getRunSeoPush() {
+  if (cachedSeoPushRunner) return cachedSeoPushRunner;
+  cachedSeoPushRunner = require('./lib/seo-push-service').runSeoPush;
+  return cachedSeoPushRunner;
+}
+
+function getFetchBlogsReport() {
+  if (cachedBlogFetchReport) return cachedBlogFetchReport;
+  cachedBlogFetchReport = require('./lib/blog-fetch-service').fetchBlogsReport;
+  return cachedBlogFetchReport;
+}
+
+function getGeneratePersonalWeeklyReport() {
+  if (cachedPersonalWeeklyReportGenerator) return cachedPersonalWeeklyReportGenerator;
+  cachedPersonalWeeklyReportGenerator =
+    require('./lib/personal-weekly-report-service').generatePersonalWeeklyReport;
+  return cachedPersonalWeeklyReportGenerator;
+}
+
+function getRunAiChat() {
+  if (cachedRunAiChat) return cachedRunAiChat;
+  cachedRunAiChat = require('./lib/ai-provider-service').runAiChat;
+  return cachedRunAiChat;
+}
+
+function getWeeklyDocxExport() {
+  if (cachedWeeklyDocxExport) return cachedWeeklyDocxExport;
+  cachedWeeklyDocxExport = require('./lib/docx-export-service');
+  return cachedWeeklyDocxExport;
+}
+
+function getExtraPagesAdmin() {
+  if (cachedExtraPagesAdmin) return cachedExtraPagesAdmin;
+  cachedExtraPagesAdmin = require('./services/extra-pages-admin-service');
+  return cachedExtraPagesAdmin;
+}
 
 function getCookie(req, name) {
   const raw = req.headers.cookie;
@@ -67,6 +145,7 @@ function registerAdminRoutes(app, ctx) {
     TOOLS_JSON_PATH,
     LANDING_JSON_PATH,
     SEO_JSON_PATH,
+    AI_SETTINGS_PATH,
     EXTRA_PAGES_PATH,
     backupKeepCount = 20,
     reloadDocData,
@@ -86,6 +165,16 @@ function registerAdminRoutes(app, ctx) {
     'site-settings.json'
   );
   const siteRoot = ctx.siteRoot || path.join(__dirname, '..');
+  const resolveUpgradeDeps = () => (ctx && ctx.upgradeDeps ? ctx.upgradeDeps : getUpgradeDeps());
+  const runSeoPush = ctx && typeof ctx.runSeoPush === 'function' ? ctx.runSeoPush : getRunSeoPush();
+  const runAiChatForAdmin = ctx && typeof ctx.runAiChat === 'function' ? ctx.runAiChat : getRunAiChat();
+  const dashboardDeps =
+    (ctx && ctx.dashboardDeps && typeof ctx.dashboardDeps === 'object' ? ctx.dashboardDeps : null) || {};
+  const dashboardVisitStats = dashboardDeps.visitStats || visitStats;
+  const dashboardPresenceStore = dashboardDeps.presenceStore || presenceStore;
+  const dashboardInviteStore = dashboardDeps.inviteStore || inviteStore;
+  const dashboardRedisCache = dashboardDeps.redisCache || redisCache;
+  const dashboardSiteSession = dashboardDeps.siteSession || siteSession;
 
   function readNormalizedSiteSettings() {
     let raw = null;
@@ -98,6 +187,19 @@ function registerAdminRoutes(app, ctx) {
       }
     } catch (_) {}
     return normalizeSiteSettings(raw);
+  }
+
+  function readNormalizedSeoConfig() {
+    let raw = null;
+    try {
+      if (siteDatabase.isSiteSqlite()) {
+        const kv = siteDatabase.getKv('seo');
+        if (kv) raw = JSON.parse(kv);
+      } else if (fs.existsSync(SEO_JSON_PATH)) {
+        raw = JSON.parse(fs.readFileSync(SEO_JSON_PATH, 'utf-8'));
+      }
+    } catch (_) {}
+    return normalizeSeoConfig(raw);
   }
 
   const EDITOR_MODULE_ACCESS_PATH = path.join(
@@ -130,12 +232,13 @@ function registerAdminRoutes(app, ctx) {
   /** 编辑角色数据查看范围（对应后台侧栏与 API；管理员不受限） */
   const DATA_VIEW_KEYS = ['mainDoc', 'tools', 'landing', 'extraPages', 'images', 'stats'];
   const ADMIN_MENU_ORDER_PATH = path.join(path.dirname(TOOLS_JSON_PATH), 'admin-menu-order.json');
-  const ADMIN_MENU_TAB_IDS = ['dash', 'md', 'tools', 'landing', 'site', 'upgrade', 'seo', 'audit', 'users', 'roles', 'redis'];
+  const ADMIN_MENU_TAB_IDS = ['dash', 'md', 'tools', 'blogfetch', 'landing', 'site', 'upgrade', 'seo', 'audit', 'users', 'roles', 'redis'];
   /** 可单独「停用」侧栏项（含「菜单显示」meta 项） */
   const ADMIN_MENU_DISABLE_KEYS = [
     'dash',
     'md',
     'tools',
+    'blogfetch',
     'landing',
     'site',
     'seo',
@@ -237,15 +340,31 @@ function registerAdminRoutes(app, ctx) {
     const trimmed = raw.trim();
     const slug = trimmed ? siteDatabase.normalizeMainDocSlug(trimmed) : siteDatabase.getDefaultMainDocSlug();
     if (trimmed && !slug) {
-      res.status(400).json({ error: '无效 doc 参数' });
+      sendAdminError(req, res, 400, '无效 doc 参数');
       return null;
     }
     const list = siteDatabase.listMainDocuments();
     if (!list.some((d) => d.slug === slug)) {
-      res.status(404).json({ error: '主文档不存在' });
+      sendAdminError(req, res, 404, '主文档不存在');
       return null;
     }
     return slug;
+  }
+
+  function validateNonEmptyMarkdown(content, fieldLabel) {
+    if (typeof content !== 'string') {
+      return {
+        ok: false,
+        detail: [{ field: 'content', message: `缺少 ${fieldLabel || 'Markdown'} 内容` }],
+      };
+    }
+    if (!String(content).trim()) {
+      return {
+        ok: false,
+        detail: [{ field: 'content', message: `${fieldLabel || 'Markdown'} 不能为空` }],
+      };
+    }
+    return { ok: true };
   }
 
   function getSectionCountForDoc(slug) {
@@ -375,11 +494,16 @@ function registerAdminRoutes(app, ctx) {
   }
 
   function audit(req, action, outcome, detail) {
+    const u = req && req.adminUser ? req.adminUser : null;
     auditLog.append({
       action,
       outcome,
       requestId: req && req.requestId,
       ip: clientIp(req),
+      actor: u && u.username ? String(u.username) : 'admin',
+      actorUserId: u && u.userId != null ? Number(u.userId) : null,
+      actorUsername: u && u.username ? String(u.username) : '',
+      actorRole: u && u.role ? String(u.role) : '',
       detail: detail && typeof detail === 'object' ? detail : undefined,
     });
   }
@@ -415,18 +539,12 @@ function registerAdminRoutes(app, ctx) {
     pruneSessions();
     const token = getCookie(req, 'admin_session');
     if (!token || !sessions.has(token)) {
-      return res.status(401).json({
-        error: '未登录或会话无效',
-        requestId: req.requestId,
-      });
+      return sendAdminError(req, res, 401, '未登录或会话无效');
     }
     const sess = sessions.get(token);
     if (sess.exp < Date.now()) {
       sessions.delete(token);
-      return res.status(401).json({
-        error: '会话已过期，请重新登录',
-        requestId: req.requestId,
-      });
+      return sendAdminError(req, res, 401, '会话已过期，请重新登录');
     }
     req.adminUser = {
       userId: sess.userId,
@@ -441,16 +559,10 @@ function registerAdminRoutes(app, ctx) {
     return (req, res, next) => {
       const u = req.adminUser;
       if (!u) {
-        return res.status(401).json({
-          error: '未登录或会话无效',
-          requestId: req.requestId,
-        });
+        return sendAdminError(req, res, 401, '未登录或会话无效');
       }
       if (u.role !== role) {
-        return res.status(403).json({
-          error: '权限不足',
-          requestId: req.requestId,
-        });
+        return sendAdminError(req, res, 403, '权限不足');
       }
       next();
     };
@@ -461,18 +573,211 @@ function registerAdminRoutes(app, ctx) {
     return (req, res, next) => {
       const u = req.adminUser;
       if (!u) {
-        return res.status(401).json({
-          error: '未登录或会话无效',
-          requestId: req.requestId,
-        });
+        return sendAdminError(req, res, 401, '未登录或会话无效');
       }
       const caps = roleProfilesStore.getModuleAccessForRole(u.role);
       if (caps[capKey] === true) return next();
-      return res.status(403).json({
-        error: '权限不足',
-        requestId: req.requestId,
-      });
+      return sendAdminError(req, res, 403, '权限不足');
     };
+  }
+
+  function requireInviteManager() {
+    return (req, res, next) => {
+      const u = req.adminUser;
+      if (!u) {
+        return sendAdminError(req, res, 401, '未登录或会话无效');
+      }
+      if (u.role === 'admin') return next();
+      const caps = roleProfilesStore.getModuleAccessForRole(u.role);
+      if (caps.inviteRegister === true) return next();
+      return sendAdminError(req, res, 403, '权限不足');
+    };
+  }
+
+  function requireInviteViewer() {
+    return (req, res, next) => {
+      const u = req.adminUser;
+      if (!u) {
+        return sendAdminError(req, res, 401, '未登录或会话无效');
+      }
+      if (u.role === 'admin') return next();
+      return sendAdminError(req, res, 403, '权限不足');
+    };
+  }
+
+  function canAccessPersonalWeeklyReport(req, row) {
+    const u = req && req.adminUser ? req.adminUser : null;
+    if (!u || !row) return false;
+    if (u.role === 'admin') return true;
+    return row.createdByUserId != null && Number(row.createdByUserId) === Number(u.userId);
+  }
+
+  function listDbBackupFiles() {
+    if (!siteDatabase.isSiteSqlite()) return [];
+    const dbPath = siteDatabase.resolveDbPath();
+    const dir = path.dirname(dbPath);
+    const base = path.basename(dbPath) + '.bak-';
+    let names = [];
+    try {
+      names = fs.readdirSync(dir);
+    } catch (_) {
+      return [];
+    }
+    return names
+      .filter((name) => name.startsWith(base))
+      .map((name) => {
+        const full = path.join(dir, name);
+        try {
+          const st = fs.statSync(full);
+          if (!st.isFile()) return null;
+          return {
+            name,
+            path: full,
+            size: st.size,
+            mtime: st.mtime.toISOString(),
+          };
+        } catch (_) {
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .sort((a, b) => String(b.mtime).localeCompare(String(a.mtime)));
+  }
+
+  function buildSystemHealthSnapshot() {
+    const siteSettings = readNormalizedSiteSettings();
+    const aiSettings = readCurrentAiSettingsNormalized();
+    const seo = readNormalizedSeoConfig();
+    const checks = [];
+    checks.push({
+      key: 'site',
+      title: '站点设置',
+      status:
+        siteSettings.maintenance && siteSettings.maintenance.enabled && siteSettings.maintenance.fullSite
+          ? 'warning'
+          : 'ok',
+      summary:
+        siteSettings.maintenance && siteSettings.maintenance.enabled && siteSettings.maintenance.fullSite
+          ? '全站维护已开启'
+          : '站点设置正常',
+    });
+    checks.push({
+      key: 'ai',
+      title: 'AI',
+      status:
+        aiSettings.enabled !== true
+          ? 'warning'
+          : aiSettings.defaultProvider &&
+              aiSettings.providers &&
+              aiSettings.providers[aiSettings.defaultProvider] &&
+              aiSettings.providers[aiSettings.defaultProvider].enabled === true &&
+              String(aiSettings.providers[aiSettings.defaultProvider].apiKey || '').trim()
+            ? 'ok'
+            : 'error',
+      summary:
+        aiSettings.enabled !== true
+          ? '整体 AI 未启用'
+          : aiSettings.defaultProvider &&
+              aiSettings.providers &&
+              aiSettings.providers[aiSettings.defaultProvider] &&
+              aiSettings.providers[aiSettings.defaultProvider].enabled === true &&
+              String(aiSettings.providers[aiSettings.defaultProvider].apiKey || '').trim()
+            ? '默认 Provider 已就绪'
+            : '默认 Provider 未完成配置',
+    });
+    checks.push({
+      key: 'seo',
+      title: 'SEO',
+      status: seo.canonicalBase ? 'ok' : 'warning',
+      summary: seo.canonicalBase ? 'canonicalBase 已配置' : 'canonicalBase 未配置',
+    });
+    checks.push({
+      key: 'upgrade',
+      title: '升级',
+      status:
+        siteSettings.upgrade && siteSettings.upgrade.enabled
+          ? siteSettings.upgrade.baseUrl
+            ? 'ok'
+            : 'warning'
+          : 'warning',
+      summary:
+        siteSettings.upgrade && siteSettings.upgrade.enabled
+          ? siteSettings.upgrade.baseUrl
+            ? '升级源已配置'
+            : '升级已开启但缺少 baseUrl'
+          : '升级未启用',
+    });
+    return { checks };
+  }
+
+  function safeDashboardSummary(message, fallback) {
+    const text = message != null ? String(message).trim() : '';
+    return text || fallback;
+  }
+
+  function buildDashboardRedisHealth(redisStatus, message) {
+    const status = redisStatus && typeof redisStatus === 'object' ? redisStatus : {};
+    if (message) {
+      return {
+        key: 'redis',
+        title: 'Redis',
+        status: 'error',
+        summary: safeDashboardSummary(message, 'Redis 状态读取失败'),
+      };
+    }
+    if (status.connected) {
+      return {
+        key: 'redis',
+        title: 'Redis',
+        status: 'ok',
+        summary: 'Redis 已就绪',
+      };
+    }
+    if (status.urlConfigured) {
+      return {
+        key: 'redis',
+        title: 'Redis',
+        status: 'warning',
+        summary: 'Redis 已配置但未连接',
+      };
+    }
+    return {
+      key: 'redis',
+      title: 'Redis',
+      status: 'warning',
+      summary: 'Redis 未配置',
+    };
+  }
+
+  async function collectDashboardPart(task, fallback) {
+    try {
+      return {
+        value: await task(),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        value: fallback,
+        error: error ? String(error.message || error) : 'unknown_error',
+      };
+    }
+  }
+
+  function listAccessiblePersonalWeeklyReportsByIds(req, ids) {
+    const nums = Array.isArray(ids)
+      ? ids
+          .map((id) => parseInt(id, 10))
+          .filter((n) => Number.isFinite(n))
+      : [];
+    const seen = new Set();
+    const list = [];
+    nums.forEach((id) => {
+      if (seen.has(id)) return;
+      seen.add(id);
+      const row = siteDatabase.getPersonalWeeklyReportById(id);
+      if (row && canAccessPersonalWeeklyReport(req, row)) list.push(row);
+    });
+    return list;
   }
 
   /** 数据范围：按角色读取 dataViews */
@@ -528,10 +833,7 @@ function registerAdminRoutes(app, ctx) {
         path: req.originalUrl || req.url,
         method: req.method,
       });
-      return res.status(429).json({
-        error: '请求过于频繁，请稍后再试',
-        requestId: req.requestId,
-      });
+      return sendAdminError(req, res, 429, '请求过于频繁，请稍后再试');
     }
     next();
   });
@@ -557,6 +859,39 @@ function registerAdminRoutes(app, ctx) {
     const dir = path.dirname(SITE_SETTINGS_PATH);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(SITE_SETTINGS_PATH, out, 'utf-8');
+  }
+  function readCurrentAiSettingsNormalized() {
+    return readNormalizedAiSettings(siteDatabase, AI_SETTINGS_PATH);
+  }
+  function writeCurrentAiSettings(normalized) {
+    writeNormalizedAiSettings(siteDatabase, AI_SETTINGS_PATH, normalizeAiSettings(normalized));
+  }
+  function mergeAiSettingsSecrets(prevRaw, nextNormalized) {
+    const prev = normalizeAiSettings(prevRaw || {});
+    const out = JSON.parse(JSON.stringify(nextNormalized));
+    const nextProviders = out.providers && typeof out.providers === 'object' ? out.providers : {};
+    const prevProviders = prev.providers && typeof prev.providers === 'object' ? prev.providers : {};
+    Object.keys(nextProviders).forEach((key) => {
+      if (
+        nextProviders[key] &&
+        typeof nextProviders[key] === 'object' &&
+        !String(nextProviders[key].apiKey || '').trim() &&
+        prevProviders[key] &&
+        String(prevProviders[key].apiKey || '').trim()
+      ) {
+        nextProviders[key].apiKey = String(prevProviders[key].apiKey);
+      }
+    });
+    if (
+      out.webSearch &&
+      typeof out.webSearch === 'object' &&
+      !String(out.webSearch.apiKey || '').trim() &&
+      prev.webSearch &&
+      String(prev.webSearch.apiKey || '').trim()
+    ) {
+      out.webSearch.apiKey = String(prev.webSearch.apiKey);
+    }
+    return out;
   }
   function siteSettingsRiskFlags(prev, next) {
     const flags = [];
@@ -887,6 +1222,75 @@ function registerAdminRoutes(app, ctx) {
       res.status(500).json({ error: String(e.message || e) });
     }
   });
+  siteMetaRouter.get('/ai/settings', requireAdmin, requireAdminOrEditorCapability('aiSettings'), (req, res) => {
+    try {
+      const normalized = readCurrentAiSettingsNormalized();
+      res.json(sanitizeAiSettingsForAdminGet(normalized));
+    } catch (e) {
+      sendAdminError(req, res, 500, String(e.message || e));
+    }
+  });
+  siteMetaRouter.put('/ai/settings', requireAdmin, requireAdminOrEditorCapability('aiSettings'), (req, res) => {
+    try {
+      const prevRaw = readNormalizedAiSettings(siteDatabase, AI_SETTINGS_PATH);
+      const normalized = mergeAiSettingsSecrets(
+        prevRaw,
+        normalizeAiSettings(req.body && typeof req.body === 'object' ? req.body : {})
+      );
+      const validation = validateNormalizedAiSettings(normalized);
+      if (!validation.ok) {
+        return sendAdminError(req, res, 400, 'AI 配置校验失败', { detail: validation.detail });
+      }
+      writeCurrentAiSettings(normalized);
+      audit(req, 'ai.settings.write', 'ok', {
+        enabled: normalized.enabled,
+        defaultProvider: normalized.defaultProvider,
+      });
+      res.json({ ok: true });
+    } catch (e) {
+      audit(req, 'ai.settings.write', 'error', {
+        message: String(e.message || e).slice(0, 200),
+      });
+      sendAdminError(req, res, 500, String(e.message || e));
+    }
+  });
+  siteMetaRouter.post('/ai/test', requireAdmin, requireAdminOrEditorCapability('aiSettings'), async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const requestValidation = validateAiTestRequest(body);
+      if (!requestValidation.ok) {
+        return sendAdminError(req, res, 400, 'AI 测试参数不完整', { detail: requestValidation.detail });
+      }
+      const settings = readCurrentAiSettingsNormalized();
+      const settingsValidation = validateNormalizedAiSettings(settings);
+      if (!settingsValidation.ok) {
+        return sendAdminError(req, res, 400, 'AI 配置校验失败', { detail: settingsValidation.detail });
+      }
+      const result = await runAiChatForAdmin(settings, {
+        providerId: body.providerId,
+        model: body.model,
+        systemPrompt: '你是 EBU4 管理后台的 AI 连通性测试助手。请简短回复“AI 测试成功”，并带上 provider 与 model。',
+        messages: [
+          {
+            role: 'user',
+            content: String(body.prompt || '请回复：AI 测试成功'),
+          },
+        ],
+        temperature: 0.1,
+        maxTokens: 256,
+      });
+      audit(req, 'ai.provider.test', 'ok', {
+        providerId: result.providerId,
+        model: result.model,
+      });
+      res.json({ ok: true, result });
+    } catch (e) {
+      audit(req, 'ai.provider.test', 'error', {
+        message: String(e.message || e).slice(0, 200),
+      });
+      sendAdminError(req, res, 400, String(e.message || e));
+    }
+  });
   siteMetaRouter.get('/menu-order', requireAdmin, (req, res) => {
     try {
       const full = readAdminMenuOrderFull();
@@ -918,7 +1322,41 @@ function registerAdminRoutes(app, ctx) {
   siteMetaRouter.get('/audit-log', requireAdmin, requireAdminOrEditorCapability('audit'), (req, res) => {
     try {
       const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
-      const entries = sanitizeAuditEntries(auditLog.readTail(limit));
+      const q = req.query && req.query.q ? String(req.query.q).trim().toLowerCase() : '';
+      const action = req.query && req.query.action ? String(req.query.action).trim() : '';
+      const outcome = req.query && req.query.outcome ? String(req.query.outcome).trim() : '';
+      const user = req.query && req.query.user ? String(req.query.user).trim().toLowerCase() : '';
+      const from = req.query && req.query.from ? String(req.query.from).trim() : '';
+      const to = req.query && req.query.to ? String(req.query.to).trim() : '';
+      let entries = sanitizeAuditEntries(auditLog.readTail(500));
+      if (action) entries = entries.filter((item) => String(item.action || '') === action);
+      if (outcome) entries = entries.filter((item) => String(item.outcome || '') === outcome);
+      if (user) {
+        entries = entries.filter((item) =>
+          String(item.actorUsername || item.actor || '')
+            .toLowerCase()
+            .includes(user)
+        );
+      }
+      if (from) {
+        const fromTs = Date.parse(from);
+        if (Number.isFinite(fromTs)) {
+          entries = entries.filter((item) => Date.parse(item.ts || '') >= fromTs);
+        }
+      }
+      if (to) {
+        const toTs = Date.parse(to);
+        if (Number.isFinite(toTs)) {
+          entries = entries.filter((item) => Date.parse(item.ts || '') <= toTs + 24 * 60 * 60 * 1000 - 1);
+        }
+      }
+      if (q) {
+        entries = entries.filter((item) => {
+          const hay = JSON.stringify(item).toLowerCase();
+          return hay.includes(q);
+        });
+      }
+      entries = entries.slice(-limit);
       res.json({ entries });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
@@ -969,14 +1407,14 @@ function registerAdminRoutes(app, ctx) {
       res.status(500).json({ error: String(e.message || e) });
     }
   });
-  siteMetaRouter.get('/invites', requireAdmin, requireAdminOrEditorCapability('inviteRegister'), (req, res) => {
+  siteMetaRouter.get('/invites', requireAdmin, requireInviteViewer(), (req, res) => {
     try {
       res.json({ codes: inviteStore.listCodes(siteDatabase) });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
     }
   });
-  siteMetaRouter.post('/invites', requireAdmin, requireAdminOrEditorCapability('inviteRegister'), (req, res) => {
+  siteMetaRouter.post('/invites', requireAdmin, requireInviteManager(), (req, res) => {
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const created = inviteStore.createInvite(siteDatabase, body);
@@ -986,7 +1424,7 @@ function registerAdminRoutes(app, ctx) {
       res.status(400).json({ error: String(e.message || e) });
     }
   });
-  siteMetaRouter.delete('/invites/:code', requireAdmin, requireAdminOrEditorCapability('inviteRegister'), (req, res) => {
+  siteMetaRouter.delete('/invites/:code', requireAdmin, requireInviteManager(), (req, res) => {
     try {
       const ok = inviteStore.deleteInvite(siteDatabase, req.params.code);
       if (!ok) return res.status(404).json({ error: '邀请码不存在' });
@@ -999,7 +1437,12 @@ function registerAdminRoutes(app, ctx) {
 
   siteMetaRouter.post('/upgrade/check', requireAdmin, requireRole('admin'), async (req, res) => {
     try {
+      const { upgradeService } = resolveUpgradeDeps();
       const st = readNormalizedSiteSettings();
+      const validation = validateUpgradeConfig(st);
+      if (!validation.ok) {
+        return sendAdminError(req, res, 400, '升级配置校验失败', { detail: validation.detail });
+      }
       const result = await upgradeService.withUpgradeLock(() =>
         upgradeService.runUpgradeCheck({
           siteDatabase,
@@ -1012,15 +1455,24 @@ function registerAdminRoutes(app, ctx) {
       res.json(result);
     } catch (e) {
       audit(req, 'upgrade.check', 'error', { message: String(e.message || e).slice(0, 200) });
-      res.status(500).json({ error: String(e.message || e) });
+      sendAdminError(req, res, 500, String(e.message || e));
     }
   });
   siteMetaRouter.post('/upgrade/apply', requireAdmin, requireRole('admin'), async (req, res) => {
     try {
+      const { upgradeService } = resolveUpgradeDeps();
       const body = req.body && typeof req.body === 'object' ? req.body : {};
-      const channel = body.channel === 'system' ? 'system' : 'docs';
-      const artifactIndex = body.artifactIndex != null ? parseInt(body.artifactIndex, 10) : 0;
+      const requestValidation = validateUpgradeApplyRequest(body);
+      if (!requestValidation.ok) {
+        return sendAdminError(req, res, 400, '升级参数校验失败', { detail: requestValidation.detail });
+      }
+      const channel = requestValidation.channel;
+      const artifactIndex = requestValidation.artifactIndex;
       const st = readNormalizedSiteSettings();
+      const configValidation = validateUpgradeConfig(st);
+      if (!configValidation.ok) {
+        return sendAdminError(req, res, 400, '升级配置校验失败', { detail: configValidation.detail });
+      }
       const result = await upgradeService.withUpgradeLock(async () => {
         if (channel === 'docs') {
           return upgradeService.runUpgradeApplyDocs({
@@ -1062,11 +1514,12 @@ function registerAdminRoutes(app, ctx) {
       }
     } catch (e) {
       audit(req, 'upgrade.apply', 'error', { message: String(e.message || e).slice(0, 200) });
-      res.status(500).json({ error: String(e.message || e) });
+      sendAdminError(req, res, 500, String(e.message || e));
     }
   });
   siteMetaRouter.get('/upgrade/history', requireAdmin, requireRole('admin'), (req, res) => {
     try {
+      const { upgradeService } = getUpgradeDeps();
       const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
       const before = req.query.before ? String(req.query.before) : '';
       let items = upgradeService.readUpgradeHistory(siteDatabase);
@@ -1082,6 +1535,7 @@ function registerAdminRoutes(app, ctx) {
   });
   siteMetaRouter.get('/upgrade/status', requireAdmin, requireRole('admin'), (req, res) => {
     try {
+      const { upgradeService } = getUpgradeDeps();
       res.json({
         lastCheck: upgradeService.getKvJson(siteDatabase, 'upgrade_last_check_at'),
         lastApply: upgradeService.getKvJson(siteDatabase, 'upgrade_last_apply_at'),
@@ -1091,19 +1545,39 @@ function registerAdminRoutes(app, ctx) {
       res.status(500).json({ error: String(e.message || e) });
     }
   });
+  siteMetaRouter.get('/upgrade/package-scopes', requireAdmin, requireRole('admin'), (req, res) => {
+    try {
+      const { listSystemPackageScopes } = resolveUpgradeDeps();
+      res.json({ items: listSystemPackageScopes() });
+    } catch (e) {
+      sendAdminError(req, res, 500, String(e.message || e));
+    }
+  });
   siteMetaRouter.post('/upgrade/build-artifacts', requireAdmin, requireRole('admin'), async (req, res) => {
     try {
+      const { upgradeService, buildUpgradeArtifacts, normalizeSystemPackageScopes } =
+        resolveUpgradeDeps();
       const body = req.body && typeof req.body === 'object' ? req.body : {};
-      const docs = body.docs !== false;
-      const system = body.system !== false;
+      const validation = validateBuildArtifactsRequest(body, normalizeSystemPackageScopes);
+      if (!validation.ok) {
+        return sendAdminError(req, res, 400, '制品构建参数校验失败', { detail: validation.detail });
+      }
+      const docs = validation.docs;
+      const system = validation.system;
+      const systemScopes = validation.systemScopes;
       const result = await upgradeService.withUpgradeLock(() =>
         Promise.resolve(
           buildUpgradeArtifacts(siteRoot, siteDatabase, {
             docs,
             system,
+            systemScopes,
           })
         )
       );
+      const scopeSummary =
+        result.system && Array.isArray(result.system.selectedScopes)
+          ? result.system.selectedScopes.join(', ') || '仅共享核心'
+          : '未生成';
       upgradeService.appendHistory(siteDatabase, {
         kind: 'build',
         trigger: 'manual',
@@ -1111,15 +1585,28 @@ function registerAdminRoutes(app, ctx) {
         fromVersion: null,
         toVersion: result.manifest && result.manifest.docsVersion,
         status: 'success',
-        message: '本机一键生成升级清单（docs=' + (result.docs ? '是' : '否') + ' system=' + (result.system ? '是' : '否') + '）',
+        message:
+          '本机一键生成升级清单（docs=' +
+          (result.docs ? '是' : '否') +
+          ' system=' +
+          (result.system ? '是' : '否') +
+          ' scopes=' +
+          scopeSummary +
+          '）',
         remoteProduct: null,
         remoteBaseUrlHost: '',
       });
-      audit(req, 'upgrade.build_artifacts', 'ok', { docs: !!result.docs, system: !!result.system });
+      audit(req, 'upgrade.build_artifacts', 'ok', {
+        docs: !!result.docs,
+        system: !!result.system,
+        systemScopes: result.system && Array.isArray(result.system.selectedScopes)
+          ? result.system.selectedScopes
+          : [],
+      });
       res.json(result);
     } catch (e) {
       audit(req, 'upgrade.build_artifacts', 'error', { message: String(e.message || e).slice(0, 200) });
-      res.status(400).json({ error: String(e.message || e) });
+      sendAdminError(req, res, 400, String(e.message || e));
     }
   });
 
@@ -1202,6 +1689,9 @@ function registerAdminRoutes(app, ctx) {
           siteSettings: body.siteSettings === true,
           seo: body.seo === true,
           audit: body.audit === true,
+          inviteRegister: body.inviteRegister === true,
+          blogFetch: body.blogFetch === true,
+          aiSettings: body.aiSettings === true,
         },
       });
       const next = roleProfilesStore.getModuleAccessForRole('editor');
@@ -1269,15 +1759,99 @@ function registerAdminRoutes(app, ctx) {
 
   app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
     try {
-      const raw = visitStats.readStats(siteDatabase, VISIT_STATS_FILE);
-      const topPaths = visitStats.topPaths(raw.byPath, 20);
-      const dayKeys = Object.keys(raw.byDay || {}).sort();
-      const byDayLast14 = {};
-      dayKeys.slice(-14).forEach((d) => {
-        byDayLast14[d] = raw.byDay[d];
-      });
-      const presence = await presenceStore.listOnline();
-      const inviteCodes = inviteStore.listCodes(siteDatabase);
+      const healthBase = buildSystemHealthSnapshot();
+      const rawStatsResult = await collectDashboardPart(
+        async () => ({
+          total: 0,
+          docsPv: 0,
+          indexPv: 0,
+          extraPagePv: 0,
+          byPath: {},
+          byDay: {},
+          updatedAt: null,
+          ...(dashboardVisitStats.readStats(siteDatabase, VISIT_STATS_FILE) || {}),
+        }),
+        {
+          total: 0,
+          docsPv: 0,
+          indexPv: 0,
+          extraPagePv: 0,
+          byPath: {},
+          byDay: {},
+          updatedAt: null,
+        }
+      );
+      const raw = rawStatsResult.value;
+      const topPathsResult = await collectDashboardPart(
+        async () => dashboardVisitStats.topPaths(raw.byPath, 20) || [],
+        []
+      );
+      const byDayResult = await collectDashboardPart(
+        async () => {
+          const dayKeys = Object.keys(raw.byDay || {}).sort();
+          const out = {};
+          dayKeys.slice(-14).forEach((d) => {
+            out[d] = raw.byDay[d];
+          });
+          return out;
+        },
+        {}
+      );
+      const presenceResult = await collectDashboardPart(
+        async () => (await dashboardPresenceStore.listOnline()) || { list: [], backend: 'memory' },
+        { list: [], backend: 'memory' }
+      );
+      const redisStatusResult = await collectDashboardPart(
+        async () =>
+          (await dashboardPresenceStore.getStatus()) || {
+            connected: false,
+            source: '',
+            urlConfigured: false,
+          },
+        { connected: false, source: '', urlConfigured: false }
+      );
+      const inviteCodesResult = await collectDashboardPart(
+        async () => dashboardInviteStore.listCodes(siteDatabase) || [],
+        []
+      );
+      const backupsResult = await collectDashboardPart(
+        async () => listDbBackupFiles() || [],
+        []
+      );
+      const sectionCountResult = await collectDashboardPart(
+        async () => {
+          if (typeof ctx.getSectionCount !== 'function') return 0;
+          return ctx.getSectionCount() || 0;
+        },
+        0
+      );
+      const siteGuestSessionsResult = await collectDashboardPart(
+        async () => dashboardSiteSession.getSiteSessionCount() || 0,
+        0
+      );
+      const cacheStatsResult = await collectDashboardPart(
+        async () =>
+          dashboardRedisCache.getStats() || {
+            hits: 0,
+            misses: 0,
+            totalRequests: 0,
+            hitRate: 0,
+            contentEpoch: 0,
+          },
+        {
+          hits: 0,
+          misses: 0,
+          totalRequests: 0,
+          hitRate: 0,
+          contentEpoch: 0,
+        }
+      );
+      const healthChecks = (healthBase.checks || []).concat([
+        buildDashboardRedisHealth(redisStatusResult.value, redisStatusResult.error),
+      ]);
+      const presence = presenceResult.value;
+      const inviteCodes = Array.isArray(inviteCodesResult.value) ? inviteCodesResult.value : [];
+      const backups = backupsResult.value;
       const now = Date.now();
       res.json({
         visits: {
@@ -1287,22 +1861,116 @@ function registerAdminRoutes(app, ctx) {
           extraPagePv: raw.extraPagePv || 0,
           updatedAt: raw.updatedAt || null,
         },
-        topPaths,
-        byDayLast14,
-        sectionCount: ctx.getSectionCount(),
+        topPaths: Array.isArray(topPathsResult.value) ? topPathsResult.value : [],
+        byDayLast14: byDayResult.value && typeof byDayResult.value === 'object' ? byDayResult.value : {},
+        sectionCount: Number(sectionCountResult.value) || 0,
         presence: {
-          backend: presence.backend,
-          count: (presence.list && presence.list.length) || 0,
+          backend: presence && presence.backend ? presence.backend : 'memory',
+          count: (presence && presence.list && presence.list.length) || 0,
         },
-        siteGuestSessions: siteSession.getSiteSessionCount(),
+        siteGuestSessions: Number(siteGuestSessionsResult.value) || 0,
         inviteCodes: {
           total: inviteCodes.length,
           active: inviteCodes.filter((c) => c.exp > now).length,
         },
-        cache: redisCache.getStats(),
+        cache: cacheStatsResult.value,
+        health: {
+          checks: healthChecks,
+        },
+        backups: {
+          total: Array.isArray(backups) ? backups.length : 0,
+          latest: (Array.isArray(backups) && backups[0]) || null,
+        },
       });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      sendAdminError(req, res, 500, String(e.message || e));
+    }
+  });
+
+  app.get('/api/admin/backups', requireAdmin, requireRole('admin'), (req, res) => {
+    try {
+      const list = listDbBackupFiles();
+      res.json({
+        ok: true,
+        enabled: siteDatabase.isSiteSqlite(),
+        dbPath: siteDatabase.isSiteSqlite() ? siteDatabase.resolveDbPath() : null,
+        list,
+      });
+    } catch (e) {
+      sendAdminError(req, res, 500, String(e.message || e));
+    }
+  });
+
+  app.get('/api/admin/backups/:fileName/download', requireAdmin, requireRole('admin'), (req, res) => {
+    try {
+      const fileName = String(req.params.fileName || '').trim();
+      const item = listDbBackupFiles().find((row) => row.name === fileName);
+      if (!item) return sendAdminError(req, res, 404, '备份文件不存在');
+      audit(req, 'sqlite.backup.download', 'ok', { file: item.name });
+      res.download(item.path, item.name);
+    } catch (e) {
+      audit(req, 'sqlite.backup.download', 'error', { message: String(e.message || e).slice(0, 200) });
+      sendAdminError(req, res, 500, String(e.message || e));
+    }
+  });
+
+  app.post('/api/admin/backups/create', requireAdmin, requireRole('admin'), (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) {
+        return sendAdminError(req, res, 400, '当前存储模式不支持 SQLite 备份');
+      }
+      const dbPath = siteDatabase.resolveDbPath();
+      if (!fs.existsSync(dbPath)) {
+        return sendAdminError(req, res, 400, 'SQLite 数据库文件不存在，无法创建备份');
+      }
+      backupWithPrune(dbPath, backupKeepCount);
+      const latest = listDbBackupFiles()[0] || null;
+      audit(req, 'sqlite.backup.create', 'ok', { file: latest && latest.name ? latest.name : '' });
+      res.json({ ok: true, latest });
+    } catch (e) {
+      audit(req, 'sqlite.backup.create', 'error', { message: String(e.message || e).slice(0, 200) });
+      sendAdminError(req, res, 500, String(e.message || e));
+    }
+  });
+
+  app.post('/api/admin/backups/restore', requireAdmin, requireRole('admin'), async (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) {
+        return sendAdminError(req, res, 400, '当前存储模式不支持 SQLite 恢复');
+      }
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const fileName = String(body.fileName || '').trim();
+      if (!fileName) return sendAdminError(req, res, 400, '缺少备份文件名');
+      const target = listDbBackupFiles().find((item) => item.name === fileName);
+      if (!target || !fs.existsSync(target.path)) return sendAdminError(req, res, 404, '备份文件不存在');
+      const dbPath = siteDatabase.resolveDbPath();
+      if (!fs.existsSync(dbPath)) {
+        return sendAdminError(req, res, 400, 'SQLite 数据库文件不存在，无法执行恢复');
+      }
+      try {
+        backupWithPrune(dbPath, backupKeepCount);
+      } catch (e) {
+        return sendAdminError(req, res, 500, '恢复前自动备份失败', {
+          detail: [{ field: 'backup', message: String(e.message || e) }],
+        });
+      }
+      siteDatabase.restoreSqliteFromBackup(target.path);
+      if (typeof reloadDocData === 'function') {
+        try {
+          reloadDocData();
+        } catch (e) {
+          throw new Error('数据库已恢复，但文档热重载失败：' + String(e.message || e));
+        }
+      }
+      try {
+        const st = readNormalizedSiteSettings();
+        await presenceStore.applySiteSettingsAndReconnect(st.redis);
+      } catch (_) {}
+      audit(req, 'sqlite.backup.restore', 'ok', { file: target.name });
+      res.json({ ok: true, restored: target.name });
+    } catch (e) {
+      audit(req, 'sqlite.backup.restore', 'error', { message: String(e.message || e).slice(0, 200) });
+      sendAdminError(req, res, 500, String(e.message || e));
     }
   });
 
@@ -1345,10 +2013,7 @@ function registerAdminRoutes(app, ctx) {
     const ip = clientIp(req);
     if (isLoginBlocked(ip)) {
       audit(req, 'auth.login.blocked', 'deny', {});
-      return res.status(429).json({
-        error: '登录尝试过多，请稍后再试',
-        requestId: req.requestId,
-      });
+      return sendAdminError(req, res, 429, '登录尝试过多，请稍后再试');
     }
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const username = String(body.username || '').trim();
@@ -1362,10 +2027,7 @@ function registerAdminRoutes(app, ctx) {
     if (!user) {
       recordLoginFailure(ip);
       audit(req, 'auth.login.failure', 'deny', {});
-      return res.status(401).json({
-        error: '用户名或密码错误',
-        requestId: req.requestId,
-      });
+      return sendAdminError(req, res, 401, '用户名或密码错误');
     }
     clearLoginFailures(ip);
     const token = createSession(user);
@@ -1927,8 +2589,9 @@ function registerAdminRoutes(app, ctx) {
     const slug = requireExistingMainDocSlug(req, res);
     if (slug == null) return;
     const content = req.body && typeof req.body.content === 'string' ? req.body.content : null;
-    if (content === null) {
-      return res.status(400).json({ error: '缺少 content 字段' });
+    const validation = validateNonEmptyMarkdown(content, '整篇 Markdown');
+    if (!validation.ok) {
+      return sendAdminError(req, res, 400, '整篇 Markdown 校验失败', { detail: validation.detail });
     }
     try {
       docAdmin.writeFullMarkdown(
@@ -1945,18 +2608,78 @@ function registerAdminRoutes(app, ctx) {
       res.json({ ok: true, sectionCount, doc: slug });
     } catch (e) {
       audit(req, 'file.markdown.write', 'error', {
+        doc: slug,
         message: String(e.message || e).slice(0, 200),
       });
-      res.status(500).json({ error: String(e.message || e) });
+      sendAdminError(req, res, 500, String(e.message || e));
     }
   });
 
   app.get('/api/admin/docs/main-docs', requireAdmin, requireEditorDataView('mainDoc'), (req, res) => {
     try {
-      const docs = siteDatabase.listMainDocuments();
+      const docs = siteDatabase.listMainDocuments().map((doc) => {
+        let latestVersion = null;
+        try {
+          const rows = siteDatabase.listMainDocHistory(doc.slug, { limit: 1 });
+          const row = rows && rows[0] ? rows[0] : null;
+          if (row) {
+            latestVersion = {
+              id: row.id,
+              source: row.source || '',
+              actorUsername: row.actor_username || '',
+              summary: row.summary || '',
+              createdAt: row.created_at || null,
+            };
+          }
+        } catch (_) {}
+        let sectionCount = 0;
+        try {
+          if (typeof ctx.getSectionCountForDoc === 'function') {
+            sectionCount = Number(ctx.getSectionCountForDoc(doc.slug)) || 0;
+          }
+        } catch (_) {}
+        return Object.assign({}, doc, {
+          updatedAt: doc.updated_at || null,
+          bytes: Number(doc.bytes) || 0,
+          sectionCount,
+          latestVersion,
+        });
+      });
       res.json({ docs });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+
+  app.get('/api/admin/docs/search', requireAdmin, requireEditorDataView('mainDoc'), (req, res) => {
+    try {
+      const q = req.query && req.query.q != null ? String(req.query.q).trim() : '';
+      if (!q || q.length < 2) {
+        return res.json({ ok: true, query: q, scope: 'current', docSlug: '', items: [] });
+      }
+      const scopeRaw = req.query && req.query.scope != null ? String(req.query.scope).trim() : 'current';
+      const scope = scopeRaw === 'all' ? 'all' : 'current';
+      const docSlug =
+        scope === 'current'
+          ? siteDatabase.normalizeMainDocSlug(req.query && req.query.doc)
+          : '';
+      const runSearch =
+        ctx && typeof ctx.searchMainDocsForAdmin === 'function'
+          ? ctx.searchMainDocsForAdmin
+          : null;
+      if (!runSearch) {
+        return sendAdminError(req, res, 500, '文档检索服务未配置');
+      }
+      const items = runSearch(q, { docSlug: scope === 'current' ? docSlug : '' }) || [];
+      res.json({
+        ok: true,
+        query: q,
+        scope,
+        docSlug: scope === 'current' ? docSlug || '' : '',
+        items,
+      });
+    } catch (e) {
+      sendAdminError(req, res, 500, String(e.message || e));
     }
   });
 
@@ -2165,9 +2888,10 @@ function registerAdminRoutes(app, ctx) {
     }
     const slug = requireExistingMainDocSlug(req, res);
     if (slug == null) return;
-    const content = req.body && typeof req.body.content === 'string' ? req.body.content : null;
-    if (content === null) {
-      return res.status(400).json({ error: '缺少 content 字段' });
+      const content = req.body && typeof req.body.content === 'string' ? req.body.content : null;
+    const validation = validateNonEmptyMarkdown(content, '章节 Markdown');
+    if (!validation.ok) {
+      return sendAdminError(req, res, 400, '章节内容校验失败', { detail: validation.detail });
     }
     try {
       const sections = docAdmin.readSectionsFromDisk(slug);
@@ -2188,11 +2912,12 @@ function registerAdminRoutes(app, ctx) {
       const code = e.code === 'VALIDATION' ? 400 : e.code === 'NOT_FOUND' ? 404 : 500;
       if (code >= 500) {
         audit(req, 'docs.section.update', 'error', {
+          doc: slug,
           sectionId: id,
           message: String(e.message || e).slice(0, 200),
         });
       }
-      res.status(code).json({ error: String(e.message || e) });
+      sendAdminError(req, res, code, String(e.message || e));
     }
   });
 
@@ -2200,8 +2925,9 @@ function registerAdminRoutes(app, ctx) {
     const slug = requireExistingMainDocSlug(req, res);
     if (slug == null) return;
     const content = req.body && typeof req.body.content === 'string' ? req.body.content : null;
-    if (content === null) {
-      return res.status(400).json({ error: '缺少 content 字段' });
+    const validation = validateNonEmptyMarkdown(content, '章节 Markdown');
+    if (!validation.ok) {
+      return sendAdminError(req, res, 400, '章节内容校验失败', { detail: validation.detail });
     }
     const afterId =
       req.body && Object.prototype.hasOwnProperty.call(req.body, 'afterId')
@@ -2232,10 +2958,11 @@ function registerAdminRoutes(app, ctx) {
       const code = e.code === 'VALIDATION' ? 400 : e.code === 'NOT_FOUND' ? 404 : 500;
       if (code >= 500) {
         audit(req, 'docs.section.create', 'error', {
+          doc: slug,
           message: String(e.message || e).slice(0, 200),
         });
       }
-      res.status(code).json({ error: String(e.message || e) });
+      sendAdminError(req, res, code, String(e.message || e));
     }
   });
 
@@ -2642,12 +3369,17 @@ function registerAdminRoutes(app, ctx) {
   app.put('/api/admin/files/seo-json', requireAdmin, requireAdminOrEditorCapability('seo'), (req, res) => {
     const raw = req.body && typeof req.body.content === 'string' ? req.body.content : null;
     if (raw === null) {
-      return res.status(400).json({ error: '缺少 content 字段' });
+      return sendAdminError(req, res, 400, '缺少 content 字段');
     }
+    let parsed = null;
     try {
-      JSON.parse(raw);
+      parsed = JSON.parse(raw);
     } catch (e) {
-      return res.status(400).json({ error: '不是合法 JSON：' + String(e.message || e) });
+      return sendAdminError(req, res, 400, '不是合法 JSON：' + String(e.message || e));
+    }
+    const validation = validateSeoConfig(normalizeSeoConfig(parsed));
+    if (!validation.ok) {
+      return sendAdminError(req, res, 400, 'SEO 配置校验失败', { detail: validation.detail });
     }
     try {
       if (siteDatabase.isSiteSqlite()) {
@@ -2673,7 +3405,7 @@ function registerAdminRoutes(app, ctx) {
       audit(req, 'file.seo_json.write', 'error', {
         message: String(e.message || e).slice(0, 200),
       });
-      res.status(500).json({ error: String(e.message || e) });
+      sendAdminError(req, res, 500, String(e.message || e));
     }
   });
 
@@ -2687,86 +3419,23 @@ function registerAdminRoutes(app, ctx) {
     }
     function normalizeSeoInput() {
       const bodySeo = req.body && typeof req.body.seo === 'object' ? req.body.seo : null;
-      if (bodySeo) return bodySeo;
-      if (siteDatabase.isSiteSqlite()) {
-        const raw = siteDatabase.getKv('seo');
-        if (raw) {
-          try {
-            return JSON.parse(raw);
-          } catch (_) {}
-        }
-      } else if (fs.existsSync(SEO_JSON_PATH)) {
-        try {
-          return JSON.parse(fs.readFileSync(SEO_JSON_PATH, 'utf-8'));
-        } catch (_) {}
-      }
-      return {};
+      if (bodySeo) return normalizeSeoConfig(bodySeo);
+      return readNormalizedSeoConfig();
     }
 
     try {
       const seo = normalizeSeoInput();
-      const canonicalBase =
-        seo && seo.canonicalBase != null ? String(seo.canonicalBase).trim().replace(/\/+$/, '') : '';
-      const origin = canonicalBase || `${req.protocol}://${req.get('host')}`;
-      const useAuto = !seo || seo.sitemapAuto !== false;
-
-      const paths = [];
-      const seen = new Set();
-      const addPath = (p) => {
-        if (typeof p !== 'string' || !p.trim()) return;
-        let x = p.trim();
-        if (!x.startsWith('/')) x = '/' + x;
-        if (seen.has(x)) return;
-        seen.add(x);
-        paths.push(x);
-      };
-
-      if (useAuto) {
-        addPath('/');
-        addPath('/index');
-        const docs = siteDatabase.listMainDocuments();
-        const def = siteDatabase.getDefaultMainDocSlug();
-        for (const doc of docs) {
-          const slug = String((doc && doc.slug) || '').trim();
-          if (!slug) continue;
-          const isDef = slug === def;
-          const base = isDef ? '/docs' : `/docs?doc=${encodeURIComponent(slug)}`;
-          addPath(`${base}#home`);
-          let secs = [];
-          try {
-            secs = docAdmin.readSectionsFromDisk(slug) || [];
-          } catch (_) {}
-          for (let i = 2; i < secs.length; i++) {
-            const sec = secs[i];
-            const secSlug = sec && sec.slug != null ? String(sec.slug).trim() : '';
-            if (!secSlug) continue;
-            addPath(`${base}#${encodeURIComponent(secSlug)}`);
-          }
-        }
+      const validation = validateSeoConfig(seo);
+      if (!validation.ok) {
+        return sendAdminError(req, res, 400, 'SEO 配置校验失败', { detail: validation.detail });
       }
-
-      const extraManual = seo && Array.isArray(seo.sitemapPaths) ? seo.sitemapPaths : [];
-      if (useAuto) {
-        extraManual.forEach(addPath);
-      } else if (extraManual.length) {
-        extraManual.forEach(addPath);
-      } else {
-        ['/index', '/docs'].forEach(addPath);
-      }
-
-      const includeExtra =
-        seo == null ||
-        seo.includeExtraPagesInSitemap === undefined ||
-        seo.includeExtraPagesInSitemap === true;
-      if (includeExtra) {
-        const store = await extraPagesRepo.readStore();
-        for (const p of store.pages || []) {
-          if (!extraPagesStore.isPublishedForPublic(p)) continue;
-          const slug = String((p && p.slug) || '').trim();
-          if (!slug) continue;
-          addPath(`/page/${encodeURIComponent(slug)}`);
-        }
-      }
+      const origin = normalizeOrigin(seo.canonicalBase, `${req.protocol}://${req.get('host')}`);
+      const paths = await buildSeoSitemapRelPaths({
+        seo,
+        siteDatabase,
+        extraPagesRepo,
+        extraPagesStore,
+      });
 
       const urls = paths
         .map((p) => {
@@ -2786,9 +3455,464 @@ function registerAdminRoutes(app, ctx) {
       audit(req, 'seo.sitemap.generate_file', 'error', {
         message: String(e.message || e).slice(0, 200),
       });
+      sendAdminError(req, res, 500, String(e.message || e));
+    }
+  });
+
+  app.get('/api/admin/seo/push-logs', requireAdmin, requireAdminOrEditorCapability('seo'), (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) return res.json({ list: [] });
+      const engine = req.query && req.query.engine ? String(req.query.engine) : '';
+      const limit = req.query && req.query.limit ? req.query.limit : 100;
+      const list = siteDatabase.listSeoPushLogs({ engine, limit });
+      res.json({ list });
+    } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
     }
   });
+
+  app.post('/api/admin/seo/push', requireAdmin, requireAdminOrEditorCapability('seo'), async (req, res) => {
+    const bodySeo = req.body && typeof req.body.seo === 'object' ? req.body.seo : null;
+    const seo = bodySeo ? normalizeSeoConfig(bodySeo) : readNormalizedSeoConfig();
+    const baseValidation = validateSeoConfig(seo);
+    if (!baseValidation.ok) {
+      return sendAdminError(req, res, 400, 'SEO 配置校验失败', { detail: baseValidation.detail });
+    }
+    const engines = Array.isArray(req.body && req.body.engines) ? req.body.engines : [];
+    const batchKey = Date.now().toString(36) + '-' + crypto.randomBytes(4).toString('hex');
+    const actorUserId =
+      req.user && req.user.id != null && Number.isFinite(Number(req.user.id))
+        ? Number(req.user.id)
+        : null;
+    const actorUsername = req.user && req.user.username ? String(req.user.username) : '';
+    try {
+      const preflight = await require('./lib/seo-push-service').buildPushContext({
+        req,
+        seo,
+        siteDatabase,
+        extraPagesRepo,
+        extraPagesStore,
+      });
+      const pushValidation = validateSeoPushRequest(req.body, seo, preflight);
+      if (!pushValidation.ok) {
+        return sendAdminError(req, res, 400, 'SEO 推送参数校验失败', { detail: pushValidation.detail });
+      }
+      const pushed = await runSeoPush({
+        req,
+        seo,
+        siteDatabase,
+        extraPagesRepo,
+        extraPagesStore,
+        engines: pushValidation.engines,
+      });
+      const results = Array.isArray(pushed.results) ? pushed.results : [];
+      let okCount = 0;
+      let errorCount = 0;
+      let skippedCount = 0;
+      for (const item of results) {
+        if (!item || item.status === 'skipped') {
+          skippedCount += 1;
+          continue;
+        }
+        if (item.ok) okCount += 1;
+        else errorCount += 1;
+        if (siteDatabase.isSiteSqlite()) {
+          siteDatabase.createSeoPushLog({
+            batchKey,
+            engine: item.engine,
+            action: item.action,
+            targetType: item.targetType,
+            target: item.target,
+            requestSummary: item.requestSummary,
+            urlCount: item.urlCount,
+            success: item.ok,
+            httpStatus: item.httpStatus,
+            responseExcerpt: item.responseExcerpt,
+            errorMessage: item.errorMessage,
+            actorUserId,
+            actorUsername,
+          });
+        }
+      }
+      audit(req, 'seo.push.run', errorCount > 0 ? 'error' : 'ok', {
+        batchKey,
+        engines: Array.isArray(engines) && engines.length ? engines.length : 3,
+        okCount,
+        errorCount,
+        skippedCount,
+        urlCount: pushed.context && Array.isArray(pushed.context.urls) ? pushed.context.urls.length : 0,
+      });
+      res.json({
+        ok: errorCount === 0,
+        batchKey,
+        context: {
+          origin: pushed.context ? pushed.context.origin : '',
+          sitemapUrl: pushed.context ? pushed.context.sitemapUrl : '',
+          urlCount: pushed.context && Array.isArray(pushed.context.urls) ? pushed.context.urls.length : 0,
+        },
+        summary: {
+          total: results.length,
+          ok: okCount,
+          error: errorCount,
+          skipped: skippedCount,
+        },
+        results,
+      });
+    } catch (e) {
+      audit(req, 'seo.push.run', 'error', {
+        batchKey,
+        message: String(e.message || e).slice(0, 200),
+      });
+      sendAdminError(req, res, 400, String(e.message || e));
+    }
+  });
+
+  app.post('/api/admin/blog-fetch/run', requireAdmin, requireAdminOrEditorCapability('blogFetch'), async (req, res) => {
+    try {
+      const fetchBlogsReport = getFetchBlogsReport();
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const result = await fetchBlogsReport({
+        cookie: body.cookie,
+        base: body.base,
+        userId: body.userId,
+        pages: body.pages,
+        from: body.from,
+        to: body.to,
+        range: body.range,
+        lastDays: body.lastDays,
+      });
+      audit(req, 'blog.fetch.run', 'ok', {
+        base: result.base,
+        userId: String(result.userId || '').slice(0, 60),
+        pages: result.pages,
+        total: result.stats && result.stats.total ? result.stats.total : 0,
+      });
+      res.json({
+        ok: true,
+        result,
+      });
+    } catch (e) {
+      audit(req, 'blog.fetch.run', 'error', {
+        message: String(e.message || e).slice(0, 200),
+      });
+      res.status(400).json({ error: String(e.message || e) });
+    }
+  });
+
+  app.get('/api/admin/blog-fetch/weekly-reports', requireAdmin, requireAdminOrEditorCapability('blogFetch'), (req, res) => {
+    try {
+      const limit = req.query && req.query.limit ? req.query.limit : 20;
+      const isAdminUser = req.adminUser && req.adminUser.role === 'admin';
+      const resolvedUserId =
+        isAdminUser && req.query && req.query.resolvedUserId ? String(req.query.resolvedUserId) : '';
+      const keyword = req.query && req.query.keyword ? String(req.query.keyword) : '';
+      const createdFrom = req.query && req.query.from ? String(req.query.from) : '';
+      const createdTo = req.query && req.query.to ? String(req.query.to) : '';
+      const sort = req.query && req.query.sort ? String(req.query.sort) : '';
+      const list = siteDatabase.isSiteSqlite()
+        ? siteDatabase.listPersonalWeeklyReports({
+            limit,
+            resolvedUserId,
+            keyword,
+            createdFrom,
+            createdTo,
+            sort,
+            createdByUserId: isAdminUser ? null : req.adminUser.userId,
+          })
+        : [];
+      audit(req, 'blog.fetch.weekly_report.list', 'ok', {
+        count: list.length,
+        limit: parseInt(limit, 10) || 20,
+        resolvedUserId: resolvedUserId ? String(resolvedUserId).slice(0, 120) : '',
+        keyword: keyword ? String(keyword).slice(0, 120) : '',
+        scopedToUserId: isAdminUser ? '' : String(req.adminUser.userId || ''),
+      });
+      res.json({
+        ok: true,
+        supported: siteDatabase.isSiteSqlite(),
+        list,
+      });
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+
+  app.get('/api/admin/blog-fetch/weekly-reports/:id', requireAdmin, requireAdminOrEditorCapability('blogFetch'), (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) {
+        return res.status(400).json({ error: '当前存储模式不支持周报历史' });
+      }
+      const row = siteDatabase.getPersonalWeeklyReportById(req.params.id);
+      if (!row) return res.status(404).json({ error: '周报记录不存在' });
+      if (!canAccessPersonalWeeklyReport(req, row)) {
+        audit(req, 'blog.fetch.weekly_report.read', 'deny', {
+          id: req.params.id,
+          ownerUserId: row.createdByUserId != null ? Number(row.createdByUserId) : null,
+        });
+        return res.status(403).json({ error: '权限不足' });
+      }
+      audit(req, 'blog.fetch.weekly_report.read', 'ok', {
+        id: row.id,
+        ownerUserId: row.createdByUserId != null ? Number(row.createdByUserId) : null,
+      });
+      res.json({ ok: true, report: row });
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+
+  app.get('/api/admin/blog-fetch/weekly-reports/:id/docx', requireAdmin, requireAdminOrEditorCapability('blogFetch'), (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) {
+        return res.status(400).json({ error: '当前存储模式不支持周报历史' });
+      }
+      const row = siteDatabase.getPersonalWeeklyReportById(req.params.id);
+      if (!row) return res.status(404).json({ error: '周报记录不存在' });
+      if (!canAccessPersonalWeeklyReport(req, row)) {
+        audit(req, 'blog.fetch.weekly_report.docx', 'deny', {
+          id: req.params.id,
+          ownerUserId: row.createdByUserId != null ? Number(row.createdByUserId) : null,
+        });
+        return res.status(403).json({ error: '权限不足' });
+      }
+      const { createWeeklyReportDocx, safeDocxFilename } = getWeeklyDocxExport();
+      const fileName = safeDocxFilename(row.title || 'personal-weekly-report');
+      const encoded = encodeURIComponent(fileName).replace(/[!'()*]/g, (ch) =>
+        '%' + ch.charCodeAt(0).toString(16).toUpperCase()
+      );
+      const buf = createWeeklyReportDocx(row);
+      audit(req, 'blog.fetch.weekly_report.docx', 'ok', {
+        id: row.id,
+        title: String(row.title || '').slice(0, 120),
+      });
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      );
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="weekly-report.docx"; filename*=UTF-8''${encoded}`
+      );
+      res.setHeader('Content-Length', String(buf.length));
+      res.send(buf);
+    } catch (e) {
+      audit(req, 'blog.fetch.weekly_report.docx', 'error', {
+        message: String(e.message || e).slice(0, 200),
+      });
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+
+  app.delete('/api/admin/blog-fetch/weekly-reports/:id', requireAdmin, requireAdminOrEditorCapability('blogFetch'), (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) {
+        return res.status(400).json({ error: '当前存储模式不支持周报历史' });
+      }
+      const row = siteDatabase.getPersonalWeeklyReportById(req.params.id);
+      if (!row) return res.status(404).json({ error: '周报记录不存在' });
+      if (!canAccessPersonalWeeklyReport(req, row)) {
+        audit(req, 'blog.fetch.weekly_report.delete', 'deny', {
+          id: req.params.id,
+          ownerUserId: row.createdByUserId != null ? Number(row.createdByUserId) : null,
+        });
+        return res.status(403).json({ error: '权限不足' });
+      }
+      const changes = siteDatabase.deletePersonalWeeklyReportById(row.id);
+      audit(req, 'blog.fetch.weekly_report.delete', 'ok', {
+        id: row.id,
+        changes,
+      });
+      res.json({ ok: true, deleted: changes > 0 ? 1 : 0 });
+    } catch (e) {
+      audit(req, 'blog.fetch.weekly_report.delete', 'error', {
+        message: String(e.message || e).slice(0, 200),
+      });
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+
+  app.post('/api/admin/blog-fetch/weekly-reports/batch-delete', requireAdmin, requireAdminOrEditorCapability('blogFetch'), (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) {
+        return res.status(400).json({ error: '当前存储模式不支持周报历史' });
+      }
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const rows = listAccessiblePersonalWeeklyReportsByIds(req, body.ids);
+      if (!rows.length) return res.status(400).json({ error: '没有可删除的周报记录' });
+      const deleted = siteDatabase.deletePersonalWeeklyReportsByIds(
+        rows.map((row) => row.id)
+      );
+      audit(req, 'blog.fetch.weekly_report.batch_delete', 'ok', {
+        count: rows.length,
+        deleted,
+      });
+      res.json({ ok: true, deleted, ids: rows.map((row) => row.id) });
+    } catch (e) {
+      audit(req, 'blog.fetch.weekly_report.batch_delete', 'error', {
+        message: String(e.message || e).slice(0, 200),
+      });
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+
+  app.post('/api/admin/blog-fetch/weekly-reports/batch-export', requireAdmin, requireAdminOrEditorCapability('blogFetch'), (req, res) => {
+    try {
+      if (!siteDatabase.isSiteSqlite()) {
+        return res.status(400).json({ error: '当前存储模式不支持周报历史' });
+      }
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const rows = listAccessiblePersonalWeeklyReportsByIds(req, body.ids);
+      if (!rows.length) return res.status(400).json({ error: '没有可导出的周报记录' });
+      const format = String(body.format || 'docx').trim().toLowerCase();
+      const {
+        createWeeklyReportDocx,
+        safeArchiveEntryName,
+        createZipArchive,
+      } = getWeeklyDocxExport();
+      const files = {};
+      rows.forEach((row) => {
+        if (format === 'json') {
+          files[safeArchiveEntryName(row.title, '.json')] = JSON.stringify(row.summary || {}, null, 2);
+          return;
+        }
+        if (format === 'md' || format === 'markdown') {
+          files[safeArchiveEntryName(row.title, '.md')] = row.markdownContent || '';
+          return;
+        }
+        files[safeArchiveEntryName(row.title, '.docx')] = createWeeklyReportDocx(row);
+      });
+      const zip = createZipArchive(files);
+      audit(req, 'blog.fetch.weekly_report.batch_export', 'ok', {
+        count: rows.length,
+        format,
+      });
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="weekly-reports-${format}.zip"`
+      );
+      res.setHeader('Content-Length', String(zip.length));
+      res.send(zip);
+    } catch (e) {
+      audit(req, 'blog.fetch.weekly_report.batch_export', 'error', {
+        message: String(e.message || e).slice(0, 200),
+      });
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+
+  app.post(
+    '/api/admin/blog-fetch/weekly-report/generate',
+    requireAdmin,
+    requireAdminOrEditorCapability('blogFetch'),
+    async (req, res) => {
+      try {
+        const generatePersonalWeeklyReport = getGeneratePersonalWeeklyReport();
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const generated = generatePersonalWeeklyReport({
+          title: body.title,
+          style: body.style,
+          includeDailyDigest: body.includeDailyDigest !== false,
+          blogs: Array.isArray(body.blogs) ? body.blogs : [],
+        });
+        let finalMarkdown = generated.markdown;
+        let aiMeta = { used: false, providerId: '', model: '' };
+        try {
+          const aiSettings = readCurrentAiSettingsNormalized();
+          if (aiSettings.enabled === true && aiSettings.weeklyReport && aiSettings.weeklyReport.useAi !== false) {
+            const runAiChat = getRunAiChat();
+            const wrProvider =
+              String((aiSettings.weeklyReport && aiSettings.weeklyReport.provider) || '').trim() ||
+              aiSettings.defaultProvider;
+            const wrModel =
+              String((aiSettings.weeklyReport && aiSettings.weeklyReport.model) || '').trim() || '';
+            const aiResult = await runAiChat(aiSettings, {
+              providerId: wrProvider,
+              model: wrModel,
+              systemPrompt:
+                '你是企业内部的个人周报整理助手。请用中文输出结构清晰、可直接提交的 Markdown 周报。必须忠实于输入，不得编造未出现的成果、问题或计划。',
+              messages: [
+                {
+                  role: 'user',
+                  content:
+                    '请基于以下结构化周报草稿，整理为更自然的个人周报 Markdown。保留这些部分：本周概览、本周完成事项、重点成果、问题与处理、协作与沟通、下周计划。若提供了按日纪要则放在末尾。\n\n' +
+                    generated.markdown,
+                },
+              ],
+              temperature: 0.2,
+              maxTokens: 1800,
+            });
+            if (aiResult && aiResult.text) {
+              finalMarkdown = String(aiResult.text).trim() + '\n';
+              aiMeta = {
+                used: true,
+                providerId: aiResult.providerId || '',
+                model: aiResult.model || '',
+              };
+            }
+          }
+        } catch (aiErr) {
+          aiMeta = {
+            used: false,
+            providerId: '',
+            model: '',
+            error: String(aiErr && aiErr.message ? aiErr.message : aiErr),
+          };
+        }
+        let saved = null;
+        if (siteDatabase.isSiteSqlite() && body.save !== false) {
+          saved = siteDatabase.createPersonalWeeklyReport({
+            title: generated.title,
+            style: generated.style,
+            rangeFrom: generated.stats && generated.stats.rangeFrom,
+            rangeTo: generated.stats && generated.stats.rangeTo,
+            resolvedUserId: body.resolvedUserId,
+            sourceCount: generated.stats && generated.stats.total,
+            summary: {
+              stats: generated.stats || {},
+              sections: generated.sections || {},
+              ai: aiMeta,
+            },
+            markdownContent: finalMarkdown,
+            createdByUserId: req.adminUser && req.adminUser.userId,
+            createdByUsername: req.adminUser && req.adminUser.username,
+          });
+        }
+        audit(req, 'blog.fetch.weekly_report.generate', 'ok', {
+          sourceCount: generated.stats && generated.stats.total ? generated.stats.total : 0,
+          activeDays:
+            generated.stats && generated.stats.activeDays ? generated.stats.activeDays : 0,
+          resolvedUserId: String(body.resolvedUserId || '').slice(0, 120),
+          saved: !!saved,
+          aiUsed: aiMeta.used === true,
+          aiProvider: aiMeta.providerId || '',
+        });
+        res.json({
+          ok: true,
+          supported: siteDatabase.isSiteSqlite(),
+          report: Object.assign({}, saved || {}, {
+            title: generated.title,
+            style: generated.style,
+            rangeFrom: generated.stats && generated.stats.rangeFrom ? generated.stats.rangeFrom : '',
+            rangeTo: generated.stats && generated.stats.rangeTo ? generated.stats.rangeTo : '',
+            resolvedUserId: String(body.resolvedUserId || '').trim(),
+            sourceCount: generated.stats && generated.stats.total ? generated.stats.total : 0,
+            summary: {
+              stats: generated.stats || {},
+              sections: generated.sections || {},
+              ai: aiMeta,
+            },
+            markdownContent: finalMarkdown,
+          }),
+        });
+      } catch (e) {
+        audit(req, 'blog.fetch.weekly_report.generate', 'error', {
+          message: String(e.message || e).slice(0, 200),
+        });
+        res.status(400).json({ error: String(e.message || e) });
+      }
+    }
+  );
 
   function makeSubmissionSlug(title) {
     const base = String(title || '')
@@ -2832,9 +3956,8 @@ function registerAdminRoutes(app, ctx) {
       }
       let publishMeta = null;
       if (action === 'approve') {
-        const publishAuthor = row.submitterName
-          ? String(row.submitterName).trim()
-          : '技术共享上传';
+        const reviewActorUsername =
+          req.adminUser && req.adminUser.username ? String(req.adminUser.username).trim() : 'admin';
         if (row.targetType === 'main') {
           const slug = siteDatabase.normalizeMainDocSlug(row.targetDocSlug || '');
           const docs = siteDatabase.listMainDocuments();
@@ -2849,24 +3972,34 @@ function registerAdminRoutes(app, ctx) {
             String(row.markdownContent || '').trim() +
             '\n';
           const nextRaw = String(oldRaw || '') + block;
-          siteDatabase.setMainMarkdownForSlug(slug, nextRaw);
-          siteDatabase.appendMainDocHistory(
-            {
+          if (oldRaw !== nextRaw && typeof siteDatabase.appendMainDocHistory === 'function') {
+            siteDatabase.appendMainDocHistory({
               slug,
-              content: nextRaw,
+              content: oldRaw,
               source: 'doc.submission.approve.main',
-              summary: `审核通过投稿 #${id}`,
-              actorUserId: null,
-              actorUsername: publishAuthor,
+              summary: `审核通过投稿 #${id} · ${String(row.title || '投稿文档').trim()}`,
+              actorUserId: req.adminUser && req.adminUser.userId,
+              actorUsername: reviewActorUsername,
+            });
+            if (typeof siteDatabase.pruneMainDocHistory === 'function') {
+              siteDatabase.pruneMainDocHistory(slug, 100);
             }
-          );
+          }
+          siteDatabase.setMainMarkdownForSlug(slug, nextRaw);
           try {
             reloadDocData();
           } catch (_) {}
           redisCache.bumpEpoch();
-          publishMeta = { type: 'main', doc: slug };
+          publishMeta = {
+            type: 'main',
+            doc: slug,
+            title: row.title || '投稿文档',
+            sectionCount: getSectionCountForDoc(slug),
+            summary: '已追加到主文档并立即生效',
+          };
         } else {
           const store = await extraPagesRepo.readStore();
+          const extraPagesAdmin = getExtraPagesAdmin();
           const payload = {
             title: row.title || '投稿文档',
             slug: makeSubmissionSlug(row.title),
@@ -2874,14 +4007,20 @@ function registerAdminRoutes(app, ctx) {
             body: row.markdownContent || '',
             excerpt: '',
             tags: Array.isArray(row.tags) ? row.tags.join(', ') : '',
-            author: publishAuthor,
+            author: row.submitterName ? String(row.submitterName).trim() : '技术共享上传',
             status: 'published',
             publishedAt: new Date().toISOString(),
           };
           const { page } = extraPagesAdmin.createPage(payload, store);
           await extraPagesRepo.insertPage(page);
           redisCache.bumpEpoch();
-          publishMeta = { type: 'extra', slug: page.slug, id: page.id };
+          publishMeta = {
+            type: 'extra',
+            slug: page.slug,
+            id: page.id,
+            title: row.title || '投稿文档',
+            summary: '已发布为扩展页面',
+          };
         }
       }
       const reviewed = siteDatabase.reviewDocSubmission({
@@ -2933,6 +4072,7 @@ function registerAdminRoutes(app, ctx) {
     }
     try {
       const store = await extraPagesRepo.readStore();
+      const extraPagesAdmin = getExtraPagesAdmin();
       const { page } = extraPagesAdmin.createPage(req.body, store);
       await extraPagesRepo.insertPage(page);
       audit(req, 'pages.create', 'ok', {
@@ -2955,6 +4095,7 @@ function registerAdminRoutes(app, ctx) {
     try {
       const { id } = req.params;
       const store = await extraPagesRepo.readStore();
+      const extraPagesAdmin = getExtraPagesAdmin();
       const result = extraPagesAdmin.updatePage(id, req.body, store);
       if (!result.ok) {
         return res.status(result.status).json({ error: result.error });
@@ -2987,6 +4128,7 @@ function registerAdminRoutes(app, ctx) {
         if (!ok) return res.status(404).json({ error: '页面不存在' });
       } else {
         const store = await extraPagesRepo.readStore();
+        const extraPagesAdmin = getExtraPagesAdmin();
         const result = extraPagesAdmin.deletePage(id, store);
         if (!result.ok) {
           return res.status(result.status).json({ error: result.error });

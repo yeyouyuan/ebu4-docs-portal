@@ -1,0 +1,339 @@
+:root {
+  --wr-bg: #f3f6fb;
+  --wr-surface: #ffffff;
+  --wr-surface-2: #eef3f8;
+  --wr-border: #d6dee9;
+  --wr-border-2: #b8c5d6;
+  --wr-text: #182233;
+  --wr-muted: #637083;
+  --wr-blue: #2563eb;
+  --wr-green: #0f8a63;
+  --wr-gold: #b7791f;
+  --wr-shadow: 0 14px 36px rgba(15, 23, 42, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Plus Jakarta Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--wr-text);
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.06) 0 1px, transparent 1px),
+    linear-gradient(0deg, rgba(15, 138, 99, 0.04) 0 1px, transparent 1px),
+    var(--wr-bg);
+  background-size: 40px 40px;
+}
+
+button,
+a {
+  font: inherit;
+}
+
+.weekly-preview-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 58px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--wr-border);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(10px);
+}
+
+.weekly-preview-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--wr-text);
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.weekly-preview-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: #1f6feb;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.weekly-preview-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.weekly-preview-actions button,
+.weekly-preview-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--wr-border);
+  background: var(--wr-surface);
+  color: var(--wr-text);
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.weekly-preview-actions button:hover,
+.weekly-preview-actions a:hover {
+  border-color: var(--wr-blue);
+  color: var(--wr-blue);
+}
+
+.weekly-preview-actions .primary {
+  border-color: #1d4ed8;
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.weekly-preview-actions .primary:hover {
+  border-color: #1742b6;
+  background: #1742b6;
+  color: #fff;
+}
+
+.weekly-preview-shell {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 20px;
+  width: min(1360px, calc(100vw - 32px));
+  margin: 20px auto 34px;
+}
+
+.weekly-preview-side {
+  position: sticky;
+  top: 78px;
+  align-self: start;
+  padding: 18px;
+  border: 1px solid var(--wr-border);
+  background: var(--wr-surface);
+  box-shadow: var(--wr-shadow);
+}
+
+.weekly-preview-kicker {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--wr-blue);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.weekly-preview-side h1 {
+  margin: 0 0 10px;
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+.weekly-preview-side p {
+  margin: 0;
+  color: var(--wr-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.weekly-preview-meta {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.weekly-preview-meta span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--wr-border);
+  background: var(--wr-surface-2);
+  color: var(--wr-muted);
+  font-size: 12px;
+}
+
+.weekly-preview-meta strong {
+  max-width: 160px;
+  overflow: hidden;
+  color: var(--wr-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weekly-preview-note {
+  padding-top: 14px;
+  border-top: 1px solid var(--wr-border);
+}
+
+.weekly-preview-msg {
+  margin-top: 12px !important;
+  color: var(--wr-green) !important;
+  font-weight: 700;
+}
+
+.weekly-preview-msg.err {
+  color: #b91c1c !important;
+}
+
+.weekly-docx-stage {
+  min-width: 0;
+}
+
+.weekly-docx-paper {
+  width: min(100%, 860px);
+  min-height: 1120px;
+  margin: 0 auto;
+  padding: 68px 76px;
+  border: 1px solid var(--wr-border);
+  background: var(--wr-surface);
+  box-shadow: var(--wr-shadow);
+  color: #111827;
+  font-family: "Times New Roman", "SimSun", serif;
+  font-size: 15px;
+  line-height: 1.82;
+}
+
+.weekly-docx-paper h1,
+.weekly-docx-paper h2,
+.weekly-docx-paper h3 {
+  font-family: "Plus Jakarta Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.weekly-docx-paper h1 {
+  margin: 0 0 22px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--wr-blue);
+  font-size: 28px;
+}
+
+.weekly-docx-paper h2 {
+  margin: 26px 0 12px;
+  padding-left: 10px;
+  border-left: 4px solid var(--wr-green);
+  font-size: 19px;
+}
+
+.weekly-docx-paper h3 {
+  margin: 18px 0 8px;
+  color: #334155;
+  font-size: 16px;
+}
+
+.weekly-docx-paper p {
+  margin: 10px 0;
+}
+
+.weekly-docx-paper blockquote {
+  margin: 12px 0;
+  padding: 10px 14px;
+  border-left: 4px solid var(--wr-gold);
+  background: #f8fafc;
+  color: #475569;
+}
+
+.weekly-docx-paper ul,
+.weekly-docx-paper ol {
+  margin: 10px 0 10px 1.2em;
+  padding: 0;
+}
+
+.weekly-docx-paper li {
+  margin: 6px 0;
+}
+
+.weekly-docx-paper code {
+  padding: 1px 4px;
+  background: #edf2f7;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.9em;
+}
+
+@media (max-width: 980px) {
+  .weekly-preview-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .weekly-preview-side {
+    position: static;
+  }
+
+  .weekly-docx-paper {
+    padding: 42px 34px;
+    min-height: 780px;
+  }
+}
+
+@media (max-width: 640px) {
+  .weekly-preview-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .weekly-preview-actions {
+    justify-content: flex-start;
+  }
+
+  .weekly-preview-actions button,
+  .weekly-preview-actions a {
+    flex: 1 1 calc(50% - 8px);
+  }
+
+  .weekly-preview-shell {
+    width: min(100vw - 20px, 1360px);
+    margin-top: 12px;
+  }
+
+  .weekly-docx-paper {
+    padding: 28px 20px;
+    font-size: 14px;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .weekly-preview-header,
+  .weekly-preview-side {
+    display: none;
+  }
+
+  .weekly-preview-shell {
+    display: block;
+    width: 100%;
+    margin: 0;
+  }
+
+  .weekly-docx-paper {
+    width: 100%;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+  }
+}

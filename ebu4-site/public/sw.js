@@ -3,7 +3,7 @@
  * E9 文档站 PWA — 离线壳层 + 运行时缓存
  * 更新缓存：修改 VERSION 并部署
  */
-const VERSION = 'ebu4-pwa-2026.04.16-2';
+const VERSION = 'ebu4-pwa-2026.04.24-1';
 const PRECACHE = 'precache-' + VERSION;
 const RUNTIME = 'runtime-' + VERSION;
 
@@ -16,9 +16,11 @@ const PRECACHE_URLS = [
   '/css/style.css',
   '/css/landing.css',
   '/css/admin.css',
+  '/css/site-ai-assistant.css?v=20260424c',
   '/js/docs-chrome.js',
   '/js/lazy-images.js',
   '/js/app.js',
+  '/js/site-ai-assistant.js?v=20260424c',
   '/js/admin.js',
   '/js/admin-config-forms.js',
   '/js/admin-tools-nav.js',
@@ -119,6 +121,23 @@ self.addEventListener('fetch', function (event) {
             });
           }
           return offline503();
+        })
+        .then(function (res) {
+          return res instanceof Response ? res : offline503();
+        })
+    );
+    return;
+  }
+
+  /** 页面 HTML 走 network-first，避免旧 /docs 预缓存长期带出历史第三方嵌入脚本 */
+  if (req.mode === 'navigate' || url.pathname === '/' || url.pathname === '/docs' || url.pathname === '/index' || url.pathname.startsWith('/page/')) {
+    event.respondWith(
+      fetchFollow(req)
+        .catch(function () {
+          if (url.pathname.startsWith('/page/')) {
+            return caches.match('/docs');
+          }
+          return caches.match(url.pathname === '/index' || url.pathname === '/' ? '/index' : '/docs');
         })
         .then(function (res) {
           return res instanceof Response ? res : offline503();

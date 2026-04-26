@@ -28,8 +28,8 @@
   <script>
   (function () {
     /* 变更 KEY 可强制全量刷新后台 CSS（避免仅改 DEFAULT_V 仍读旧 localStorage） */
-    var KEY = 'ebu4-admin-asset-v20260416j';
-    var DEFAULT_V = '20260416j';
+    var KEY = 'ebu4-admin-asset-v20260427a';
+    var DEFAULT_V = '20260427a';
     var v = DEFAULT_V;
     try {
       var s = localStorage.getItem(KEY);
@@ -47,6 +47,7 @@
     addCss('/css/admin-hub.css');
     addCss('/css/admin-dashboard.css');
     addCss('/css/admin-site-settings.css');
+    addCss('/css/admin-ai.css');
     addCss('/css/doc-management.css');
     addCss('/lib/quill.snow.css');
   })();
@@ -138,6 +139,14 @@
             <button type="button" class="ry-menu-item" data-tab="site">
               <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l9 4.5v4.5c0 5.25-3.75 10.2-9 11.25-5.25-1.05-9-6-9-11.25V7.5L12 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
               <span>站点设置</span>
+            </button>
+            <button type="button" class="ry-menu-item admin-hidden" data-tab="blogfetch" id="menuTabBlogFetch">
+              <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 4h12a2 2 0 0 1 2 2v12l-4-2-4 2-4-2-4 2V6a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 8h8M8 12h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <span>个人周报助手</span>
+            </button>
+            <button type="button" class="ry-menu-item admin-hidden" data-tab="ai" id="menuTabAi">
+              <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l1.8 5.2L19 9l-4.2 3.1 1.6 5.1-4.4-3-4.4 3 1.6-5.1L5 9l5.2-1.8L12 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              <span>AI 接入</span>
             </button>
             <button type="button" class="ry-menu-item admin-hidden" data-tab="upgrade" id="menuTabUpgrade">
               <svg class="ry-menu-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/></svg>
@@ -959,6 +968,259 @@
         <div id="siteSettingsPanelMount"></div>
       </div>
 
+      <div class="admin-panel admin-hidden weekly-assistant-page" id="panelBlogFetch">
+        <section class="weekly-hero admin-card">
+          <span class="weekly-eyebrow">日报抓取 + 周报生成</span>
+          <h2>个人周报助手</h2>
+          <p>用现有 blog-fetch 接口抓取日报、生成周报、导出文件并查看历史记录。</p>
+          <div class="weekly-flow" aria-hidden="true">
+            <span><i></i>抓取日报</span>
+            <span><i></i>整理预览</span>
+            <span><i></i>生成周报</span>
+            <span><i></i>历史导出</span>
+          </div>
+        </section>
+
+        <div class="weekly-workflow">
+          <section class="weekly-stage weekly-stage-fetch">
+            <div class="weekly-stage-head">
+              <span class="weekly-step-mark" aria-hidden="true">01</span>
+              <div>
+                <span class="weekly-kicker">Step 1</span>
+                <h3>抓取日报</h3>
+                <p>配置 Cookie、站点地址和时间范围，拉取当前用户或指定用户的日报。</p>
+              </div>
+              <span class="weekly-chip">blog-fetch</span>
+            </div>
+            <div class="weekly-fetch-layout">
+              <div class="weekly-card weekly-source-card">
+                <div class="weekly-card-head">
+                  <div>
+                    <span class="weekly-kicker">连接参数</span>
+                    <h4>抓取来源</h4>
+                  </div>
+                </div>
+                <div class="weekly-field-grid">
+                  <label class="admin-field admin-field-full">
+                    <span class="admin-field-label">Cookie</span>
+                    <textarea id="blogFetchCookie" class="admin-input mono" rows="4" spellcheck="false" placeholder="粘贴登录后的 Cookie"></textarea>
+                  </label>
+                  <label class="admin-field">
+                    <span class="admin-field-label">Base URL</span>
+                    <input type="text" id="blogFetchBase" class="admin-input" autocomplete="off" placeholder="https://www.e-cology.com.cn" />
+                  </label>
+                  <label class="admin-field">
+                    <span class="admin-field-label">用户 ID（可选）</span>
+                    <input type="text" id="blogFetchUserId" class="admin-input" autocomplete="off" placeholder="留空则自动识别当前用户" />
+                  </label>
+                  <label class="admin-field">
+                    <span class="admin-field-label">抓取页数</span>
+                    <input type="number" id="blogFetchPages" class="admin-input" min="1" max="30" value="5" />
+                  </label>
+                  <label class="admin-field">
+                    <span class="admin-field-label">时间范围</span>
+                    <select id="blogFetchRange" class="admin-input">
+                      <option value="last-days">最近 N 天</option>
+                      <option value="this-week">本周</option>
+                      <option value="last-week">上周</option>
+                      <option value="custom">自定义</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="weekly-primary-actions">
+                  <button type="button" class="admin-btn-primary" id="btnBlogFetchRun">抓取日报</button>
+                  <span class="admin-msg" id="blogFetchMsg"></span>
+                </div>
+              </div>
+              <div class="weekly-card weekly-range-card">
+                <div class="weekly-card-head">
+                  <div>
+                    <span class="weekly-kicker">筛选范围</span>
+                    <h4>抓取窗口</h4>
+                  </div>
+                </div>
+                <div class="weekly-field-grid">
+                  <label class="admin-field">
+                    <span class="admin-field-label">最近天数</span>
+                    <input type="number" id="blogFetchLastDays" class="admin-input" min="1" max="365" value="7" />
+                  </label>
+                  <label class="admin-field">
+                    <span class="admin-field-label">开始日期</span>
+                    <input type="date" id="blogFetchFrom" class="admin-input" />
+                  </label>
+                  <label class="admin-field">
+                    <span class="admin-field-label">结束日期</span>
+                    <input type="date" id="blogFetchTo" class="admin-input" />
+                  </label>
+                  <label class="admin-field admin-field-full">
+                    <span class="admin-field-label">范围说明</span>
+                    <input type="text" id="blogFetchRangeHint" class="admin-input" value="可直接选择开始/结束日期；选择“最近 N 天 / 本周 / 上周”时会按对应规则抓取。" readonly />
+                  </label>
+                </div>
+                <div class="weekly-range-bar">
+                  <span class="weekly-chip">支持本周 / 上周 / 自定义</span>
+                </div>
+              </div>
+              <div class="weekly-card weekly-plugin-card">
+                <div class="weekly-card-head">
+                  <div>
+                    <span class="weekly-kicker">插件桥接</span>
+                    <h4>Cookie 自动获取</h4>
+                  </div>
+                  <span class="weekly-status" id="blogFetchBridgeStatus">检测中</span>
+                </div>
+                <div class="weekly-primary-actions" style="margin-top:0;padding-top:0;border-top:0;">
+                  <button type="button" class="admin-btn-ghost" id="btnBlogFetchBridgePing">检测插件</button>
+                  <button type="button" class="admin-btn-primary" id="btnBlogFetchImportCookie">从插件导入 Cookie</button>
+                </div>
+                <p id="blogFetchBridgeMsg" style="margin-top:10px;">若已安装 `ecom-token-extractor` 扩展，可直接读取浏览器中的 e-cology Cookie。</p>
+                <div class="weekly-stat-grid weekly-stat-grid-fetch">
+                  <div class="weekly-stat"><span>日报条数</span><strong id="blogFetchStatTotal">0</strong></div>
+                  <div class="weekly-stat"><span>活跃用户</span><strong id="blogFetchStatUsers">0</strong></div>
+                  <div class="weekly-stat"><span>部门数</span><strong id="blogFetchStatDepartments">0</strong></div>
+                  <div class="weekly-stat"><span>范围</span><strong id="blogFetchStatRange">—</strong></div>
+                </div>
+                <p>抓取结果会保留在当前后台会话中，随后可直接生成周报或继续筛选。</p>
+                <span class="weekly-status" id="blogFetchStatus" style="margin-top:10px;">未执行</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="weekly-stage weekly-stage-result">
+            <div class="weekly-stage-head">
+              <span class="weekly-step-mark" aria-hidden="true">02</span>
+              <div>
+                <span class="weekly-kicker">Step 2</span>
+                <h3>日报预览</h3>
+                <p>查看日报原始整理文本与抓取明细，确认无误后再生成周报。</p>
+              </div>
+              <span class="weekly-chip">preview</span>
+            </div>
+            <details class="weekly-collapse" open>
+              <summary><span>日报清单与文本预览</span><small id="blogFetchPreviewHint">尚未抓取日报</small></summary>
+              <div class="weekly-result-layout">
+                <div class="weekly-table-host" id="blogFetchTableHost">暂无数据</div>
+                <div class="weekly-fetch-preview-grid">
+                  <label class="admin-field admin-field-full">
+                    <span class="admin-field-label">整理文本</span>
+                    <textarea id="blogFetchTextOutput" class="admin-input mono" rows="18" spellcheck="false" placeholder="抓取完成后显示整理文本"></textarea>
+                  </label>
+                </div>
+              </div>
+            </details>
+          </section>
+
+          <section class="weekly-stage weekly-stage-generate">
+            <div class="weekly-stage-head">
+              <span class="weekly-step-mark" aria-hidden="true">03</span>
+              <div>
+                <span class="weekly-kicker">Step 3</span>
+                <h3>生成周报</h3>
+                <p>用当前抓取结果生成周报 Markdown；若 AI 已配置，可按后台设置自动润色。</p>
+              </div>
+              <span class="weekly-chip">generate</span>
+            </div>
+            <div class="weekly-generate-layout">
+              <div class="weekly-card weekly-generate-controls">
+                <div class="weekly-field-grid">
+                  <label class="admin-field admin-field-full weekly-title-field">
+                    <span class="admin-field-label">周报标题</span>
+                    <input type="text" id="weeklyReportTitleInput" class="admin-input" autocomplete="off" placeholder="个人周报" />
+                  </label>
+                  <label class="admin-field">
+                    <span class="admin-field-label">风格</span>
+                    <select id="weeklyReportStyle" class="admin-input">
+                      <option value="concise">concise</option>
+                      <option value="formal">formal</option>
+                      <option value="review">review</option>
+                    </select>
+                  </label>
+                  <label class="admin-field">
+                    <span class="admin-field-label">归属用户 ID（可选）</span>
+                    <input type="text" id="weeklyReportResolvedUserId" class="admin-input" autocomplete="off" placeholder="用于历史筛选" />
+                  </label>
+                </div>
+                <div class="weekly-action-row">
+                  <label class="admin-field admin-checkbox-row weekly-check-field"><input type="checkbox" id="weeklyReportIncludeDailyDigest" checked /> <span class="admin-field-label" style="display:inline">附带按日纪要</span></label>
+                  <label class="admin-field admin-checkbox-row weekly-check-field"><input type="checkbox" id="weeklyReportSave" checked /> <span class="admin-field-label" style="display:inline">生成后保存到历史</span></label>
+                </div>
+                <div class="weekly-primary-actions">
+                  <button type="button" class="admin-btn-primary" id="btnGenerateWeeklyReport">生成周报</button>
+                  <button type="button" class="admin-btn-ghost" id="btnOpenWeeklyDraftPreview">打开预览页</button>
+                  <span class="admin-msg" id="weeklyReportMsg"></span>
+                </div>
+              </div>
+              <div class="weekly-card weekly-note-card">
+                <div class="weekly-card-head">
+                  <div>
+                    <span class="weekly-kicker">生成提示</span>
+                    <h4>输出说明</h4>
+                  </div>
+                </div>
+                <ul class="weekly-note-list">
+                  <li>若后台 AI 已启用且周报 AI 开关已开，生成时会优先尝试 AI 润色。</li>
+                  <li>未勾选“生成后保存到历史”时，只会生成草稿，不写入历史记录。</li>
+                  <li>预览页支持打印 / PDF、Markdown、JSON、DOCX 导出。</li>
+                </ul>
+              </div>
+              <div class="weekly-preview-grid weekly-preview-grid-report">
+                <label class="admin-field admin-field-full">
+                  <span class="admin-field-label">生成结果（Markdown）</span>
+                  <textarea id="weeklyReportMarkdown" class="admin-input mono" rows="18" spellcheck="false" placeholder="生成成功后显示 Markdown"></textarea>
+                </label>
+                <label class="admin-field admin-field-full">
+                  <span class="admin-field-label">统计摘要（JSON）</span>
+                  <textarea id="weeklyReportSummary" class="admin-input mono" rows="12" spellcheck="false" placeholder="统计摘要"></textarea>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section class="weekly-stage weekly-stage-history">
+            <div class="weekly-stage-head">
+              <span class="weekly-step-mark" aria-hidden="true">04</span>
+              <div>
+                <span class="weekly-kicker">Step 4</span>
+                <h3>历史记录</h3>
+                <p>筛选历史周报，支持单个预览、单个导出和批量导出 / 删除。</p>
+              </div>
+              <span class="weekly-chip">history</span>
+            </div>
+            <div class="weekly-history-filters">
+              <input type="search" id="weeklyHistoryKeyword" class="admin-input" placeholder="标题 / 用户 / 关键词" autocomplete="off" />
+              <input type="text" id="weeklyHistoryResolvedUserId" class="admin-input" placeholder="归属用户 ID" autocomplete="off" />
+              <input type="date" id="weeklyHistoryFrom" class="admin-input" />
+              <input type="date" id="weeklyHistoryTo" class="admin-input" />
+              <select id="weeklyHistorySort" class="admin-input">
+                <option value="created_desc">最新优先</option>
+                <option value="created_asc">最早优先</option>
+              </select>
+              <button type="button" class="admin-btn-ghost" id="btnWeeklyHistoryApply">应用筛选</button>
+            </div>
+            <div class="weekly-history-toolbar">
+              <label class="weekly-history-checkall"><input type="checkbox" id="weeklyHistoryCheckAll" /> <span>全选</span></label>
+              <div class="weekly-history-actions">
+                <button type="button" class="admin-btn-ghost" id="btnWeeklyHistoryRefresh">刷新</button>
+                <button type="button" class="admin-btn-ghost" id="btnWeeklyBatchExportDocx">批量 DOCX</button>
+                <button type="button" class="admin-btn-ghost" id="btnWeeklyBatchExportMd">批量 Markdown</button>
+                <button type="button" class="admin-btn-ghost" id="btnWeeklyBatchExportJson">批量 JSON</button>
+                <button type="button" class="admin-btn-ghost" id="btnWeeklyBatchDelete">批量删除</button>
+              </div>
+            </div>
+            <div class="weekly-history-host">
+              <div class="admin-row" style="margin-top:0;padding:10px 12px 0">
+                <span class="admin-msg" id="weeklyHistoryMsg"></span>
+              </div>
+              <div class="weekly-report-history-list" id="weeklyHistoryList">加载中…</div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div class="admin-panel admin-hidden" id="panelAi">
+        <div id="aiSettingsPanelMount"></div>
+      </div>
+
       <div class="admin-panel admin-hidden" id="panelUpgrade">
         <div class="admin-card">
           <span class="admin-label">系统升级（去中心化）</span>
@@ -1381,6 +1643,8 @@
       </div>
       <p class="admin-label" style="margin-top:4px;">模块权限</p>
       <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_editor_site" /> <span class="admin-field-label" style="display:inline">站点设置（维护模式）</span></label>
+      <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_editor_blogfetch" /> <span class="admin-field-label" style="display:inline">个人周报助手</span></label>
+      <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_editor_ai" /> <span class="admin-field-label" style="display:inline">AI 设置</span></label>
       <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_editor_seo" /> <span class="admin-field-label" style="display:inline">SEO 设置</span></label>
       <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_editor_audit" /> <span class="admin-field-label" style="display:inline">操作日志（审计）</span></label>
       <label class="admin-field admin-field-full admin-checkbox-row"><input type="checkbox" id="cap_editor_invite" /> <span class="admin-field-label" style="display:inline">邀请注册（生成与管理邀请码）</span></label>
@@ -1472,8 +1736,9 @@
   <script src="/js/admin-pages.js" defer></script>
   <script src="/js/admin-tools-nav.js" defer></script>
   <script src="/js/admin-site-settings.js" defer></script>
+  <script src="/js/admin-ai.js?v=20260427a" defer></script>
   <script src="/js/webauthn-client.js?v=20260324a"></script>
-  <script src="/js/admin.js?v=20260416c" defer></script>
+  <script src="/js/admin.js?v=20260427a" defer></script>
   <script src="/js/admin-upgrade.js?v=20260407c" defer></script>
 </body>
 </html>

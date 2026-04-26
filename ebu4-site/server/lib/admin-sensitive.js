@@ -36,6 +36,10 @@ function hasBearerToken(tok) {
   return !!(tok != null && String(tok).trim());
 }
 
+function hasApiKey(tok) {
+  return !!(tok != null && String(tok).trim());
+}
+
 /**
  * 站点设置 GET 响应：移除 redis.url、upgrade.bearerToken 明文，改为占位与标志位。
  * @param {object} normalized normalizeSiteSettings 的结果
@@ -54,6 +58,23 @@ function sanitizeSiteSettingsForAdminGet(normalized) {
     const rawBt = out.upgrade.bearerToken;
     out.upgradeBearerConfigured = hasBearerToken(rawBt);
     out.upgrade.bearerToken = '';
+  }
+  return out;
+}
+
+function sanitizeAiSettingsForAdminGet(normalized) {
+  if (!normalized || typeof normalized !== 'object') return normalized;
+  const out = JSON.parse(JSON.stringify(normalized));
+  const providers = out.providers && typeof out.providers === 'object' ? out.providers : {};
+  Object.keys(providers).forEach((key) => {
+    const row = providers[key];
+    if (!row || typeof row !== 'object') return;
+    row.apiKeyConfigured = hasApiKey(row.apiKey);
+    row.apiKey = '';
+  });
+  if (out.webSearch && typeof out.webSearch === 'object') {
+    out.webSearchApiKeyConfigured = hasApiKey(out.webSearch.apiKey);
+    out.webSearch.apiKey = '';
   }
   return out;
 }
@@ -102,7 +123,9 @@ module.exports = {
   maskRedisUrl,
   hasRedisUrl,
   hasBearerToken,
+  hasApiKey,
   sanitizeSiteSettingsForAdminGet,
+  sanitizeAiSettingsForAdminGet,
   sanitizeAuditEntries,
   sanitizeAuditDetail,
 };

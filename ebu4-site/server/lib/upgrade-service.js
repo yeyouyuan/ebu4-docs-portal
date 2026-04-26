@@ -10,6 +10,7 @@ const { URL } = require('url');
 const { spawnSync } = require('child_process');
 const os = require('os');
 const { backupWithPrune } = require('./backup');
+const { validateSystemPackageTree } = require('./build-upgrade-artifacts');
 
 const MANIFEST_MAX_BYTES = 2 * 1024 * 1024;
 const ARTIFACT_MAX_BYTES = 80 * 1024 * 1024;
@@ -242,6 +243,8 @@ function parseManifest(manifest) {
       system: {
         available: sys.available === true,
         artifacts: Array.isArray(sys.artifacts) ? sys.artifacts : [],
+        selectedScopes: Array.isArray(sys.selectedScopes) ? sys.selectedScopes : undefined,
+        integrity: sys.integrity && typeof sys.integrity === 'object' ? sys.integrity : null,
       },
       docs: {
         available: docs.available === true,
@@ -569,9 +572,40 @@ function runShellOneLiner(cmd, label) {
   return { ok: true };
 }
 
+function backupUpgradeTargets(siteRoot, backupRoot, names) {
+  const snapshots = [];
+  for (const name of names) {
+    const src = path.join(siteRoot, name);
+    const backupAbs = path.join(backupRoot, name);
+    const existed = fs.existsSync(src);
+    snapshots.push({ name, existed });
+    if (!existed) continue;
+    const st = fs.statSync(src);
+    fs.mkdirSync(path.dirname(backupAbs), { recursive: true });
+    if (st.isDirectory()) fs.cpSync(src, backupAbs, { recursive: true });
+    else fs.copyFileSync(src, backupAbs);
+  }
+  return snapshots;
+}
+
+function restoreUpgradeTargets(siteRoot, backupRoot, snapshots) {
+  for (const item of snapshots) {
+    const dst = path.join(siteRoot, item.name);
+    fs.rmSync(dst, { recursive: true, force: true });
+    if (!item.existed) continue;
+    const src = path.join(backupRoot, item.name);
+    if (!fs.existsSync(src)) continue;
+    const st = fs.statSync(src);
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    if (st.isDirectory()) fs.cpSync(src, dst, { recursive: true });
+    else fs.copyFileSync(src, dst);
+  }
+}
+
 async function runUpgradeApplySystem(ctx) {
   const { siteDatabase, siteSettings, siteRoot, artifactIndex } = ctx;
   const upgrade = siteSettings.upgrade || {};
+  const localBefore = getLocalSystemVersion(siteRoot);
   const base = upgrade.baseUrl.replace(/\/+$/, '');
   const manifest = await fetchManifest(upgrade);
   const parsed = parseManifest(manifest);
@@ -597,103 +631,153 @@ async function runUpgradeApplySystem(ctx) {
     throw new Error('当前仅支持 .tar.gz 系统制品');
   }
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ebu4-upgrade-'));
-  const tgz = path.join(tmpDir, 'system.tgz');
-  fs.writeFileSync(tgz, buf);
-  const extractDir = path.join(tmpDir, 'out');
-  fs.mkdirSync(extractDir, { recursive: true });
-  const tar = spawnSync('tar', ['-xzf', tgz, '-C', extractDir], { encoding: 'utf-8' });
-  if (tar.status !== 0) {
-    throw new Error('解压失败: ' + (tar.stderr || tar.stdout || '').slice(0, 200));
-  }
-
-  const backupRoot = path.join(
-    siteRoot,
-    'data',
-    'backups',
-    `upgrade-system-${new Date().toISOString().replace(/[:.]/g, '-')}`
-  );
-  fs.mkdirSync(backupRoot, { recursive: true });
-
-  const lazyBeforeBuf = readFileBufferIfExists(path.join(siteRoot, LAZY_IMAGES_REL));
-
-  const whitelist = [
-    ['server', path.join(extractDir, 'server')],
-    ['public', path.join(extractDir, 'public')],
-    ['package.json', path.join(extractDir, 'package.json')],
-  ];
-  for (const [name, src] of whitelist) {
-    if (!fs.existsSync(src)) continue;
-    const dst = path.join(siteRoot, name);
-    if (name === 'package.json') {
-      if (fs.existsSync(dst)) fs.copyFileSync(dst, path.join(backupRoot, 'package.json'));
-      fs.copyFileSync(src, dst);
-      continue;
-    }
-    const dstBk = path.join(backupRoot, name);
-    if (fs.existsSync(dst)) {
-      fs.cpSync(dst, dstBk, { recursive: true });
-    }
-    fs.cpSync(src, dst, { recursive: true });
-  }
-
-  const lazyImages = ensureLazyImagesAfterSystemApply(siteRoot, backupRoot, lazyBeforeBuf);
-
-  const iso = new Date().toISOString();
-  setKvJson(siteDatabase, 'upgrade_last_apply_at', { at: iso, channel: 'system' });
-
-  const restart = process.env.UPGRADE_RESTART_CMD;
-  let needsRestart = !restart || !String(restart).trim();
-  let restartResult = null;
-  if (!needsRestart) {
-    restartResult = runShellOneLiner(restart, 'UPGRADE_RESTART_CMD');
-    if (!restartResult.ok) needsRestart = true;
-  }
-
-  let sysMsg = needsRestart
-    ? '文件已更新，请配置 UPGRADE_RESTART_CMD 或手动重启服务'
-    : '系统文件已更新并已执行重启命令';
-  if (lazyImages.status === 'restored') {
-    sysMsg +=
-      '；已补全 public/js/lazy-images.js（全站图片懒加载，系统制品未包含该文件）';
-  } else if (lazyImages.status === 'missing') {
-    sysMsg +=
-      '；提示：public/js/lazy-images.js 缺失且无法从升级前恢复，请从官方发行包补全';
-  }
-
-  appendHistory(siteDatabase, {
-    kind: 'apply',
-    trigger: ctx.trigger || 'manual',
-    channel: 'system',
-    fromVersion: getLocalSystemVersion(siteRoot).systemVersion,
-    toVersion: parsed.systemVersion,
-    status: needsRestart ? 'needs_restart' : 'success',
-    message: sysMsg,
-    remoteProduct: parsed.product,
-    remoteBaseUrlHost: (() => {
-      try {
-        return new URL(upgrade.baseUrl).host;
-      } catch (_) {
-        return '';
-      }
-    })(),
-  });
-
   try {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  } catch (_) {}
+    const tgz = path.join(tmpDir, 'system.tgz');
+    fs.writeFileSync(tgz, buf);
+    const extractDir = path.join(tmpDir, 'out');
+    fs.mkdirSync(extractDir, { recursive: true });
+    const tar = spawnSync('tar', ['-xzf', tgz, '-C', extractDir], { encoding: 'utf-8' });
+    if (tar.status !== 0) {
+      throw new Error('解压失败: ' + (tar.stderr || tar.stdout || '').slice(0, 200));
+    }
+    const extractedIntegrity = validateSystemPackageTree(
+      extractDir,
+      parsed.components.system.selectedScopes
+    );
+    if (!extractedIntegrity.ok) {
+      const parts = [];
+      if (extractedIntegrity.missingEntries.length) {
+        parts.push('缺少条目: ' + extractedIntegrity.missingEntries.join(', '));
+      }
+      if (extractedIntegrity.unexpectedEntries.length) {
+        parts.push('越界条目: ' + extractedIntegrity.unexpectedEntries.join(', '));
+      }
+      throw new Error('系统完整性校验失败，' + parts.join('；'));
+    }
 
-  const appliedLocal = getLocalSystemVersion(siteRoot);
+    const backupRoot = path.join(
+      siteRoot,
+      'data',
+      'backups',
+      `upgrade-system-${new Date().toISOString().replace(/[:.]/g, '-')}`
+    );
+    fs.mkdirSync(backupRoot, { recursive: true });
 
-  return {
-    ok: true,
-    needsRestart,
-    restartResult,
-    systemVersion: parsed.systemVersion,
-    appliedProduct: appliedLocal.product,
-    appliedSystemVersion: appliedLocal.systemVersion,
-    lazyImages: lazyImages.status,
-    lazyImagesRestoredFrom: lazyImages.from || undefined,
-  };
+    const lazyBeforeBuf = readFileBufferIfExists(path.join(siteRoot, LAZY_IMAGES_REL));
+    const whitelist = [
+      ['server', path.join(extractDir, 'server')],
+      ['public', path.join(extractDir, 'public')],
+      ['package.json', path.join(extractDir, 'package.json')],
+    ];
+    const snapshot = backupUpgradeTargets(
+      siteRoot,
+      backupRoot,
+      whitelist.map(([name]) => name)
+    );
+
+    let lazyImages = { status: 'ok' };
+    try {
+      for (const [name, src] of whitelist) {
+        if (!fs.existsSync(src)) continue;
+        const dst = path.join(siteRoot, name);
+        fs.mkdirSync(path.dirname(dst), { recursive: true });
+        if (name === 'package.json') {
+          fs.copyFileSync(src, dst);
+          continue;
+        }
+        fs.cpSync(src, dst, { recursive: true });
+      }
+      lazyImages = ensureLazyImagesAfterSystemApply(siteRoot, backupRoot, lazyBeforeBuf);
+      const appliedIntegrity = validateSystemPackageTree(
+        siteRoot,
+        parsed.components.system.selectedScopes,
+        { strict: false }
+      );
+      if (!appliedIntegrity.ok) {
+        throw new Error(
+          '目标目录校验失败，缺少条目: ' + appliedIntegrity.missingEntries.join(', ')
+        );
+      }
+    } catch (applyErr) {
+      try {
+        restoreUpgradeTargets(siteRoot, backupRoot, snapshot);
+      } catch (rollbackErr) {
+        throw new Error(
+          '系统文件覆盖失败且回滚失败: ' +
+            String(applyErr.message || applyErr) +
+            '；回滚错误: ' +
+            String(rollbackErr.message || rollbackErr)
+        );
+      }
+      throw new Error(
+        '系统文件覆盖失败，已回滚到升级前版本: ' + String(applyErr.message || applyErr)
+      );
+    }
+
+    const iso = new Date().toISOString();
+    setKvJson(siteDatabase, 'upgrade_last_apply_at', { at: iso, channel: 'system' });
+
+    const restart = process.env.UPGRADE_RESTART_CMD;
+    let needsRestart = !restart || !String(restart).trim();
+    let restartResult = null;
+    if (!needsRestart) {
+      restartResult = runShellOneLiner(restart, 'UPGRADE_RESTART_CMD');
+      if (!restartResult.ok) needsRestart = true;
+    }
+
+    let sysMsg = needsRestart
+      ? '文件已更新，请配置 UPGRADE_RESTART_CMD 或手动重启服务'
+      : '系统文件已更新并已执行重启命令';
+    const selectedScopes = Array.isArray(extractedIntegrity.selectedScopes)
+      ? extractedIntegrity.selectedScopes
+      : [];
+    sysMsg +=
+      '；完整性校验通过（共享核心 + ' +
+      (selectedScopes.length ? selectedScopes.join(', ') : '仅共享核心') +
+      '）';
+    if (lazyImages.status === 'restored') {
+      sysMsg +=
+        '；已补全 public/js/lazy-images.js（全站图片懒加载，系统制品未包含该文件）';
+    } else if (lazyImages.status === 'missing') {
+      sysMsg +=
+        '；提示：public/js/lazy-images.js 缺失且无法从升级前恢复，请从官方发行包补全';
+    }
+
+    appendHistory(siteDatabase, {
+      kind: 'apply',
+      trigger: ctx.trigger || 'manual',
+      channel: 'system',
+      fromVersion: localBefore.systemVersion,
+      toVersion: parsed.systemVersion,
+      status: needsRestart ? 'needs_restart' : 'success',
+      message: sysMsg,
+      remoteProduct: parsed.product,
+      remoteBaseUrlHost: (() => {
+        try {
+          return new URL(upgrade.baseUrl).host;
+        } catch (_) {
+          return '';
+        }
+      })(),
+    });
+
+    const appliedLocal = getLocalSystemVersion(siteRoot);
+
+    return {
+      ok: true,
+      needsRestart,
+      restartResult,
+      systemVersion: parsed.systemVersion,
+      appliedProduct: appliedLocal.product,
+      appliedSystemVersion: appliedLocal.systemVersion,
+      lazyImages: lazyImages.status,
+      lazyImagesRestoredFrom: lazyImages.from || undefined,
+    };
+  } finally {
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch (_) {}
+  }
 }
 
 module.exports = {

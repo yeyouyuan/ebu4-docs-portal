@@ -6,6 +6,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { log } = require('./logger');
 const { registerAdminRoutes } = require('./admin-routes');
+const { registerAiRoutes } = require('./ai-routes');
 const adminUsersService = require('./admin-users-service');
 const passkeyStore = require('./passkey-store');
 const { parseSectionsFromRaw } = require('./doc-md');
@@ -19,12 +20,15 @@ const inviteStore = require('./invite-store');
 const presenceStore = require('./presence-store');
 const redisCache = require('./redis-cache');
 const { normalizeSiteSettings } = require('./lib/site-settings-normalize');
+const { normalizeSeoConfig, buildSeoVerificationFiles } = require('./lib/seo-config-normalize');
+const { buildSeoSitemapRelPaths, normalizeOrigin } = require('./lib/seo-sitemap');
 const { startUpgradeScheduler } = require('./upgrade-scheduler');
-const { injectBeforeBodyClose } = require('./lib/site-embed');
+const { injectBeforeBodyClose, LEGACY_DEFAULT_EMBED_AI_HTML } = require('./lib/site-embed');
 const { migrateDefaultEmbedAi } = require('./lib/migrate-default-embed');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 function readAppPackageMeta() {
   try {
@@ -106,6 +110,7 @@ const REQUIRED_PUBLIC_HTML = ['docs.html', 'landing.html', 'extra-page.html'];
 const TOOLS_JSON_PATH = path.join(publicDir, 'data', 'tools-nav.json');
 const LANDING_JSON_PATH = path.join(publicDir, 'data', 'landing.json');
 const SEO_JSON_PATH = path.join(publicDir, 'data', 'seo.json');
+const AI_SETTINGS_PATH = path.join(publicDir, 'data', 'ai-settings.json');
 const EXTRA_PAGES_PATH = path.join(publicDir, 'data', 'extra-pages.json');
 
 function getCookieFromHeader(req, name) {
@@ -152,7 +157,17 @@ function readSiteSettingsSafe() {
 function getAiChatEmbedHtml() {
   const st = readSiteSettingsSafe();
   const e = st.embed && typeof st.embed === 'object' ? st.embed : {};
-  return e.aiChatHtml != null ? String(e.aiChatHtml) : '';
+  const html = e.aiChatHtml != null ? String(e.aiChatHtml) : '';
+  const normalized = html
+    .trim()
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ');
+  const legacy = String(LEGACY_DEFAULT_EMBED_AI_HTML || '')
+    .trim()
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ');
+  if (normalized === legacy || /fnos\.jiansmart\.com:8088\/chat\/api\/embed/i.test(normalized)) return '';
+  return html;
 }
 
 function isHomepageEnabled() {
@@ -160,7 +175,206 @@ function isHomepageEnabled() {
   return !st || !st.homepage || st.homepage.enabled !== false;
 }
 
-function sendPublicHtmlWithEmbed(res, fileName) {
+function injectBeforeHeadClose(html, fragment) {
+  const f = fragment != null ? String(fragment) : '';
+  if (!f.trim()) return html;
+  const marker = '<!-- EBU4_SERVER_SEO_SLOT -->';
+  if (html.includes(marker)) {
+    return html.split(marker).join(f + '\n' + marker);
+  }
+  const lower = html.toLowerCase();
+  const idx = lower.lastIndexOf('</head>');
+  if (idx === -1) return f + '\n' + html;
+  return html.slice(0, idx) + '\n' + f + '\n' + html.slice(idx);
+}
+
+function escapeHtmlAttr(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function absolutizeUrl(base, pathOrUrl) {
+  if (!pathOrUrl) return '';
+  const raw = String(pathOrUrl).trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (!base) return raw.startsWith('/') ? raw : `/${raw}`;
+  const root = String(base).replace(/\/+$/, '');
+  return root + (raw.startsWith('/') ? raw : `/${raw}`);
+}
+
+function replaceHtmlTitle(html, title) {
+  const safeTitle = escapeHtmlAttr(title || '');
+  if (/<title\b[^>]*>[\s\S]*?<\/title>/i.test(html)) {
+    return html.replace(/<title\b[^>]*>[\s\S]*?<\/title>/i, `<title>${safeTitle}</title>`);
+  }
+  return injectBeforeHeadClose(html, `<title>${safeTitle}</title>`);
+}
+
+function getRequestedOrigin(req, seo) {
+  const rawBase = seo && seo.canonicalBase ? String(seo.canonicalBase).trim() : '';
+  return rawBase.replace(/\/+$/, '') || `${req.protocol}://${req.get('host')}`;
+}
+
+function getMainDocumentMetaBySlug(slug) {
+  const target = String(slug || '').trim();
+  if (!target) return null;
+  try {
+    const docs = siteDatabase.listMainDocuments();
+    return docs.find((row) => String((row && row.slug) || '').trim() === target) || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function buildSeoPageContext(req, fileName, seo) {
+  const page = fileName === 'landing.html' ? 'landing' : 'docs';
+  const section = page === 'landing' ? seo.landing : seo.docs;
+  const origin = getRequestedOrigin(req, seo);
+  let canonicalPath = page === 'landing' ? '/index' : '/docs';
+  let title = section.title || '';
+
+  if (page === 'docs') {
+    const docSlug = req && req.query && req.query.doc ? String(req.query.doc).trim() : '';
+    if (docSlug) {
+      canonicalPath += `?doc=${encodeURIComponent(docSlug)}`;
+      const docMeta = getMainDocumentMetaBySlug(docSlug);
+      const docTitle = docMeta && (docMeta.title || docMeta.slug) ? String(docMeta.title || docMeta.slug).trim() : '';
+      if (docTitle && title) {
+        title = `${docTitle} - ${title}`;
+      } else if (docTitle) {
+        title = docTitle;
+      }
+    }
+  }
+
+  const canonicalUrl = origin + canonicalPath;
+  const siteName = seo.siteName || section.title || 'EBU4 文档站';
+  return {
+    page,
+    section,
+    title: title || siteName,
+    canonicalUrl,
+    siteName,
+    origin,
+  };
+}
+
+function buildSeoHeadFragment(req, fileName, seo) {
+  const ctx = buildSeoPageContext(req, fileName, seo);
+  const section = ctx.section || {};
+  const ver = seo.verification || {};
+  const tags = [];
+  tags.push(`<!-- EBU4_SERVER_SEO_START -->`);
+  if (section.description) {
+    tags.push(
+      `<meta name="description" content="${escapeHtmlAttr(section.description)}">`
+    );
+  }
+  if (section.keywords) {
+    tags.push(`<meta name="keywords" content="${escapeHtmlAttr(section.keywords)}">`);
+  }
+  if (section.robots) {
+    tags.push(`<meta name="robots" content="${escapeHtmlAttr(section.robots)}">`);
+  }
+  tags.push(`<link rel="canonical" href="${escapeHtmlAttr(ctx.canonicalUrl)}">`);
+  tags.push(`<meta property="og:type" content="website">`);
+  tags.push(`<meta property="og:title" content="${escapeHtmlAttr(ctx.title)}">`);
+  if (section.description) {
+    tags.push(
+      `<meta property="og:description" content="${escapeHtmlAttr(section.description)}">`
+    );
+  }
+  tags.push(`<meta property="og:url" content="${escapeHtmlAttr(ctx.canonicalUrl)}">`);
+  tags.push(`<meta property="og:locale" content="zh_CN">`);
+  tags.push(`<meta property="og:site_name" content="${escapeHtmlAttr(ctx.siteName)}">`);
+  if (section.ogImage) {
+    const ogImage = absolutizeUrl(ctx.origin, section.ogImage);
+    tags.push(`<meta property="og:image" content="${escapeHtmlAttr(ogImage)}">`);
+    tags.push(`<meta name="twitter:image" content="${escapeHtmlAttr(ogImage)}">`);
+  }
+  tags.push(
+    `<meta name="twitter:card" content="${escapeHtmlAttr(
+      section.twitterCard || 'summary_large_image'
+    )}">`
+  );
+  tags.push(`<meta name="twitter:title" content="${escapeHtmlAttr(ctx.title)}">`);
+  if (section.description) {
+    tags.push(
+      `<meta name="twitter:description" content="${escapeHtmlAttr(section.description)}">`
+    );
+  }
+  if (ver.googleSiteVerification) {
+    tags.push(
+      `<meta name="google-site-verification" content="${escapeHtmlAttr(
+        ver.googleSiteVerification
+      )}">`
+    );
+  }
+  if (ver.bingSiteVerification) {
+    tags.push(
+      `<meta name="msvalidate.01" content="${escapeHtmlAttr(ver.bingSiteVerification)}">`
+    );
+  }
+  if (ver.baiduSiteVerification) {
+    tags.push(
+      `<meta name="baidu-site-verification" content="${escapeHtmlAttr(
+        ver.baiduSiteVerification
+      )}">`
+    );
+  }
+
+  const orgName =
+    (seo.structuredData && seo.structuredData.organizationName) || ctx.siteName;
+  const orgLogo = absolutizeUrl(
+    ctx.origin,
+    (seo.structuredData && seo.structuredData.organizationLogo) || section.ogImage || '/icons/icon.svg'
+  );
+  const sameAs =
+    seo.structuredData && Array.isArray(seo.structuredData.sameAs)
+      ? seo.structuredData.sameAs.filter(Boolean)
+      : [];
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Organization',
+        name: orgName,
+        url: ctx.origin,
+        logo: orgLogo,
+        sameAs,
+      },
+      {
+        '@type': 'WebSite',
+        name: ctx.siteName,
+        url: ctx.origin,
+        inLanguage: 'zh-CN',
+      },
+      {
+        '@type': 'WebPage',
+        name: ctx.title,
+        url: ctx.canonicalUrl,
+        description: section.description || undefined,
+        inLanguage: 'zh-CN',
+        isPartOf: {
+          '@type': 'WebSite',
+          name: ctx.siteName,
+          url: ctx.origin,
+        },
+      },
+    ],
+  };
+  tags.push(
+    `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`
+  );
+  tags.push(`<!-- EBU4_SERVER_SEO_END -->`);
+  return { title: ctx.title, headHtml: tags.join('\n') };
+}
+
+function sendPublicHtmlWithEmbed(req, res, fileName) {
   const fp = path.join(publicDir, fileName);
   let html;
   try {
@@ -181,6 +395,10 @@ function sendPublicHtmlWithEmbed(res, fileName) {
       );
     return;
   }
+  const seo = normalizeSeoConfig(readSeoJsonSafe());
+  const seoPayload = buildSeoHeadFragment(req, fileName, seo);
+  html = replaceHtmlTitle(html, seoPayload.title);
+  html = injectBeforeHeadClose(html, seoPayload.headHtml);
   html = injectBeforeBodyClose(html, getAiChatEmbedHtml());
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
@@ -289,17 +507,17 @@ function readSeoJsonSafe() {
     const raw = siteDatabase.getKv('seo');
     if (raw) {
       try {
-        return JSON.parse(raw);
+        return normalizeSeoConfig(JSON.parse(raw));
       } catch (_) {
-        return null;
+        return normalizeSeoConfig(null);
       }
     }
   }
   try {
     const raw = fs.readFileSync(SEO_JSON_PATH, 'utf-8');
-    return JSON.parse(raw);
+    return normalizeSeoConfig(JSON.parse(raw));
   } catch (_) {
-    return null;
+    return normalizeSeoConfig(null);
   }
 }
 
@@ -402,6 +620,44 @@ function getSearchIndexForPublic(slug) {
   return docSearchIndexCache.get(s);
 }
 
+function getSectionCountForDoc(slug) {
+  return getSectionsForPublic(slug).length;
+}
+
+function searchMainDocsForAdmin(query, options) {
+  const q = query != null ? String(query).toLowerCase().trim() : '';
+  if (!q || q.length < 2) return [];
+  const opts = options && typeof options === 'object' ? options : {};
+  const normalizedDoc = opts.docSlug ? siteDatabase.normalizeMainDocSlug(opts.docSlug) : '';
+  const docs = siteDatabase.listMainDocuments();
+  const defaultDocSlug = siteDatabase.getDefaultMainDocSlug();
+  const targetDocs = normalizedDoc
+    ? docs.filter((doc) => doc.slug === normalizedDoc)
+    : docs;
+  const keywords = q.split(/\s+/).filter(Boolean);
+  const results = [];
+  targetDocs.forEach((doc) => {
+    const docSlug = doc.slug;
+    const docTitle = doc.title || doc.slug;
+    getSearchIndexForPublic(docSlug).forEach((item) => {
+      const titleLower = (item.title || '').toLowerCase();
+      const score = scoreAgainstKeywords(item.text, titleLower, keywords);
+      if (!score) return;
+      results.push({
+        docSlug,
+        docTitle,
+        isDefault: docSlug === defaultDocSlug,
+        sectionId: item.id,
+        sectionTitle: item.title,
+        sectionSlug: item.slug,
+        snippet: snippetFromText(item.text, keywords),
+        score,
+      });
+    });
+  });
+  return results.sort((a, b) => b.score - a.score).slice(0, 50);
+}
+
 function reloadDocData() {
   docSectionsCache.clear();
   docSearchIndexCache.clear();
@@ -409,61 +665,6 @@ function reloadDocData() {
   searchIndex = buildSearchIndex(sections);
   redisCache.bumpEpoch();
   console.log(`文档已重载：${sections.length} 个章节`);
-}
-
-/**
- * 自动生成 sitemap 相对路径：门户根、/index、各主文档下 /docs#…（与前台 hash 路由一致）。
- * 跳过章节索引 0、1（与侧栏「标题 / 目录」一致）。
- */
-function buildAutoSitemapRelUrls() {
-  const out = [];
-  const seen = new Set();
-  const add = (rel) => {
-    if (typeof rel !== 'string' || !rel.startsWith('/')) return;
-    if (seen.has(rel)) return;
-    seen.add(rel);
-    out.push(rel);
-  };
-
-  add('/');
-  add('/index');
-
-  let defaultSlug;
-  try {
-    defaultSlug = siteDatabase.getDefaultMainDocSlug();
-  } catch (_) {
-    defaultSlug = 'default';
-  }
-
-  let docs;
-  try {
-    docs = siteDatabase.listMainDocuments();
-  } catch (_) {
-    docs = [];
-  }
-  if (!docs.length) {
-    add('/docs#home');
-    return out;
-  }
-
-  for (const doc of docs) {
-    const slug = doc.slug || defaultSlug;
-    let secs;
-    try {
-      secs = parseSectionsForSlug(slug);
-    } catch (_) {
-      secs = [];
-    }
-    const isDef = slug === defaultSlug;
-    const base = isDef ? '/docs' : `/docs?doc=${encodeURIComponent(slug)}`;
-    add(`${base}#home`);
-    for (let i = 2; i < secs.length; i++) {
-      const s = secs[i];
-      if (!s || !s.slug) continue;
-      add(`${base}#${encodeURIComponent(s.slug)}`);
-    }
-  }
-  return out;
 }
 
 const ADMIN_BACKUP_KEEP = (function () {
@@ -478,13 +679,23 @@ registerAdminRoutes(app, {
   TOOLS_JSON_PATH,
   LANDING_JSON_PATH,
   SEO_JSON_PATH,
+  AI_SETTINGS_PATH,
   EXTRA_PAGES_PATH,
   backupKeepCount: ADMIN_BACKUP_KEEP,
   reloadDocData,
   getAdminPassword,
   getSectionCount: () => sections.length,
+  getSectionCountForDoc,
+  searchMainDocsForAdmin,
   siteDatabase,
   adminUsersService,
+});
+registerAiRoutes(app, {
+  AI_SETTINGS_PATH,
+  siteDatabase,
+  extraPagesRepo,
+  siteSession,
+  redisCache,
 });
 
 /** 前台访客会话（默认 guest clearance）；排除 admin 与 health */
@@ -992,46 +1203,13 @@ app.get('/robots.txt', (req, res) => {
 app.get('/sitemap.xml', async (req, res) => {
   try {
     const j = readSeoJsonSafe();
-    const rawBase = j && j.canonicalBase != null ? String(j.canonicalBase).trim() : '';
-    const origin = rawBase.replace(/\/$/, '') || `${req.protocol}://${req.get('host')}`;
-
-    const useAuto = j == null || j.sitemapAuto !== false;
-    const paths = [];
-    const seen = new Set();
-    const addPath = (p) => {
-      if (typeof p !== 'string' || !p.trim()) return;
-      let pathPart = p.trim();
-      if (!pathPart.startsWith('/')) pathPart = `/${pathPart}`;
-      if (seen.has(pathPart)) return;
-      seen.add(pathPart);
-      paths.push(pathPart);
-    };
-
-    if (useAuto) {
-      buildAutoSitemapRelUrls().forEach(addPath);
-    }
-    const extraManual = j && Array.isArray(j.sitemapPaths) ? j.sitemapPaths : [];
-    if (useAuto) {
-      extraManual.forEach(addPath);
-    } else if (extraManual.length) {
-      extraManual.forEach(addPath);
-    } else {
-      ['/index', '/docs'].forEach(addPath);
-    }
-
-    const includeExtra =
-      j == null ||
-      j.includeExtraPagesInSitemap === undefined ||
-      j.includeExtraPagesInSitemap === true;
-    if (includeExtra) {
-      const store = await extraPagesRepo.readStore();
-      for (const p of store.pages) {
-        if (!extraPagesStore.isPublishedForPublic(p)) continue;
-        const slug = String(p.slug || '').trim();
-        if (!slug) continue;
-        addPath(`/page/${encodeURIComponent(slug)}`);
-      }
-    }
+    const origin = normalizeOrigin(j && j.canonicalBase, `${req.protocol}://${req.get('host')}`);
+    const paths = await buildSeoSitemapRelPaths({
+      seo: j,
+      siteDatabase,
+      extraPagesRepo,
+      extraPagesStore,
+    });
     const urls = paths
       .map((p) => {
         const pathPart = p.startsWith('/') ? p : `/${p}`;
@@ -1053,7 +1231,7 @@ ${urls}
 
 /** 扩展页面前台展示（数据来自 /api/pages/:slug） */
 app.get('/page/:slug', (req, res) => {
-  sendPublicHtmlWithEmbed(res, 'extra-page.html');
+  sendPublicHtmlWithEmbed(req, res, 'extra-page.html');
 });
 
 // 后台登录页与管理台（须在 SPA 兜底之前注册）
@@ -1080,12 +1258,24 @@ app.get(['/admin', '/admin/'], (req, res) => {
   res.sendFile(path.join(publicDir, 'admin.html'));
 });
 
+app.get('/:seoVerificationFile', (req, res, next) => {
+  const fileName = String(req.params.seoVerificationFile || '').trim();
+  if (!fileName || fileName.includes('/')) return next();
+  const matched = buildSeoVerificationFiles(readSeoJsonSafe()).find(
+    (item) => item && item.path === `/${fileName}`
+  );
+  if (!matched) return next();
+  res.setHeader('Cache-Control', 'public, max-age=120');
+  res.type(matched.contentType || 'text/plain; charset=utf-8');
+  res.send(matched.content || '');
+});
+
 // 门户落地页（独立页面，与文档 SPA 分离）
 app.get(['/index', '/index/', '/index.html', '/index.html/'], (req, res) => {
   if (!isHomepageEnabled()) {
     return res.redirect(302, '/docs');
   }
-  sendPublicHtmlWithEmbed(res, 'landing.html');
+  sendPublicHtmlWithEmbed(req, res, 'landing.html');
 });
 
 app.get('/', (req, res) => {
@@ -1154,15 +1344,15 @@ app.use('/img', express.static(IMG_DIR, { maxAge: '7d' }));
 /** 直接访问 *.html 时同样注入站点嵌入代码（避免 static 直出无注入） */
 app.get(['/docs.html', '/docs.html/'], (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=120');
-  sendPublicHtmlWithEmbed(res, 'docs.html');
+  sendPublicHtmlWithEmbed(req, res, 'docs.html');
 });
 app.get(['/landing.html', '/landing.html/'], (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=120');
-  sendPublicHtmlWithEmbed(res, 'landing.html');
+  sendPublicHtmlWithEmbed(req, res, 'landing.html');
 });
 app.get(['/extra-page.html', '/extra-page.html/'], (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=120');
-  sendPublicHtmlWithEmbed(res, 'extra-page.html');
+  sendPublicHtmlWithEmbed(req, res, 'extra-page.html');
 });
 app.use(
   express.static(publicDir, {
@@ -1179,11 +1369,11 @@ app.use(
 );
 
 app.get('/docs', (req, res) => {
-  sendPublicHtmlWithEmbed(res, 'docs.html');
+  sendPublicHtmlWithEmbed(req, res, 'docs.html');
 });
 
 app.get('*', (req, res) => {
-  sendPublicHtmlWithEmbed(res, 'docs.html');
+  sendPublicHtmlWithEmbed(req, res, 'docs.html');
 });
 
 function assertProductionConfigSafe() {
@@ -1254,7 +1444,7 @@ function assertProductionConfigSafe() {
     reloadDocData,
     backupKeepCount: ADMIN_BACKUP_KEEP,
   });
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, HOST, () => {
     console.log(`Docs site running at http://localhost:${PORT}`);
     console.log(`后台登录 http://localhost:${PORT}/admin/login  ·  控制台 http://localhost:${PORT}/admin`);
     if (siteDatabase.isSiteSqlite()) {

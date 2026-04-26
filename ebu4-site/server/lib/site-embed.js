@@ -7,8 +7,9 @@ const MAX_EMBED_LEN = 200000;
 /**
  * 原 docs.html 内嵌示例（迁移时若 embed 为空则写入 site_settings）
  */
-const DEFAULT_EMBED_AI_HTML =
+const LEGACY_DEFAULT_EMBED_AI_HTML =
   '<script async defer src="http://fnos.jiansmart.com:8088/chat/api/embed?protocol=http&amp;host=fnos.jiansmart.com:8088&amp;token=898756846c53cd97"></script>';
+const DEFAULT_EMBED_AI_HTML = '';
 
 /**
  * @param {string} html
@@ -38,4 +39,5 @@ module.exports = {
   clampEmbedFragment,
   MAX_EMBED_LEN,
   DEFAULT_EMBED_AI_HTML,
+  LEGACY_DEFAULT_EMBED_AI_HTML,
 };

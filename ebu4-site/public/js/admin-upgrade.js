@@ -26,6 +26,7 @@
     }
     if (!r.ok) {
       var errMsg =
+        data.message ||
         data.error ||
         (data._raw && String(data._raw).replace(/\s+/g, ' ').trim().slice(0, 240)) ||
         r.statusText ||
@@ -58,6 +59,77 @@
 
   function buildOutputPre() {
     return $('upgradeBuildResult') || $('upgradeCheckResult');
+  }
+
+  function getUpgradeScopeInputs() {
+    return Array.prototype.slice.call(
+      document.querySelectorAll('input[name="upgrade_system_scope"]')
+    );
+  }
+
+  function syncUpgradeScopeFieldState() {
+    var field = $('upgradeSystemScopeField');
+    var enabled = !!($('up_build_system') && $('up_build_system').checked);
+    if (field) field.style.opacity = enabled ? '1' : '0.55';
+    getUpgradeScopeInputs().forEach(function (input) {
+      input.disabled = !enabled;
+    });
+  }
+
+  function renderUpgradeScopeOptions(items) {
+    var host = $('upgradeScopeOptions');
+    if (!host) return;
+    var list = Array.isArray(items) ? items : [];
+    window.__upgradeSystemScopes = list;
+    if (!list.length) {
+      host.innerHTML = '<p class="admin-tools-hint">暂无可选业务内容。</p>';
+      return;
+    }
+    host.innerHTML = list
+      .map(function (item) {
+        var id = String((item && item.id) || '').trim();
+        var label = esc((item && item.label) || id);
+        var hint = esc((item && item.hint) || '');
+        return (
+          '<label class="admin-field admin-checkbox-row">' +
+          '<input type="checkbox" name="upgrade_system_scope" value="' +
+          esc(id) +
+          '" checked /> ' +
+          '<span class="admin-field-label" style="display:inline">' +
+          label +
+          '</span>' +
+          (hint ? '<span class="admin-tools-hint" style="display:block;margin-left:24px;">' + hint + '</span>' : '') +
+          '</label>'
+        );
+      })
+      .join('');
+    syncUpgradeScopeFieldState();
+  }
+
+  function getSelectedUpgradeScopes() {
+    return getUpgradeScopeInputs()
+      .filter(function (input) {
+        return input.checked;
+      })
+      .map(function (input) {
+        return input.value;
+      });
+  }
+
+  function formatScopeSummary(scopeIds) {
+    var ids = Array.isArray(scopeIds) ? scopeIds : [];
+    if (!ids.length) return '仅共享核心';
+    var defs = Array.isArray(window.__upgradeSystemScopes) ? window.__upgradeSystemScopes : [];
+    var labelMap = {};
+    defs.forEach(function (item) {
+      if (!item || !item.id) return;
+      labelMap[item.id] = item.label || item.id;
+    });
+    return ids
+      .map(function (id) {
+        return labelMap[id] || id;
+      })
+      .join('、');
   }
 
   /** 轮询公开 /api/health，用于系统升级后等待进程恢复（无需 Cookie） */
@@ -112,7 +184,14 @@
     if (!window.__adminUser || window.__adminUser.role !== 'admin') return;
     showUpgradeMsg('', true);
     try {
-      const ss = await api('/api/admin/site-settings');
+      const loaded = await Promise.all([
+        api('/api/admin/site-settings'),
+        api('/api/admin/upgrade/status'),
+        api('/api/admin/upgrade/package-scopes'),
+      ]);
+      const ss = loaded[0];
+      const st = loaded[1];
+      const scopeData = loaded[2];
       const u = (ss && ss.upgrade) || {};
       if ($('up_enabled')) $('up_enabled').checked = !!u.enabled;
       if ($('up_baseUrl')) $('up_baseUrl').value = u.baseUrl || '';
@@ -120,8 +199,8 @@
       if ($('up_bearerToken')) {
         $('up_bearerToken').value = '';
         $('up_bearerToken').type = 'password';
-        window.__upgradeBearerConfigured = !!u.upgradeBearerConfigured;
-        $('up_bearerToken').placeholder = u.upgradeBearerConfigured
+        window.__upgradeBearerConfigured = !!(ss && ss.upgradeBearerConfigured);
+        $('up_bearerToken').placeholder = ss && ss.upgradeBearerConfigured
           ? '已保存 Bearer（输入新值可替换，留空并保存表示保持原值）'
           : '';
       }
@@ -132,7 +211,8 @@
       if ($('up_interval')) $('up_interval').value = au.intervalMinutes != null ? au.intervalMinutes : 60;
       if ($('up_apply_docs')) $('up_apply_docs').checked = !!au.applyDocs;
       if ($('up_apply_system')) $('up_apply_system').checked = !!au.applySystem;
-      const st = await api('/api/admin/upgrade/status');
+      renderUpgradeScopeOptions(scopeData && Array.isArray(scopeData.items) ? scopeData.items : []);
+      syncUpgradeScopeFieldState();
       const lc = st.lastCheck && st.lastCheck.at ? st.lastCheck.at : '—';
       const la = st.lastApply && st.lastApply.at ? st.lastApply.at : '—';
       if ($('up_lastCheck')) $('up_lastCheck').textContent = lc;
@@ -210,6 +290,10 @@
     }
 
     const btnSave = $('btnSaveUpgradeSettings');
+    var systemToggle = $('up_build_system');
+    if (systemToggle) {
+      systemToggle.addEventListener('change', syncUpgradeScopeFieldState);
+    }
     if (btnSave) {
       btnSave.addEventListener('click', async function () {
         showUpgradeMsg('', true);
@@ -424,6 +508,7 @@
         e.preventDefault();
         var docs = $('up_build_docs') && $('up_build_docs').checked;
         var system = $('up_build_system') && $('up_build_system').checked;
+        var systemScopes = getSelectedUpgradeScopes();
         if (!docs && !system) {
           showBuildMsg('请至少勾选一项', false);
           return;
@@ -435,7 +520,11 @@
         try {
           var r = await api('/api/admin/upgrade/build-artifacts', {
             method: 'POST',
-            body: JSON.stringify({ docs: !!docs, system: !!system }),
+            body: JSON.stringify({
+              docs: !!docs,
+              system: !!system,
+              systemScopes: system ? systemScopes : undefined,
+            }),
           });
           showBuildMsg('已写入 public/upgrade/，见下方摘要', true);
           pre = buildOutputPre();
@@ -455,6 +544,19 @@
               lines.push(
                 '系统: sha256=' + r.system.sha256 + ' bytes=' + r.system.bytes
               );
+              lines.push('系统附加内容: ' + formatScopeSummary(r.system.selectedScopes));
+              if (r.system.integrity) {
+                lines.push(
+                  '系统完整性: ' +
+                    (r.system.integrity.ok ? '通过' : '失败') +
+                    ' · expected=' +
+                    ((r.system.integrity.expectedEntries && r.system.integrity.expectedEntries.length) || 0) +
+                    ' · stagedFiles=' +
+                    (r.system.integrity.fileCount || 0) +
+                    ' · archivedEntries=' +
+                    (r.system.integrity.archiveEntriesCount || 0)
+                );
+              }
             }
             lines.push('manifest: ' + (r.manifestPublicPath || '/upgrade/manifest.json'));
             pre.textContent = lines.join('\n');

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>个人周报预览</title>
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/weekly-report-preview.css?v=20260424f">
+</head>
+<body>
+  <header class="weekly-preview-header">
+    <a class="weekly-preview-brand" href="/admin" title="返回后台">
+      <span class="weekly-preview-logo">E9</span>
+      <span>个人周报预览</span>
+    </a>
+    <nav class="weekly-preview-actions" aria-label="周报操作">
+      <button type="button" id="btnWeeklyPreviewPrint">打印 / PDF</button>
+      <button type="button" id="btnWeeklyPreviewMarkdown">下载 Markdown</button>
+      <button type="button" id="btnWeeklyPreviewJson">下载 JSON</button>
+      <button type="button" class="primary" id="btnWeeklyPreviewDocx">导出 DOCX</button>
+      <a href="/admin#blogfetch">返回周报助手</a>
+    </nav>
+  </header>
+
+  <main class="weekly-preview-shell">
+    <aside class="weekly-preview-side">
+      <span class="weekly-preview-kicker">DOCX PREVIEW</span>
+      <h1 id="weeklyReportTitle">个人周报</h1>
+      <p id="weeklyReportSubtitle">正在加载周报内容…</p>
+      <div class="weekly-preview-meta" id="weeklyReportMeta"></div>
+      <p class="weekly-preview-note">此页用于确认最终文档版式。导出的 DOCX 使用当前 Markdown 周报内容生成，可直接在 Word / WPS 中打开。</p>
+      <p class="weekly-preview-msg" id="weeklyReportMsg" role="status" aria-live="polite"></p>
+    </aside>
+
+    <section class="weekly-docx-stage" aria-label="DOCX 预览">
+      <article class="weekly-docx-paper" id="weeklyReportContent">
+        <p>正在加载…</p>
+      </article>
+    </section>
+  </main>
+
+  <script src="/lib/marked.min.js?v=20260416f"></script>
+  <script src="/lib/purify.min.js?v=20260416f"></script>
+  <script src="/js/weekly-report-preview.js?v=20260424f" defer></script>
+</body>
+</html>

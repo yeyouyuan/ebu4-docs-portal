@@ -3,6 +3,7 @@ const assert = require('assert');
 const test = require('node:test');
 const {
   sanitizeSiteSettingsForAdminGet,
+  sanitizeAiSettingsForAdminGet,
   maskRedisUrl,
   sanitizeAuditDetail,
 } = require('../lib/admin-sensitive');
@@ -40,4 +41,28 @@ test('sanitizeAuditDetail: masks password key', () => {
   const d = sanitizeAuditDetail({ user: 'a', password: 'x', nested: { token: 'y' } });
   assert.strictEqual(d.password, '***（已脱敏）');
   assert.strictEqual(d.nested.token, '***（已脱敏）');
+});
+
+test('sanitizeAiSettingsForAdminGet: strips provider api keys', () => {
+  const o = sanitizeAiSettingsForAdminGet({
+    enabled: true,
+    providers: {
+      openai: {
+        enabled: true,
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-4.1-mini',
+        apiKey: 'sk-test',
+      },
+    },
+    webSearch: {
+      enabled: true,
+      provider: 'searxng',
+      baseUrl: 'https://search.example.com',
+      apiKey: 'search-key',
+    },
+  });
+  assert.strictEqual(o.providers.openai.apiKey, '');
+  assert.strictEqual(o.providers.openai.apiKeyConfigured, true);
+  assert.strictEqual(o.webSearch.apiKey, '');
+  assert.strictEqual(o.webSearchApiKeyConfigured, true);
 });

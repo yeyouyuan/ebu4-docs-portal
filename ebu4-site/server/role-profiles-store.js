@@ -30,10 +30,17 @@ function defaultDataViews() {
 }
 
 function normalizeModuleAccess(raw, defaults) {
-  const base = { siteSettings: false, seo: false, audit: false, inviteRegister: false };
+  const base = {
+    siteSettings: false,
+    seo: false,
+    audit: false,
+    inviteRegister: false,
+    blogFetch: false,
+    aiSettings: false,
+  };
   Object.assign(base, defaults);
   if (!raw || typeof raw !== 'object') return base;
-  ['siteSettings', 'seo', 'audit', 'inviteRegister'].forEach((k) => {
+  ['siteSettings', 'seo', 'audit', 'inviteRegister', 'blogFetch', 'aiSettings'].forEach((k) => {
     if (raw[k] === true) base[k] = true;
     else if (raw[k] === false) base[k] = false;
   });
@@ -62,6 +69,8 @@ function defaultStore() {
           seo: true,
           audit: true,
           inviteRegister: true,
+          blogFetch: true,
+          aiSettings: true,
         }),
         dataViews: defaultDataViews(),
         securityLevel: 'internal',
@@ -75,6 +84,8 @@ function defaultStore() {
           seo: false,
           audit: false,
           inviteRegister: false,
+          blogFetch: false,
+          aiSettings: false,
         }),
         dataViews: defaultDataViews(),
         securityLevel: 'internal',
@@ -98,6 +109,8 @@ function normalizeRoleEntry(roleId, raw, defaults) {
         seo: false,
         audit: false,
         inviteRegister: false,
+        blogFetch: false,
+        aiSettings: false,
       })
   );
   const dataViews = normalizeDataViews(raw && raw.dataViews);
@@ -131,6 +144,8 @@ function normalizeFullStore(raw) {
         seo: false,
         audit: false,
         inviteRegister: false,
+        blogFetch: false,
+        aiSettings: false,
       }),
       dataViews: defaultDataViews(),
       securityLevel: 'internal',
@@ -177,11 +192,25 @@ function readLegacyEditorModuleAccess(legacyPath) {
       const raw = siteDatabase.getKv('editor_module_access');
       if (raw) {
         const j = JSON.parse(raw);
-        return normalizeModuleAccess(j, { siteSettings: false, seo: false, audit: false });
+        return normalizeModuleAccess(j, {
+          siteSettings: false,
+          seo: false,
+          audit: false,
+          inviteRegister: false,
+          blogFetch: false,
+          aiSettings: false,
+        });
       }
     } else if (legacyPath && fs.existsSync(legacyPath)) {
       const j = JSON.parse(fs.readFileSync(legacyPath, 'utf-8'));
-      return normalizeModuleAccess(j, { siteSettings: false, seo: false, audit: false });
+      return normalizeModuleAccess(j, {
+        siteSettings: false,
+        seo: false,
+        audit: false,
+        inviteRegister: false,
+        blogFetch: false,
+        aiSettings: false,
+      });
     }
   } catch (_) {}
   return normalizeModuleAccess(null, {
@@ -189,6 +218,8 @@ function readLegacyEditorModuleAccess(legacyPath) {
     seo: false,
     audit: false,
     inviteRegister: false,
+    blogFetch: false,
+    aiSettings: false,
   });
 }
 
@@ -268,6 +299,8 @@ function getModuleAccessForRole(roleId) {
     seo: false,
     audit: false,
     inviteRegister: false,
+    blogFetch: false,
+    aiSettings: false,
   });
 }
 

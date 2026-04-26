@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "e-Cology Token Extractor",
+  "version": "1.1.1",
+  "description": "一键提取 e-cology.com.cn 的有效 Token，并可桥接到 EBU4 后台日报抓取页",
+  "permissions": [
+    "cookies",
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.e-cology.com.cn/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.e-cology.com.cn/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://localhost:3000/admin*",
+        "http://127.0.0.1:3000/admin*",
+        "https://localhost:3000/admin*",
+        "https://127.0.0.1:3000/admin*"
+      ],
+      "js": ["admin-bridge.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

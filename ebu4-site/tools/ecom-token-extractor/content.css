@@ -1,0 +1,315 @@
+/**
+ * e-Cology Token Extractor — 悬浮面板样式
+ * 精美、紧凑、不干扰原页面
+ */
+
+#ecom-token-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 340px;
+  background: #0f0f23;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 16px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(99, 102, 241, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-size: 13px;
+  color: #e2e8f0;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: etpSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#ecom-token-panel.etp-panel-hidden {
+  display: none !important;
+}
+
+@keyframes etpSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+#ecom-token-panel.etp-collapsed {
+  width: 200px;
+  border-radius: 12px;
+}
+
+/* Header */
+.etp-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1));
+  border-bottom: 1px solid rgba(99, 102, 241, 0.12);
+  cursor: grab;
+  user-select: none;
+}
+
+.etp-header:active {
+  cursor: grabbing;
+}
+
+.etp-logo {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.etp-logo svg {
+  width: 18px;
+  height: 18px;
+}
+
+.etp-title {
+  flex: 1;
+  font-weight: 600;
+  font-size: 13px;
+  background: linear-gradient(135deg, #a5b4fc, #c4b5fd);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.3px;
+}
+
+.etp-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.etp-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.etp-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  transform: scale(1.05);
+}
+
+.etp-close-btn:hover {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+}
+
+/* Body */
+.etp-body {
+  padding: 12px;
+  max-height: 420px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.3) transparent;
+}
+
+.etp-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.etp-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.etp-body::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 2px;
+}
+
+.etp-body.etp-hidden {
+  display: none;
+}
+
+/* Status */
+.etp-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+}
+
+.etp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+  animation: etpPulse 2s infinite;
+}
+
+.etp-dot-ok {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+.etp-dot-warn {
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+  animation: etpPulse 1s infinite;
+}
+
+.etp-dot-err {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+}
+
+@keyframes etpPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Token Item */
+.etp-token-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(99, 102, 241, 0.1);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  transition: all 0.2s;
+}
+
+.etp-token-item:hover {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.25);
+  transform: translateY(-1px);
+}
+
+.etp-token-item.etp-expired {
+  opacity: 0.5;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.etp-token-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.etp-token-name {
+  font-weight: 600;
+  font-size: 12px;
+  color: #c4b5fd;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+
+.etp-badge-active {
+  font-size: 10px;
+  padding: 1px 6px;
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.etp-badge-expired {
+  font-size: 10px;
+  padding: 1px 6px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.etp-token-value {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 11px;
+  color: #94a3b8;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 6px 8px;
+  border-radius: 6px;
+  word-break: break-all;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+.etp-token-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.etp-copy-btn {
+  width: 100%;
+  padding: 6px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1));
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.etp-copy-btn:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(139, 92, 246, 0.2));
+  border-color: rgba(99, 102, 241, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+/* Actions */
+.etp-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.etp-action-btn {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.etp-action-btn:hover {
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc;
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+/* Empty */
+.etp-empty {
+  text-align: center;
+  padding: 20px;
+  color: #64748b;
+  font-size: 12px;
+}

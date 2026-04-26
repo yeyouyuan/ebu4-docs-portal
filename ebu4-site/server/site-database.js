@@ -185,6 +185,59 @@ function ensureSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_tech_doc_submissions_status_created
       ON tech_doc_submissions (status, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS seo_push_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      batch_key TEXT NOT NULL DEFAULT '',
+      engine TEXT NOT NULL DEFAULT '',
+      action TEXT NOT NULL DEFAULT '',
+      target_type TEXT NOT NULL DEFAULT '',
+      target TEXT NOT NULL DEFAULT '',
+      request_summary TEXT NOT NULL DEFAULT '',
+      url_count INTEGER NOT NULL DEFAULT 0,
+      success INTEGER NOT NULL DEFAULT 0 CHECK (success IN (0, 1)),
+      http_status INTEGER NOT NULL DEFAULT 0,
+      response_excerpt TEXT NOT NULL DEFAULT '',
+      error_message TEXT NOT NULL DEFAULT '',
+      actor_user_id INTEGER,
+      actor_username TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_seo_push_logs_created
+      ON seo_push_logs (created_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_seo_push_logs_engine_created
+      ON seo_push_logs (engine, created_at DESC, id DESC);
+
+    CREATE TABLE IF NOT EXISTS personal_weekly_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL DEFAULT '',
+      style TEXT NOT NULL DEFAULT 'concise',
+      range_from TEXT NOT NULL DEFAULT '',
+      range_to TEXT NOT NULL DEFAULT '',
+      resolved_user_id TEXT NOT NULL DEFAULT '',
+      source_count INTEGER NOT NULL DEFAULT 0,
+      summary_json TEXT NOT NULL DEFAULT '{}',
+      markdown_content TEXT NOT NULL DEFAULT '',
+      created_by_user_id INTEGER,
+      created_by_username TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_personal_weekly_reports_created
+      ON personal_weekly_reports (created_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_personal_weekly_reports_user_created
+      ON personal_weekly_reports (resolved_user_id, created_at DESC, id DESC);
+
+    CREATE VIRTUAL TABLE IF NOT EXISTS ai_search_index USING fts5(
+      title,
+      body,
+      source_label,
+      kind UNINDEXED,
+      doc_slug UNINDEXED,
+      page_slug UNINDEXED,
+      url UNINDEXED,
+      security_level UNINDEXED,
+      tokenize = 'unicode61'
+    );
   `);
 }
 
@@ -1000,6 +1053,43 @@ function ping() {
   return true;
 }
 
+function reopenSqliteConnection() {
+  if (!siteSqliteMode) return false;
+  const Database = require('better-sqlite3');
+  if (db) {
+    try {
+      db.close();
+    } catch (_) {}
+  }
+  db = new Database(dbPathResolved);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+  ensureSchema();
+  return true;
+}
+
+function restoreSqliteFromBackup(backupPath) {
+  if (!siteSqliteMode || !dbPathResolved) throw new Error('当前未启用 SQLite 单库存储');
+  const src = String(backupPath || '').trim();
+  if (!src) throw new Error('缺少备份文件路径');
+  if (!fs.existsSync(src)) throw new Error('备份文件不存在');
+  reopenSqliteConnection();
+  if (db) {
+    try {
+      db.close();
+    } catch (_) {}
+    db = null;
+  }
+  [dbPathResolved + '-wal', dbPathResolved + '-shm'].forEach((p) => {
+    try {
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    } catch (_) {}
+  });
+  fs.copyFileSync(src, dbPathResolved);
+  reopenSqliteConnection();
+  return true;
+}
+
 function kvMeta() {
   if (!siteSqliteMode || !db) return null;
   const rows = db
@@ -1223,6 +1313,197 @@ function getSiteSettingsReleaseById(id) {
     .get(n);
 }
 
+function createSeoPushLog(input) {
+  if (!siteSqliteMode || !db) return null;
+  const t = nowIso();
+  const engine = String((input && input.engine) || '').trim().slice(0, 40);
+  const action = String((input && input.action) || '').trim().slice(0, 80);
+  const targetType = String((input && input.targetType) || '').trim().slice(0, 40);
+  const target = String((input && input.target) || '').trim().slice(0, 1000);
+  const requestSummary = String((input && input.requestSummary) || '').trim().slice(0, 500);
+  const urlCount = Math.max(0, parseInt(input && input.urlCount, 10) || 0);
+  const success = input && input.success ? 1 : 0;
+  const httpStatus = Math.max(0, parseInt(input && input.httpStatus, 10) || 0);
+  const responseExcerpt = String((input && input.responseExcerpt) || '').slice(0, 4000);
+  const errorMessage = String((input && input.errorMessage) || '').slice(0, 1000);
+  const actorUserId =
+    input && input.actorUserId != null && Number.isFinite(Number(input.actorUserId))
+      ? Number(input.actorUserId)
+      : null;
+  const actorUsername = String((input && input.actorUsername) || '').trim().slice(0, 120);
+  const batchKey = String((input && input.batchKey) || '').trim().slice(0, 80);
+  const info = db
+    .prepare(
+      `INSERT INTO seo_push_logs
+       (batch_key, engine, action, target_type, target, request_summary, url_count, success, http_status, response_excerpt, error_message, actor_user_id, actor_username, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      batchKey,
+      engine,
+      action,
+      targetType,
+      target,
+      requestSummary,
+      urlCount,
+      success,
+      httpStatus,
+      responseExcerpt,
+      errorMessage,
+      actorUserId,
+      actorUsername,
+      t
+    );
+  return getSeoPushLogById(info.lastInsertRowid);
+}
+
+function listSeoPushLogs(opts) {
+  if (!siteSqliteMode || !db) return [];
+  const limit = Math.min(500, Math.max(1, parseInt(opts && opts.limit, 10) || 100));
+  const engine = String((opts && opts.engine) || '').trim().slice(0, 40);
+  if (engine) {
+    return db
+      .prepare(
+        `SELECT * FROM seo_push_logs
+         WHERE engine = ?
+         ORDER BY id DESC
+         LIMIT ?`
+      )
+      .all(engine, limit)
+      .map(seoPushLogRowToObject);
+  }
+  return db
+    .prepare(
+      `SELECT * FROM seo_push_logs
+       ORDER BY id DESC
+       LIMIT ?`
+    )
+    .all(limit)
+    .map(seoPushLogRowToObject);
+}
+
+function getSeoPushLogById(id) {
+  if (!siteSqliteMode || !db) return null;
+  const n = parseInt(id, 10);
+  if (!Number.isFinite(n)) return null;
+  const row = db.prepare(`SELECT * FROM seo_push_logs WHERE id = ?`).get(n);
+  return row ? seoPushLogRowToObject(row) : null;
+}
+
+function createPersonalWeeklyReport(input) {
+  if (!siteSqliteMode || !db) return null;
+  const t = nowIso();
+  const title = String((input && input.title) || '').trim().slice(0, 200);
+  const styleRaw = String((input && input.style) || '').trim();
+  const style = styleRaw === 'formal' || styleRaw === 'review' ? styleRaw : 'concise';
+  const rangeFrom = String((input && input.rangeFrom) || '').trim().slice(0, 20);
+  const rangeTo = String((input && input.rangeTo) || '').trim().slice(0, 20);
+  const resolvedUserId = String((input && input.resolvedUserId) || '').trim().slice(0, 120);
+  const sourceCount = Math.max(0, parseInt(input && input.sourceCount, 10) || 0);
+  const summaryJson = JSON.stringify(
+    input && input.summary && typeof input.summary === 'object' ? input.summary : {}
+  );
+  const markdownContent = String((input && input.markdownContent) || '').slice(0, 200000);
+  const createdByUserId =
+    input && input.createdByUserId != null && Number.isFinite(Number(input.createdByUserId))
+      ? Number(input.createdByUserId)
+      : null;
+  const createdByUsername = String((input && input.createdByUsername) || '').trim().slice(0, 120);
+  const info = db
+    .prepare(
+      `INSERT INTO personal_weekly_reports
+       (title, style, range_from, range_to, resolved_user_id, source_count, summary_json, markdown_content, created_by_user_id, created_by_username, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      title,
+      style,
+      rangeFrom,
+      rangeTo,
+      resolvedUserId,
+      sourceCount,
+      summaryJson,
+      markdownContent,
+      createdByUserId,
+      createdByUsername,
+      t
+    );
+  return getPersonalWeeklyReportById(info.lastInsertRowid);
+}
+
+function listPersonalWeeklyReports(opts) {
+  if (!siteSqliteMode || !db) return [];
+  const limit = Math.min(100, Math.max(1, parseInt(opts && opts.limit, 10) || 20));
+  const resolvedUserId = String((opts && opts.resolvedUserId) || '').trim().slice(0, 120);
+  const keyword = String((opts && opts.keyword) || '').trim().slice(0, 120);
+  const createdFrom = String((opts && opts.createdFrom) || '').trim().slice(0, 30);
+  const createdTo = String((opts && opts.createdTo) || '').trim().slice(0, 30);
+  const sort = String((opts && opts.sort) || '').trim() === 'created_asc' ? 'created_asc' : 'created_desc';
+  const createdByUserId =
+    opts && opts.createdByUserId != null && Number.isFinite(Number(opts.createdByUserId))
+      ? Number(opts.createdByUserId)
+      : null;
+  const where = [];
+  const params = [];
+  if (resolvedUserId) {
+    where.push('resolved_user_id = ?');
+    params.push(resolvedUserId);
+  }
+  if (createdByUserId != null) {
+    where.push('created_by_user_id = ?');
+    params.push(createdByUserId);
+  }
+  if (keyword) {
+    where.push('title LIKE ?');
+    params.push(`%${keyword}%`);
+  }
+  if (createdFrom) {
+    where.push('created_at >= ?');
+    params.push(createdFrom + (createdFrom.length <= 10 ? 'T00:00:00.000Z' : ''));
+  }
+  if (createdTo) {
+    where.push('created_at <= ?');
+    params.push(createdTo + (createdTo.length <= 10 ? 'T23:59:59.999Z' : ''));
+  }
+  const sql =
+    `SELECT * FROM personal_weekly_reports` +
+    (where.length ? ` WHERE ${where.join(' AND ')}` : '') +
+    ` ORDER BY created_at ${sort === 'created_asc' ? 'ASC' : 'DESC'}, id ${sort === 'created_asc' ? 'ASC' : 'DESC'} LIMIT ?`;
+  params.push(limit);
+  return db.prepare(sql).all(...params).map(personalWeeklyReportRowToObject);
+}
+
+function getPersonalWeeklyReportById(id) {
+  if (!siteSqliteMode || !db) return null;
+  const n = parseInt(id, 10);
+  if (!Number.isFinite(n)) return null;
+  const row = db.prepare(`SELECT * FROM personal_weekly_reports WHERE id = ?`).get(n);
+  return row ? personalWeeklyReportRowToObject(row) : null;
+}
+
+function deletePersonalWeeklyReportById(id) {
+  if (!siteSqliteMode || !db) return 0;
+  const n = parseInt(id, 10);
+  if (!Number.isFinite(n)) return 0;
+  const info = db.prepare(`DELETE FROM personal_weekly_reports WHERE id = ?`).run(n);
+  return info && Number.isFinite(Number(info.changes)) ? Number(info.changes) : 0;
+}
+
+function deletePersonalWeeklyReportsByIds(ids) {
+  if (!siteSqliteMode || !db) return 0;
+  const nums = Array.isArray(ids)
+    ? ids
+        .map((id) => parseInt(id, 10))
+        .filter((n) => Number.isFinite(n))
+    : [];
+  if (!nums.length) return 0;
+  const placeholders = nums.map(() => '?').join(', ');
+  const info = db
+    .prepare(`DELETE FROM personal_weekly_reports WHERE id IN (${placeholders})`)
+    .run(...nums);
+  return info && Number.isFinite(Number(info.changes)) ? Number(info.changes) : 0;
+}
+
 function createDocSubmission(input) {
   if (!siteSqliteMode || !db) return null;
   const t = nowIso();
@@ -1356,6 +1637,63 @@ function docSubmissionRowToObject(row) {
   };
 }
 
+function seoPushLogRowToObject(row) {
+  return {
+    id: row.id,
+    batchKey: row.batch_key != null ? String(row.batch_key) : '',
+    engine: row.engine != null ? String(row.engine) : '',
+    action: row.action != null ? String(row.action) : '',
+    targetType: row.target_type != null ? String(row.target_type) : '',
+    target: row.target != null ? String(row.target) : '',
+    requestSummary: row.request_summary != null ? String(row.request_summary) : '',
+    urlCount:
+      row.url_count != null && Number.isFinite(Number(row.url_count)) ? Number(row.url_count) : 0,
+    success: row.success === 1,
+    httpStatus:
+      row.http_status != null && Number.isFinite(Number(row.http_status))
+        ? Number(row.http_status)
+        : 0,
+    responseExcerpt: row.response_excerpt != null ? String(row.response_excerpt) : '',
+    errorMessage: row.error_message != null ? String(row.error_message) : '',
+    actorUserId:
+      row.actor_user_id != null && Number.isFinite(Number(row.actor_user_id))
+        ? Number(row.actor_user_id)
+        : null,
+    actorUsername: row.actor_username != null ? String(row.actor_username) : '',
+    createdAt: row.created_at || null,
+  };
+}
+
+function personalWeeklyReportRowToObject(row) {
+  let summary = {};
+  if (row && typeof row.summary_json === 'string' && row.summary_json) {
+    try {
+      const parsed = JSON.parse(row.summary_json);
+      if (parsed && typeof parsed === 'object') summary = parsed;
+    } catch (_) {}
+  }
+  return {
+    id: row.id,
+    title: row.title != null ? String(row.title) : '',
+    style: row.style != null ? String(row.style) : 'concise',
+    rangeFrom: row.range_from != null ? String(row.range_from) : '',
+    rangeTo: row.range_to != null ? String(row.range_to) : '',
+    resolvedUserId: row.resolved_user_id != null ? String(row.resolved_user_id) : '',
+    sourceCount:
+      row.source_count != null && Number.isFinite(Number(row.source_count))
+        ? Number(row.source_count)
+        : 0,
+    summary,
+    markdownContent: row.markdown_content != null ? String(row.markdown_content) : '',
+    createdByUserId:
+      row.created_by_user_id != null && Number.isFinite(Number(row.created_by_user_id))
+        ? Number(row.created_by_user_id)
+        : null,
+    createdByUsername: row.created_by_username != null ? String(row.created_by_username) : '',
+    createdAt: row.created_at || null,
+  };
+}
+
 module.exports = {
   init,
   getDb,
@@ -1381,6 +1719,8 @@ module.exports = {
   getMainDocHistoryVersion,
   rebuildDocumentSections,
   ping,
+  reopenSqliteConnection,
+  restoreSqliteFromBackup,
   kvMeta,
   mainDocMeta,
   resolveDbPath: () => dbPathResolved || resolveDbPath(),
@@ -1400,6 +1740,13 @@ module.exports = {
   createSiteSettingsRelease,
   listSiteSettingsReleases,
   getSiteSettingsReleaseById,
+  createSeoPushLog,
+  listSeoPushLogs,
+  createPersonalWeeklyReport,
+  listPersonalWeeklyReports,
+  getPersonalWeeklyReportById,
+  deletePersonalWeeklyReportById,
+  deletePersonalWeeklyReportsByIds,
   createDocSubmission,
   listDocSubmissions,
   getDocSubmissionById,

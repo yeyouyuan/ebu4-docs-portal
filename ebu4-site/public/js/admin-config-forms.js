@@ -13,6 +13,7 @@ function acfSet(id, v) {
 function populateSeoFromJson(j) {
   if (!j || typeof j !== 'object') return;
   acfSet('seo_canonicalBase', j.canonicalBase || '');
+  acfSet('seo_siteName', j.siteName || '');
   var d = j.docs || {};
   acfSet('seo_docs_title', d.title || '');
   acfSet('seo_docs_description', d.description || '');
@@ -36,6 +37,35 @@ function populateSeoFromJson(j) {
   if (incSearch) incSearch.checked = j.includeExtraPagesInSearch !== false;
   var incSite = document.getElementById('seo_includeExtraPagesInSitemap');
   if (incSite) incSite.checked = j.includeExtraPagesInSitemap !== false;
+  var structured = j.structuredData || {};
+  acfSet('seo_struct_orgName', structured.organizationName || '');
+  acfSet('seo_struct_orgLogo', structured.organizationLogo || '');
+  acfSet('seo_struct_sameAs', Array.isArray(structured.sameAs) ? structured.sameAs.join('\n') : '');
+  var verification = j.verification || {};
+  acfSet('seo_ver_googleMeta', verification.googleSiteVerification || '');
+  acfSet('seo_ver_googleFileToken', verification.googleFileToken || '');
+  acfSet('seo_ver_bingMeta', verification.bingSiteVerification || '');
+  acfSet('seo_ver_bingXml', verification.bingXmlContent || '');
+  acfSet('seo_ver_baiduMeta', verification.baiduSiteVerification || '');
+  acfSet('seo_ver_baiduFileName', verification.baiduFileName || '');
+  acfSet('seo_ver_baiduFileContent', verification.baiduFileContent || '');
+  var submission = j.submission || {};
+  var google = submission.google || {};
+  var bing = submission.bing || {};
+  var baidu = submission.baidu || {};
+  acfSet('seo_push_google_property', google.property || '');
+  acfSet('seo_push_google_token', google.accessToken || '');
+  var googleSitemap = document.getElementById('seo_push_google_submitSitemap');
+  if (googleSitemap) googleSitemap.checked = google.submitSitemap !== false;
+  acfSet('seo_push_bing_siteUrl', bing.siteUrl || '');
+  acfSet('seo_push_bing_apiKey', bing.apiKey || '');
+  var bingSitemap = document.getElementById('seo_push_bing_submitSitemap');
+  if (bingSitemap) bingSitemap.checked = bing.submitSitemap !== false;
+  var bingBatch = document.getElementById('seo_push_bing_submitUrlBatch');
+  if (bingBatch) bingBatch.checked = bing.submitUrlBatch !== false;
+  acfSet('seo_push_baidu_site', baidu.site || '');
+  acfSet('seo_push_baidu_token', baidu.token || '');
+  acfSet('seo_push_baidu_type', baidu.type || '');
 }
 
 function collectSeoToObject() {
@@ -48,8 +78,9 @@ function collectSeoToObject() {
   var sitemapAutoEl = document.getElementById('seo_sitemapAuto');
   var sitemapAuto = !sitemapAutoEl || sitemapAutoEl.checked;
   return {
-    version: 1,
+    version: 3,
     canonicalBase: acfGet('seo_canonicalBase').trim(),
+    siteName: acfGet('seo_siteName').trim(),
     docs: {
       title: acfGet('seo_docs_title').trim(),
       description: acfGet('seo_docs_description').trim(),
@@ -77,6 +108,52 @@ function collectSeoToObject() {
       var el = document.getElementById('seo_includeExtraPagesInSitemap');
       return !el || el.checked;
     })(),
+    structuredData: {
+      organizationName: acfGet('seo_struct_orgName').trim(),
+      organizationLogo: acfGet('seo_struct_orgLogo').trim(),
+      sameAs: acfGet('seo_struct_sameAs')
+        .split(/\r?\n/)
+        .map(function (s) {
+          return s.trim();
+        })
+        .filter(Boolean),
+    },
+    verification: {
+      googleSiteVerification: acfGet('seo_ver_googleMeta').trim(),
+      googleFileToken: acfGet('seo_ver_googleFileToken').trim(),
+      bingSiteVerification: acfGet('seo_ver_bingMeta').trim(),
+      bingXmlContent: acfGet('seo_ver_bingXml'),
+      baiduSiteVerification: acfGet('seo_ver_baiduMeta').trim(),
+      baiduFileName: acfGet('seo_ver_baiduFileName').trim(),
+      baiduFileContent: acfGet('seo_ver_baiduFileContent'),
+    },
+    submission: {
+      google: {
+        property: acfGet('seo_push_google_property').trim(),
+        accessToken: acfGet('seo_push_google_token').trim(),
+        submitSitemap: (function () {
+          var el = document.getElementById('seo_push_google_submitSitemap');
+          return !el || el.checked;
+        })(),
+      },
+      bing: {
+        siteUrl: acfGet('seo_push_bing_siteUrl').trim(),
+        apiKey: acfGet('seo_push_bing_apiKey').trim(),
+        submitSitemap: (function () {
+          var el = document.getElementById('seo_push_bing_submitSitemap');
+          return !el || el.checked;
+        })(),
+        submitUrlBatch: (function () {
+          var el = document.getElementById('seo_push_bing_submitUrlBatch');
+          return !el || el.checked;
+        })(),
+      },
+      baidu: {
+        site: acfGet('seo_push_baidu_site').trim(),
+        token: acfGet('seo_push_baidu_token').trim(),
+        type: acfGet('seo_push_baidu_type').trim(),
+      },
+    },
   };
 }
 
